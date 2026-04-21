@@ -1,0 +1,23 @@
+{
+  "name": "初代風モンスター試作",
+  "short_name": "モンスター試作",
+  "description": "非公開の個人用モンスターゲーム試作です。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111316",
+  "theme_color": "#111316",
+  "icons": [
+    {
+      "src": "./assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
