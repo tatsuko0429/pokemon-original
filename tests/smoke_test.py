@@ -196,36 +196,12 @@ async def unlock_preparation_gate(page) -> None:
 
 
 async def advance_battle_until_modal(page):
-    for _ in range(8):
-        await page.waitForFunction(
-            """() => {
-              const appReady = window.MonsterPrototype
-                && window.MonsterPrototype.runtime
-                && window.MonsterPrototype.runtime.store;
-              if (!appReady) {
-                return false;
-              }
-
-              const state = window.MonsterPrototype.runtime.store.snapshot();
-              return state.modal.open
-                || !state.battle
-                || (state.battle.phase === "message" && !state.battle.animation);
-            }""",
-            {"timeout": 5000},
-        )
-        const_state = await page.evaluate(
-            """() => window.MonsterPrototype.runtime.store.snapshot()"""
-        )
-        if const_state["modal"]["open"]:
-            await page.waitForFunction(
-                """() => document.querySelector("#modal-root")?.getAttribute("aria-hidden") === "false" """,
-                {"timeout": 1200},
-            )
-            return await read_field_state(page)
-
-        await press(page, "Enter")
-
-    raise AssertionError("捕獲後の記録ポップが開きません。")
+    await page.waitForFunction(
+        """() => document.querySelector("#modal-root")?.getAttribute("aria-hidden") === "false"
+          && document.querySelector("#modal-title")?.textContent === "捕獲の記録" """,
+        {"timeout": 10000},
+    )
+    return await read_field_state(page)
 
 
 async def read_field_state(page):
@@ -328,6 +304,18 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect("メニューで目的を確認" in initial_state["actionNote"], "操作パネルの案内が想定と違います。")
 
+        await page.evaluate(
+            """() => {
+              window.__vibrationCount = 0;
+              Object.defineProperty(navigator, "vibrate", {
+                configurable: true,
+                value: () => {
+                  window.__vibrationCount += 1;
+                  return true;
+                }
+              });
+            }"""
+        )
         await page.click(".dpad-button.is-right")
         await page.waitForFunction(
             """() => window.MonsterPrototype.runtime.store.snapshot().field.player.x === 11""",
@@ -338,6 +326,38 @@ async def run_smoke_test(base_url: str) -> None:
             """() => window.MonsterPrototype.runtime.store.snapshot().field.player.x === 10""",
             {"timeout": 1600},
         )
+        dpad_points = await page.evaluate(
+            """() => {
+              const up = document.querySelector(".dpad-button.is-up").getBoundingClientRect();
+              const right = document.querySelector(".dpad-button.is-right").getBoundingClientRect();
+              return {
+                up: { x: up.left + up.width / 2, y: up.top + up.height / 2 },
+                right: { x: right.left + right.width / 2, y: right.top + right.height / 2 }
+              };
+            }"""
+        )
+        await page.mouse.move(dpad_points["up"]["x"], dpad_points["up"]["y"])
+        await page.mouse.down()
+        await asyncio.sleep(0.08)
+        active_up_state = await page.evaluate(
+            """() => document.querySelector(".dpad-button.is-up").classList.contains("is-active")"""
+        )
+        await page.mouse.move(dpad_points["right"]["x"], dpad_points["right"]["y"], {"steps": 8})
+        await asyncio.sleep(0.08)
+        active_slide_state = await page.evaluate(
+            """() => ({
+              up: document.querySelector(".dpad-button.is-up").classList.contains("is-active"),
+              right: document.querySelector(".dpad-button.is-right").classList.contains("is-active"),
+              vibrationCount: window.__vibrationCount || 0
+            })"""
+        )
+        await page.mouse.up()
+        expect(active_up_state, "十字キーを押し始めた方向がアクティブ表示になっていません。")
+        expect(
+            active_slide_state["right"] and not active_slide_state["up"],
+            "十字キーを押したまま滑らせても方向が切り替わっていません。",
+        )
+        expect(active_slide_state["vibrationCount"] >= 2, "ボタン操作時の触覚フィードバックが呼び出されていません。")
 
         layout_state = await page.evaluate(
             """() => {
@@ -685,7 +705,7 @@ async def run_smoke_test(base_url: str) -> None:
         await asyncio.sleep(0.2)
         inventory_state = await read_field_state(page)
         expect(inventory_state["modalTitle"] == "アイテム", "アイテム画面に切り替わっていません。")
-        expect("モンスターボール: 5 個" in inventory_state["modalLines"], "アイテム画面にボール数が表示されていません。")
+        expect("モンスターボール: 使い放題" in inventory_state["modalLines"], "アイテム画面にボール使い放題の説明が表示されていません。")
         expect("拾ったもの: 0/1" in inventory_state["modalLines"], "アイテム画面に拾得記録が表示されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
@@ -721,6 +741,7 @@ async def run_smoke_test(base_url: str) -> None:
               caption: document.querySelector("#screen-caption")?.textContent || "",
               captionDisplay: getComputedStyle(document.querySelector("#screen-caption")).display,
               message: document.querySelector("#screen-message")?.textContent || "",
+              battlePanelMessage: document.querySelector(".battle-message-panel")?.textContent || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               shellBottom: document.querySelector(".app-shell").getBoundingClientRect().bottom,
@@ -749,9 +770,14 @@ async def run_smoke_test(base_url: str) -> None:
 
         expect(battle_state["caption"] == EXPECTED_BATTLE_CAPTION, "戦闘画面へ遷移していません。")
         expect(battle_state["captionDisplay"] == "none", "バトル中の画面タイトルがHP表示と重なる状態です。")
-        expect("やせいの" in battle_state["message"], "最初の戦闘メッセージが出ていません。")
+        expect(not battle_state["message"], "バトルメッセージがゲーム画面内に残っています。")
+        expect(battle_state["battlePanelMessage"], "バトルメッセージ枠が操作パネル側に出ていません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
-        expect("つづける" in battle_state["actions"], "戦闘メッセージ送りボタンが見つかりません。")
+        expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
+        expect(
+            all(label in battle_state["actions"] for label in ("たたかう", "ボール", "にげる")),
+            "バトル中の基本コマンドが常時表示されていません。",
+        )
         expect(
             battle_state["shellBottom"] <= battle_state["viewportHeight"] + 1
             and battle_state["scrollHeight"] <= battle_state["viewportHeight"] + 1,
@@ -771,11 +797,9 @@ async def run_smoke_test(base_url: str) -> None:
             "味方側HP表示が味方モンスターの左側に配置されていません。",
         )
 
-        await press(page, "Enter")
-        await asyncio.sleep(0.25)
-        await press(page, "Enter")
         await page.waitForFunction(
-            """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "ボール")""",
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "ボール" && !button.disabled)""",
             {"timeout": 4000},
         )
         await page.evaluate(
@@ -839,7 +863,7 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         expect("モンスターボールを なげた" in capture_state["message"], "捕獲の投球メッセージが表示されていません。")
-        expect(capture_state["balls"] == balls_before_capture - 1, "捕獲時にボール数が減っていません。")
+        expect(capture_state["balls"] == balls_before_capture, "捕獲時にボール数が変化しています。")
         expect(capture_state["captureBall"]["hideEnemy"], "捕獲演出中に相手が隠れていません。")
         capture_record_state = await advance_battle_until_modal(page)
         expect(capture_record_state["modalOpen"], "捕獲後の記録ポップが開いていません。")

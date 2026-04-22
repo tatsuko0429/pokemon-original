@@ -323,7 +323,7 @@
       modal.openModal({
         title: "アイテム",
         lines: [
-          `モンスターボール: ${state.inventory.balls} 個`,
+          "モンスターボール: 使い放題",
           `拾ったもの: ${pickupRecord.collected}/${pickupRecord.total}`,
         ],
         actions: createBackToMenuActions(openMenu),

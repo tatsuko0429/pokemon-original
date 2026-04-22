@@ -475,7 +475,7 @@
         message = state.field.message || "";
         caption = dataRegistryInstance.getMap(state.field.mapId).name;
       } else if (state.scene === "battle" && state.battle) {
-        message = state.battle.currentMessage || "";
+        message = "";
         caption = "やせいとの戦い";
       } else if (state.transition.active) {
         caption = dataRegistryInstance.getMap(state.field.mapId).name;

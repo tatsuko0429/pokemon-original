@@ -13,6 +13,7 @@
   }) {
     const animationConfig = App.config.game.animation;
     const ballConfig = animationConfig.ball;
+    const battleConfig = App.config.game.battle || {};
 
     function getPlayerMonster(state) {
       return state.party[0];
@@ -74,6 +75,7 @@
     function showStep(state, step) {
       input.clearActions();
       state.battle.currentMessage = step ? step.text : "";
+      state.battle.messageElapsedMs = 0;
       state.battle.animation = step ? createAnimation(step.effect) : null;
       input.setActionLock(Boolean(state.battle.animation), { clearQueue: true });
       if (step && step.soundId) {
@@ -135,6 +137,7 @@
           steps: [],
           nextPhase: "command",
           animation: null,
+          messageElapsedMs: 0,
           captureBall: null,
           enemy: enemyMonster,
           display: {
@@ -406,17 +409,6 @@
           return;
         }
 
-        if (state.inventory.balls <= 0) {
-          startSequence(
-            state,
-            [createStep("モンスターボールが ありません。", null, "error")],
-            "command"
-          );
-          return;
-        }
-
-        state.inventory.balls -= 1;
-
         const enemyMonster = state.battle.enemy;
         const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
         const healthRatio = enemyMonster.currentHp / enemyMonster.maxHp;
@@ -454,6 +446,27 @@
         }, "error"));
         queueEnemyTurn(state, steps);
       });
+    }
+
+    function autoAdvanceMessage(deltaMs) {
+      let shouldAdvance = false;
+
+      store.update((state) => {
+        if (!state.battle || state.battle.phase !== "message" || state.battle.animation) {
+          return;
+        }
+
+        state.battle.messageElapsedMs =
+          (state.battle.messageElapsedMs || 0) + deltaMs;
+
+        if (state.battle.messageElapsedMs >= (battleConfig.messageAutoAdvanceMs || 650)) {
+          shouldAdvance = true;
+        }
+      });
+
+      if (shouldAdvance) {
+        advanceMessage();
+      }
     }
 
     function attemptRun() {
@@ -567,19 +580,21 @@
         return;
       }
 
-      if (input.consumeAction("menu")) {
-        openMenu();
+      if (state.battle.phase === "message") {
+        input.clearActions([
+          "confirm",
+          "cancel",
+          "battle_open_move_menu",
+          "battle_throw_ball",
+          "battle_attempt_run",
+          "battle_select_move",
+        ]);
+        autoAdvanceMessage(deltaMs);
         return;
       }
 
-      if (
-        input.consumeAction("confirm") &&
-        state.battle.phase === "message" &&
-        !state.battle.animation
-      ) {
-        input.clearActions();
-        audio.playSe("confirm");
-        advanceMessage();
+      if (input.consumeAction("menu")) {
+        openMenu();
         return;
       }
 

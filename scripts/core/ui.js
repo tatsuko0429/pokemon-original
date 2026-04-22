@@ -102,12 +102,18 @@
     function renderStatus(state) {
       const playerMonster = state.party[0];
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
+      const statusCard = statusStrip.parentElement;
+      const hideStatus = state.scene === "battle";
       const shownHp =
         state.scene === "battle" && state.battle
           ? formatShownHp(state.battle.display.playerHp)
           : playerMonster.currentHp;
+      if (statusCard) {
+        statusCard.classList.toggle("is-hidden", hideStatus);
+      }
       const statusKey = JSON.stringify({
         scene: state.scene,
+        hidden: hideStatus,
         level: playerMonster.level,
         hp: shownHp,
         balls: state.inventory.balls,
@@ -120,13 +126,14 @@
 
       statusStrip.classList.toggle("is-compact", state.scene === "battle");
       statusStrip.innerHTML = "";
-      const items =
-        state.scene === "battle"
-          ? [`ボール ${state.inventory.balls}`]
-          : [
-              `${playerSpecies.name} Lv${playerMonster.level}`,
-              `HP ${shownHp}/${playerMonster.maxHp}`,
-            ];
+      if (hideStatus) {
+        return;
+      }
+
+      const items = [
+        `${playerSpecies.name} Lv${playerMonster.level}`,
+        `HP ${shownHp}/${playerMonster.maxHp}`,
+      ];
 
       items.forEach((text) => {
         const pill = document.createElement("div");
@@ -154,10 +161,12 @@
       const right = createButton("右", "dpad-button is-right");
       const down = createButton("下", "dpad-button is-down");
 
-      input.attachDirectionButton(up, "up");
-      input.attachDirectionButton(left, "left");
-      input.attachDirectionButton(right, "right");
-      input.attachDirectionButton(down, "down");
+      input.attachDirectionalPad(dPad, {
+        up,
+        right,
+        down,
+        left,
+      });
 
       dPad.appendChild(document.createElement("div")).className = "direction-spacer";
       dPad.appendChild(up);
@@ -239,6 +248,29 @@
       return card;
     }
 
+    function createBattleCommandButtons(disabled) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "battle-buttons";
+
+      const fight = createButton("たたかう", "", null, disabled);
+      const ball = createButton("ボール", "", null, disabled);
+      const run = createButton("にげる", "is-subtle", null, disabled);
+      const menu = createButton("メニュー", "is-subtle is-menu", null, disabled);
+
+      if (!disabled) {
+        input.attachActionButton(fight, "battle_open_move_menu");
+        input.attachActionButton(ball, "battle_throw_ball");
+        input.attachActionButton(run, "battle_attempt_run");
+        input.attachActionButton(menu, "menu");
+      }
+
+      wrapper.appendChild(fight);
+      wrapper.appendChild(ball);
+      wrapper.appendChild(run);
+      wrapper.appendChild(menu);
+      return wrapper;
+    }
+
     function renderBattleOverlay(state) {
       if (state.scene !== "battle" || !state.battle) {
         battleOverlay.classList.add("is-hidden");
@@ -290,39 +322,32 @@
     }
 
     function renderBattleControls(state) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "battle-buttons";
       const battle = state.battle;
       const animationActive = Boolean(battle.animation) || state.transition.active;
+      const panel = document.createElement("div");
+      panel.className = "battle-panel";
+
+      const message = document.createElement("div");
+      message.className = "battle-message-panel";
+      message.setAttribute("aria-live", "polite");
+      message.textContent =
+        battle.currentMessage ||
+        (battle.phase === "moveSelect" ? "技を選んでください。" : "コマンドを選んでください。");
+      panel.appendChild(message);
 
       if (battle.phase === "message") {
-        wrapper.classList.add("is-message");
-        const confirm = createButton("つづける", "", null, animationActive);
-        input.attachActionButton(confirm, "confirm");
-        wrapper.appendChild(confirm);
-        return wrapper;
+        panel.appendChild(createBattleCommandButtons(true));
+        return panel;
       }
 
       if (battle.phase === "command") {
-        const fight = createButton("たたかう");
-        const ball = createButton("ボール");
-        const run = createButton("にげる", "is-subtle");
-        const menu = createButton("メニュー", "is-subtle is-menu");
-
-        input.attachActionButton(fight, "battle_open_move_menu");
-        input.attachActionButton(ball, "battle_throw_ball");
-        input.attachActionButton(run, "battle_attempt_run");
-        input.attachActionButton(menu, "menu");
-
-        wrapper.appendChild(fight);
-        wrapper.appendChild(ball);
-        wrapper.appendChild(run);
-        wrapper.appendChild(menu);
-        return wrapper;
+        panel.appendChild(createBattleCommandButtons(animationActive));
+        return panel;
       }
 
       if (battle.phase === "moveSelect") {
-        wrapper.classList.add("is-move-select");
+        const wrapper = document.createElement("div");
+        wrapper.className = "battle-buttons is-move-select";
         const playerMonster = state.party[0];
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
@@ -334,14 +359,12 @@
         const back = createButton("もどる", "is-subtle");
         input.attachActionButton(back, "cancel");
         wrapper.appendChild(back);
-        return wrapper;
+        panel.appendChild(wrapper);
+        return panel;
       }
 
-      wrapper.classList.add("is-single");
-      const confirm = createButton("つづける");
-      input.attachActionButton(confirm, "confirm");
-      wrapper.appendChild(confirm);
-      return wrapper;
+      panel.appendChild(createBattleCommandButtons(true));
+      return panel;
     }
 
     function renderActionPanel(state) {

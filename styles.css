@@ -396,6 +396,10 @@ select {
     inset 0 -1px 0 rgba(0, 0, 0, 0.65);
 }
 
+.status-card.is-hidden {
+  display: none;
+}
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
@@ -480,6 +484,7 @@ select {
   grid-template-rows: repeat(3, 1fr);
   gap: 0;
   filter: drop-shadow(0 8px 8px rgba(7, 9, 11, 0.28));
+  touch-action: none;
 }
 
 .direction-spacer {
@@ -498,14 +503,42 @@ select {
 .action-buttons {
   grid-area: face;
   justify-self: center;
-  width: min(48vw, 194px);
+  width: min(45vw, 180px);
   display: grid;
   grid-template-areas:
     "b a"
     "menu menu";
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
+  gap: 10px 6px;
   align-items: center;
+}
+
+.battle-panel {
+  display: grid;
+  grid-template-rows: minmax(72px, 1fr) auto;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+
+.battle-message-panel {
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(247, 249, 235, 0.96), rgba(220, 226, 199, 0.96));
+  color: #181d18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: clamp(0.78rem, 3vw, 0.96rem);
+  font-weight: 900;
+  line-height: 1.45;
+  box-shadow:
+    0 4px 0 rgba(10, 12, 14, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .battle-buttons {
@@ -557,6 +590,7 @@ select {
   padding: 0;
   border: 0;
   border-radius: 11px;
+  touch-action: none;
   background:
     linear-gradient(180deg, #3b3e45, #111214);
   color: rgba(255, 255, 255, 0.58);
@@ -610,6 +644,7 @@ select {
   grid-area: menu;
   min-height: 28px;
   padding: 4px 10px;
+  margin-top: 4px;
   border-radius: 999px;
   background:
     linear-gradient(180deg, #545b62, #252a30);
@@ -687,6 +722,7 @@ select {
 
 .control-button[disabled] {
   pointer-events: none;
+  opacity: 0.52;
 }
 
 .modal-root {
@@ -800,8 +836,18 @@ select {
   }
 
   .action-buttons {
-    width: min(47vw, 178px);
-    gap: 8px 10px;
+    width: min(44vw, 168px);
+    gap: 8px 6px;
+  }
+
+  .battle-panel {
+    grid-template-rows: minmax(62px, 1fr) auto;
+    gap: 7px;
+  }
+
+  .battle-message-panel {
+    min-height: 62px;
+    padding: 8px 10px;
   }
 
   .control-button.face-button {

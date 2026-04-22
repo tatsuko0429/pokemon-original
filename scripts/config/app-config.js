@@ -13,6 +13,9 @@
       encounterCooldownSteps: 2,
       blockedFeedbackCooldownMs: 420,
     },
+    battle: {
+      messageAutoAdvanceMs: 650,
+    },
     field: {
       startMapId: "camera_route",
     },
