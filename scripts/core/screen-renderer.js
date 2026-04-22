@@ -444,6 +444,7 @@
       messageElement.textContent = message.replace(/\\n/g, "\n");
       messageElement.classList.toggle("is-hidden", message.length === 0);
       captionElement.textContent = caption;
+      captionElement.classList.toggle("is-battle", state.scene === "battle");
     }
 
     function render(state) {

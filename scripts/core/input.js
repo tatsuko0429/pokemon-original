@@ -109,8 +109,27 @@
       }
     }
 
+    function isTextEditingTarget(target) {
+      return Boolean(
+        target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable)
+      );
+    }
+
+    function suppressTextGesture(event) {
+      if (!isTextEditingTarget(event.target)) {
+        event.preventDefault();
+      }
+    }
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("selectstart", suppressTextGesture);
+    document.addEventListener("dragstart", suppressTextGesture);
+    document.addEventListener("contextmenu", suppressTextGesture);
 
     return {
       consumeAction(expectedAction) {

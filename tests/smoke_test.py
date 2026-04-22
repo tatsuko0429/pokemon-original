@@ -345,13 +345,17 @@ async def run_smoke_test(base_url: str) -> None:
               const screen = document.querySelector(".screen-card").getBoundingClientRect();
               const dpad = document.querySelector(".direction-pad").getBoundingClientRect();
               const faceButton = document.querySelector(".face-button").getBoundingClientRect();
+              const menuButton = document.querySelector(".system-button").getBoundingClientRect();
               return {
                 viewportHeight: window.innerHeight,
+                scrollHeight: document.documentElement.scrollHeight,
+                bodyScrollHeight: document.body.scrollHeight,
                 shellTop: shell.top,
                 shellBottom: shell.bottom,
                 screenHeight: screen.height,
                 dpadWidth: dpad.width,
-                faceButtonWidth: faceButton.width
+                faceButtonWidth: faceButton.width,
+                menuButtonHeight: menuButton.height
               };
             }"""
         )
@@ -360,9 +364,15 @@ async def run_smoke_test(base_url: str) -> None:
             layout_state["shellBottom"] <= layout_state["viewportHeight"] + 1,
             "本体UIがスマホ画面内に収まっていません。",
         )
-        expect(layout_state["screenHeight"] >= 250, "ゲーム画面が小さすぎます。")
-        expect(layout_state["dpadWidth"] >= 100, "十字キーが小さすぎます。")
-        expect(layout_state["faceButtonWidth"] >= 50, "A/Bボタンが小さすぎます。")
+        expect(
+            layout_state["scrollHeight"] <= layout_state["viewportHeight"] + 1
+            and layout_state["bodyScrollHeight"] <= layout_state["viewportHeight"] + 1,
+            "スマホ表示でページが縦スクロール可能になっています。",
+        )
+        expect(layout_state["screenHeight"] >= 260, "ゲーム画面が小さすぎます。")
+        expect(layout_state["dpadWidth"] >= 130, "十字キーが小さすぎます。")
+        expect(layout_state["faceButtonWidth"] >= 72, "A/Bボタンが小さすぎます。")
+        expect(layout_state["menuButtonHeight"] <= 42, "メニューボタンが大きすぎます。")
 
         for key in ROUTE_TO_SQUARE:
             await press(page, key)
@@ -664,16 +674,39 @@ async def run_smoke_test(base_url: str) -> None:
         battle_state = await page.evaluate(
             """() => ({
               caption: document.querySelector("#screen-caption")?.textContent || "",
+              captionDisplay: getComputedStyle(document.querySelector("#screen-caption")).display,
               message: document.querySelector("#screen-message")?.textContent || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
-              actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent)
+              actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
+              shellBottom: document.querySelector(".app-shell").getBoundingClientRect().bottom,
+              viewportHeight: window.innerHeight,
+              scrollHeight: document.documentElement.scrollHeight,
+              enemyCard: (() => {
+                const rect = document.querySelector(".battle-card.is-enemy")?.getBoundingClientRect();
+                return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null;
+              })(),
+              playerCard: (() => {
+                const rect = document.querySelector(".battle-card.is-player")?.getBoundingClientRect();
+                return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null;
+              })()
             })"""
         )
 
         expect(battle_state["caption"] == EXPECTED_BATTLE_CAPTION, "戦闘画面へ遷移していません。")
+        expect(battle_state["captionDisplay"] == "none", "バトル中の画面タイトルがHP表示と重なる状態です。")
         expect("やせいの" in battle_state["message"], "最初の戦闘メッセージが出ていません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" in battle_state["actions"], "戦闘メッセージ送りボタンが見つかりません。")
+        expect(
+            battle_state["shellBottom"] <= battle_state["viewportHeight"] + 1
+            and battle_state["scrollHeight"] <= battle_state["viewportHeight"] + 1,
+            "バトル画面でスマホ表示が縦スクロール可能になっています。",
+        )
+        expect(
+            battle_state["enemyCard"] and battle_state["playerCard"]
+            and battle_state["enemyCard"]["bottom"] < battle_state["playerCard"]["top"],
+            "バトル画面のHP表示カード同士が重なっています。",
+        )
 
         await press(page, "Enter")
         await asyncio.sleep(0.25)
