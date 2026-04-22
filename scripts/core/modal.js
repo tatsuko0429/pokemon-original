@@ -65,10 +65,35 @@
 
       getActions(modal).forEach((action) => {
         const button = document.createElement("button");
+        let handledByPointer = false;
         button.type = "button";
         button.className = `modal-button ${action.variant || ""}`.trim();
         button.textContent = action.label;
-        button.addEventListener("click", () => {
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          button.classList.add("is-active");
+          if (button.setPointerCapture && event.pointerId !== undefined) {
+            button.setPointerCapture(event.pointerId);
+          }
+        });
+        button.addEventListener("pointerup", (event) => {
+          event.preventDefault();
+          button.classList.remove("is-active");
+          handledByPointer = true;
+          selectAction(action.id);
+        });
+        button.addEventListener("pointerleave", () => {
+          button.classList.remove("is-active");
+        });
+        button.addEventListener("pointercancel", () => {
+          button.classList.remove("is-active");
+        });
+        button.addEventListener("click", (event) => {
+          if (handledByPointer) {
+            handledByPointer = false;
+            event.preventDefault();
+            return;
+          }
           selectAction(action.id);
         });
         actionsRoot.appendChild(button);

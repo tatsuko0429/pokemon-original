@@ -369,10 +369,55 @@ async def run_smoke_test(base_url: str) -> None:
             and layout_state["bodyScrollHeight"] <= layout_state["viewportHeight"] + 1,
             "スマホ表示でページが縦スクロール可能になっています。",
         )
-        expect(layout_state["screenHeight"] >= 260, "ゲーム画面が小さすぎます。")
+        expect(layout_state["screenHeight"] >= 280, "ゲーム画面が小さすぎます。")
         expect(layout_state["dpadWidth"] >= 130, "十字キーが小さすぎます。")
-        expect(layout_state["faceButtonWidth"] >= 72, "A/Bボタンが小さすぎます。")
-        expect(layout_state["menuButtonHeight"] <= 42, "メニューボタンが大きすぎます。")
+        expect(58 <= layout_state["faceButtonWidth"] <= 82, "A/Bボタンのサイズが想定範囲外です。")
+        expect(layout_state["menuButtonHeight"] <= 30, "メニューボタンが大きすぎます。")
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.field.player.x = 10;
+              state.field.player.y = 10;
+              state.field.player.fromX = 10;
+              state.field.player.fromY = 10;
+              state.field.player.toX = 10;
+              state.field.player.toY = 10;
+              state.field.player.moving = false;
+              state.field.player.progress = 0;
+              state.field.message = "";
+            })"""
+        )
+        b_button_center = await page.evaluate(
+            """() => {
+              const rect = document.querySelector(".face-button.is-b").getBoundingClientRect();
+              return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            }"""
+        )
+        await page.mouse.move(b_button_center["x"], b_button_center["y"])
+        await page.mouse.down()
+        await page.keyboard.down("ArrowRight")
+        await asyncio.sleep(0.11)
+        run_state = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.snapshot().field.player"""
+        )
+        await page.keyboard.up("ArrowRight")
+        await page.mouse.up()
+        expect(
+            run_state["x"] >= 11,
+            "Bボタンを押しながら移動しても走り状態の速度になっていません。",
+        )
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.field.player.x = 10;
+              state.field.player.y = 10;
+              state.field.player.fromX = 10;
+              state.field.player.fromY = 10;
+              state.field.player.toX = 10;
+              state.field.player.toY = 10;
+              state.field.player.moving = false;
+              state.field.player.progress = 0;
+            })"""
+        )
 
         for key in ROUTE_TO_SQUARE:
             await press(page, key)
@@ -681,6 +726,16 @@ async def run_smoke_test(base_url: str) -> None:
               shellBottom: document.querySelector(".app-shell").getBoundingClientRect().bottom,
               viewportHeight: window.innerHeight,
               scrollHeight: document.documentElement.scrollHeight,
+              battlePoints: (() => {
+                const screen = document.querySelector(".screen-wrap").getBoundingClientRect();
+                const layout = window.MonsterPrototype.config.game.battleLayout;
+                return {
+                  enemyX: screen.left + screen.width * (layout.enemy.monsterX / 160),
+                  enemyY: screen.top + screen.height * (layout.enemy.monsterY / 144),
+                  playerX: screen.left + screen.width * (layout.player.monsterX / 160),
+                  playerY: screen.top + screen.height * (layout.player.monsterY / 144)
+                };
+              })(),
               enemyCard: (() => {
                 const rect = document.querySelector(".battle-card.is-enemy")?.getBoundingClientRect();
                 return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null;
@@ -706,6 +761,14 @@ async def run_smoke_test(base_url: str) -> None:
             battle_state["enemyCard"] and battle_state["playerCard"]
             and battle_state["enemyCard"]["bottom"] < battle_state["playerCard"]["top"],
             "バトル画面のHP表示カード同士が重なっています。",
+        )
+        expect(
+            battle_state["enemyCard"]["left"] > battle_state["battlePoints"]["enemyX"],
+            "相手側HP表示が相手モンスターの右側に配置されていません。",
+        )
+        expect(
+            battle_state["playerCard"]["right"] < battle_state["battlePoints"]["playerX"],
+            "味方側HP表示が味方モンスターの左側に配置されていません。",
         )
 
         await press(page, "Enter")

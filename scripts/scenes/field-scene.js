@@ -20,6 +20,7 @@
 
     const tileConfig = App.config.game.fieldTiles;
     const moveDuration = App.config.game.timing.moveDurationMs;
+    const runMoveDuration = App.config.game.timing.runMoveDurationMs || moveDuration * 0.62;
     const fieldAnimation = App.config.game.animation.field || {};
     const blockedFeedbackCooldownMs =
       App.config.game.timing.blockedFeedbackCooldownMs || 420;
@@ -343,10 +344,11 @@
 
       if (state.field.player.moving) {
         let pendingResult = null;
+        const currentMoveDuration = input.isHoldActive("run") ? runMoveDuration : moveDuration;
         store.update((nextState) => {
           nextState.field.player.progress = Math.min(
             1,
-            nextState.field.player.progress + deltaMs / moveDuration
+            nextState.field.player.progress + deltaMs / currentMoveDuration
           );
           if (nextState.field.player.progress >= 1) {
             pendingResult = completeMove(nextState);

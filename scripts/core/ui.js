@@ -176,11 +176,15 @@
         state.field.message ? "A つづける" : "A 決定",
         "face-button is-a"
       );
-      const cancel = createButton("B 戻る", "face-button is-b", null, !state.field.message);
-      const menu = createButton("メニュー", "system-button");
+      const cancel = createButton(state.field.message ? "B 戻る" : "B 走る", "face-button is-b");
+      const menu = createButton("メニュー", "system-button is-menu");
 
       input.attachActionButton(confirm, "confirm");
-      input.attachActionButton(cancel, "cancel");
+      if (state.field.message) {
+        input.attachActionButton(cancel, "cancel");
+      } else {
+        input.attachHoldButton(cancel, "run");
+      }
       input.attachActionButton(menu, "menu");
 
       actionButtons.appendChild(confirm);
@@ -303,7 +307,7 @@
         const fight = createButton("たたかう");
         const ball = createButton("ボール");
         const run = createButton("にげる", "is-subtle");
-        const menu = createButton("メニュー", "is-subtle");
+        const menu = createButton("メニュー", "is-subtle is-menu");
 
         input.attachActionButton(fight, "battle_open_move_menu");
         input.attachActionButton(ball, "battle_throw_ball");
@@ -369,6 +373,7 @@
 
     function render() {
       const state = store.getState();
+      document.body.classList.toggle("is-battle-scene", state.scene === "battle");
       renderScreenTimer(state);
       renderStatus(state);
       renderBattleOverlay(state);

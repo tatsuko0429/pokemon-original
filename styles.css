@@ -19,7 +19,8 @@
   --button-face-hi: #5b5e67;
   --button-shadow: rgba(5, 7, 9, 0.4);
   --accent-red: #9b3638;
-  --screen-ratio: calc(160 / 144);
+  --screen-ratio: calc(160 / 154);
+  --battle-screen-ratio: calc(160 / 168);
   --safe-padding: max(6px, env(safe-area-inset-left));
   --safe-padding-right: max(6px, env(safe-area-inset-right));
 }
@@ -27,6 +28,9 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 html,
@@ -53,8 +57,8 @@ body {
 }
 
 body {
-  height: 100dvh;
   height: 100svh;
+  height: 100dvh;
   min-height: 100svh;
   display: flex;
   align-items: center;
@@ -109,13 +113,7 @@ select {
 }
 
 .app-shell::after {
-  right: 18px;
-  bottom: 18px;
-  width: 68px;
-  height: 30px;
-  opacity: 0.42;
-  background:
-    radial-gradient(circle, rgba(28, 31, 33, 0.95) 0 2px, transparent 3px) 0 0 / 12px 10px;
+  display: none;
 }
 
 .app-header,
@@ -207,6 +205,14 @@ select {
     inset 0 0 24px rgba(38, 45, 29, 0.2);
 }
 
+.is-battle-scene .screen-wrap {
+  aspect-ratio: var(--battle-screen-ratio);
+}
+
+.is-battle-scene .screen-card {
+  padding-block: 5px;
+}
+
 #game-screen {
   width: 100%;
   height: 100%;
@@ -231,8 +237,8 @@ select {
 
 .battle-card {
   position: absolute;
-  min-width: 41%;
-  padding: 6px 7px 7px;
+  min-width: 36%;
+  padding: 5px 6px 6px;
   border: 3px solid var(--line);
   border-radius: 10px;
   background: rgba(245, 248, 233, 0.94);
@@ -240,28 +246,28 @@ select {
 }
 
 .battle-card.is-enemy {
-  top: 8px;
-  left: 8px;
-  width: 43%;
+  top: 12%;
+  right: 6px;
+  width: 42%;
 }
 
 .battle-card.is-player {
-  right: 8px;
-  bottom: 44px;
-  width: 48%;
+  left: 6px;
+  bottom: 17%;
+  width: 44%;
 }
 
 .battle-card-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 5px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
 .battle-name {
   min-width: 0;
-  font-size: 0.72rem;
+  font-size: clamp(0.62rem, 2.35vw, 0.72rem);
   font-weight: 900;
   line-height: 1.2;
   overflow: hidden;
@@ -271,7 +277,7 @@ select {
 
 .battle-level {
   flex-shrink: 0;
-  font-size: 0.64rem;
+  font-size: clamp(0.55rem, 2.1vw, 0.64rem);
   font-weight: 900;
   color: var(--muted);
 }
@@ -290,7 +296,7 @@ select {
 
 .battle-hp-track {
   width: 100%;
-  height: 8px;
+  height: 7px;
   border-radius: 999px;
   overflow: hidden;
   border: 2px solid var(--line);
@@ -307,7 +313,7 @@ select {
 }
 
 .battle-hp-value {
-  font-size: 0.58rem;
+  font-size: clamp(0.54rem, 2.1vw, 0.62rem);
   font-weight: 900;
   color: var(--text);
   text-align: right;
@@ -426,16 +432,7 @@ select {
 }
 
 .action-card::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 34px;
-  width: 74px;
-  height: 12px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgba(62, 68, 72, 0.38);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  display: none;
 }
 
 .action-panel {
@@ -543,6 +540,8 @@ select {
     inset 0 1px 0 rgba(255, 255, 255, 0.58);
   touch-action: manipulation;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
 }
 
 .control-button:active,
@@ -578,7 +577,7 @@ select {
 .control-button.face-button {
   aspect-ratio: 1;
   min-height: auto;
-  width: min(23vw, 88px);
+  width: min(20vw, 78px);
   padding: 0;
   border-radius: 50%;
   justify-self: center;
@@ -620,6 +619,23 @@ select {
   box-shadow:
     0 4px 0 rgba(8, 10, 12, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.control-button.is-menu {
+  justify-self: center;
+  width: min(30vw, 92px);
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.battle-buttons .control-button.is-menu {
+  width: min(32vw, 112px);
+  min-height: 34px;
+  align-self: center;
 }
 
 .control-button.is-subtle {
@@ -737,6 +753,8 @@ select {
   color: var(--text);
   touch-action: manipulation;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
 }
 
 .modal-button.is-subtle {
@@ -787,7 +805,7 @@ select {
   }
 
   .control-button.face-button {
-    width: min(21vw, 76px);
+    width: min(18vw, 68px);
   }
 
   .control-button {
@@ -797,6 +815,12 @@ select {
   .control-button.system-button {
     min-height: 26px;
     padding: 3px 10px;
+  }
+
+  .control-button.is-menu {
+    width: min(28vw, 82px);
+    min-height: 20px;
+    padding: 2px 8px;
   }
 }
 

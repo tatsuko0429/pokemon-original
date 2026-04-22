@@ -6,6 +6,7 @@
     const deliveredDirections = new Set();
     const directionQueue = [];
     const actionQueue = [];
+    const activeHolds = new Set();
     const directionOrder = ["up", "right", "down", "left"];
     let actionsLocked = false;
 
@@ -48,11 +49,16 @@
       directionQueue.length = 0;
     }
 
+    function clearHolds() {
+      activeHolds.clear();
+    }
+
     function setActionLock(locked, options) {
       actionsLocked = Boolean(locked);
       if (options && options.clearQueue) {
         clearActions();
         clearDirections();
+        clearHolds();
       }
     }
 
@@ -77,8 +83,17 @@
         }
         queueAction("confirm");
         event.preventDefault();
-      } else if (["x", "X", "Backspace", "Escape"].includes(key)) {
+      } else if (["x", "X"].includes(key)) {
+        activeHolds.add("run");
         if (event.repeat) {
+          event.preventDefault();
+          return;
+        }
+        queueAction("cancel");
+        event.preventDefault();
+      } else if (["Backspace", "Escape"].includes(key)) {
+        if (event.repeat) {
+          event.preventDefault();
           return;
         }
         queueAction("cancel");
@@ -106,6 +121,8 @@
       } else if (["ArrowLeft", "a", "A"].includes(key)) {
         activeDirections.delete("left");
         deliveredDirections.delete("left");
+      } else if (["x", "X"].includes(key)) {
+        activeHolds.delete("run");
       }
     }
 
@@ -180,14 +197,66 @@
         button.addEventListener("pointercancel", deactivate);
       },
       attachActionButton(button, action, payload) {
-        button.addEventListener("click", () => {
+        let handledByPointer = false;
+        const activate = (event) => {
+          event.preventDefault();
+          button.classList.add("is-active");
+          if (button.setPointerCapture && event.pointerId !== undefined) {
+            button.setPointerCapture(event.pointerId);
+          }
+        };
+        const release = (event) => {
+          event.preventDefault();
+          button.classList.remove("is-active");
+          handledByPointer = true;
+          queueAction(action, payload);
+        };
+        const cancel = () => {
+          button.classList.remove("is-active");
+        };
+
+        button.addEventListener("pointerdown", activate);
+        button.addEventListener("pointerup", release);
+        button.addEventListener("pointerleave", cancel);
+        button.addEventListener("pointercancel", cancel);
+        button.addEventListener("click", (event) => {
+          if (handledByPointer) {
+            handledByPointer = false;
+            event.preventDefault();
+            return;
+          }
           queueAction(action, payload);
         });
+      },
+      attachHoldButton(button, holdName) {
+        const activate = (event) => {
+          event.preventDefault();
+          activeHolds.add(holdName);
+          button.classList.add("is-active");
+          if (button.setPointerCapture && event.pointerId !== undefined) {
+            button.setPointerCapture(event.pointerId);
+          }
+        };
+        const release = (event) => {
+          if (event) {
+            event.preventDefault();
+          }
+          activeHolds.delete(holdName);
+          button.classList.remove("is-active");
+        };
+
+        button.addEventListener("pointerdown", activate);
+        button.addEventListener("pointerup", release);
+        button.addEventListener("pointerleave", release);
+        button.addEventListener("pointercancel", release);
       },
       clearActions,
       setActionLock,
       isActionLocked() {
         return actionsLocked;
+      },
+      isHoldActive(holdName) {
+        return activeHolds.has(holdName);
       },
       clearDirections,
     };

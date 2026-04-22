@@ -364,17 +364,51 @@
       drawBallSprite(state.battle.captureBall);
     }
 
+    function getBattleLayout() {
+      return App.config.game.battleLayout || {
+        groundY: 86,
+        groundHeight: 18,
+        enemy: {
+          monsterX: 40,
+          monsterY: 49,
+          shadowX: 38,
+          shadowY: 62,
+          shadowWidth: 28,
+          shadowHeight: 8,
+        },
+        player: {
+          monsterX: 118,
+          monsterY: 78,
+          shadowX: 118,
+          shadowY: 92,
+          shadowWidth: 34,
+          shadowHeight: 10,
+        },
+      };
+    }
+
+    function drawBattleShadow(position) {
+      ctx.beginPath();
+      ctx.ellipse(
+        position.shadowX,
+        position.shadowY,
+        position.shadowWidth,
+        position.shadowHeight,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
     function drawBattle(state) {
+      const layout = getBattleLayout();
       clear(palette.battleBg || "#ded7bf");
       ctx.fillStyle = palette.battleGround || "#c3b27a";
-      ctx.fillRect(0, 86, screen.width, 18);
+      ctx.fillRect(0, layout.groundY, screen.width, layout.groundHeight);
       ctx.fillStyle = palette.battleShadow || "#7b7f62";
-      ctx.beginPath();
-      ctx.ellipse(38, 62, 28, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(118, 92, 34, 10, 0, 0, Math.PI * 2);
-      ctx.fill();
+      drawBattleShadow(layout.enemy);
+      drawBattleShadow(layout.player);
 
       const playerMonster = state.party[0];
       const enemyMonster = state.battle.enemy;
@@ -385,7 +419,10 @@
 
       if (!shouldHideMonster(state, "enemy")) {
         drawBattleMonster(
-          { x: 40 + enemyOffset.x, y: 49 + enemyOffset.y },
+          {
+            x: layout.enemy.monsterX + enemyOffset.x,
+            y: layout.enemy.monsterY + enemyOffset.y,
+          },
           enemySpecies,
           "front"
         );
@@ -393,7 +430,10 @@
 
       if (!shouldHideMonster(state, "player")) {
         drawBattleMonster(
-          { x: 118 + playerOffset.x, y: 78 + playerOffset.y },
+          {
+            x: layout.player.monsterX + playerOffset.x,
+            y: layout.player.monsterY + playerOffset.y,
+          },
           playerSpecies,
           "back"
         );
