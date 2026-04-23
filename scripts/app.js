@@ -34,6 +34,7 @@
         open: false,
         title: "",
         lines: [],
+        sections: [],
         buttonLabel: "閉じる",
         actions: [],
         dismissible: true,
@@ -62,7 +63,7 @@
       battle: null,
       party: [starter],
       inventory: {
-        balls: 5,
+        fullHealCount: 0,
       },
       collection: {
         capturedSpeciesIds: [],
@@ -110,20 +111,8 @@
     };
   }
 
-  function formatCapturedRecordLines(state, dataRegistry) {
-    const capturedSpeciesIds = state.collection.capturedSpeciesIds || [];
-    if (capturedSpeciesIds.length === 0) {
-      return ["まだ図鑑には記録がありません。草むらで出会った相手をつかまえると、ここに記録されます。"];
-    }
-
-    return capturedSpeciesIds.map((speciesId) => {
-      const species = dataRegistry.getSpecies(speciesId);
-      if (!species) {
-        return speciesId;
-      }
-
-      return `${species.name} / タイプ: ${species.types.join(" / ")}`;
-    });
+  function getCapturedSpeciesIds(state) {
+    return Array.from(new Set((state.collection && state.collection.capturedSpeciesIds) || []));
   }
 
   function formatSavedAt(savedInfo) {
@@ -164,6 +153,7 @@
   }
 
   function boot() {
+    const shell = document.querySelector(".app-shell");
     const screen = document.getElementById("game-screen");
     const message = document.getElementById("screen-message");
     const caption = document.getElementById("screen-caption");
@@ -215,11 +205,113 @@
     const getCurrentObjectiveText = (state) => getObjectiveText(state, dataRegistry);
     let startChoicePending = shouldAskStartChoice;
 
+    function buildMonsterPreviewSection(species, caption) {
+      if (!species || !species.spriteIds || !species.spriteIds.battleFront) {
+        return [];
+      }
+
+      return [
+        {
+          kind: "monsterPreview",
+          spriteId: species.spriteIds.battleFront,
+          caption: caption || species.name,
+          backgroundColor: species.palette && species.palette.secondary,
+        },
+      ];
+    }
+
+    function getMoveSummaryLines(monster) {
+      return monster.moveIds.map((moveId, index) => {
+        const move = dataRegistry.getMove(moveId);
+        return `${move.name} / ${move.type} / PP ${monster.currentPp[index]}/${move.pp}`;
+      });
+    }
+
+    function canUseFullHeal(state) {
+      const playerMonster = state.party[0];
+      return Boolean(
+        playerMonster &&
+          state.inventory.fullHealCount > 0 &&
+          playerMonster.currentHp < playerMonster.maxHp
+      );
+    }
+
+    function consumeFieldFullHeal() {
+      let used = false;
+
+      store.update((state) => {
+        if (!canUseFullHeal(state)) {
+          return;
+        }
+
+        const playerMonster = state.party[0];
+        state.inventory.fullHealCount -= 1;
+        playerMonster.currentHp = playerMonster.maxHp;
+        state.field.message = "回復薬を つかった！\nHPが ぜんかいふく した！";
+        used = true;
+      });
+
+      if (used) {
+        modal.closeModal({ force: true, silent: true });
+        audio.playSe("heal");
+      }
+    }
+
+    function createBackToObservationActions(openObservationMenu) {
+      return [
+        {
+          id: "back_to_records",
+          label: "図鑑へ戻る",
+          onSelect: openObservationMenu,
+        },
+        {
+          id: "back_to_menu",
+          label: "メニューへ",
+          variant: "is-subtle",
+          onSelect: openMenu,
+        },
+        {
+          id: "close",
+          label: "閉じる",
+          variant: "is-subtle",
+        },
+      ];
+    }
+
+    function spawnTapRipple(event) {
+      if (!shell || !event || !["touch", "pen"].includes(event.pointerType)) {
+        return;
+      }
+
+      const rect = shell.getBoundingClientRect();
+      const ripple = document.createElement("span");
+      ripple.className = "tap-ripple";
+      ripple.style.left = `${event.clientX - rect.left}px`;
+      ripple.style.top = `${event.clientY - rect.top}px`;
+      ripple.addEventListener("animationend", () => {
+        ripple.remove();
+      });
+      shell.appendChild(ripple);
+    }
+
+    if (shell) {
+      shell.addEventListener("pointerdown", spawnTapRipple);
+    }
+
     function openStoryIntro() {
       const storyConfig = App.config.game.story || {};
       modal.openModal({
-        title: storyConfig.introTitle || "ルール説明",
-        lines: storyConfig.introLines || [],
+        title: storyConfig.introTitle || "ルール",
+        lines: [storyConfig.introLead || "この5分は、自由に準備する時間です。"],
+        sections: [
+          {
+            kind: "ruleBox",
+            items: storyConfig.introRules || [],
+            footer:
+              storyConfig.introFooter ||
+              "レベル上げでも、モンスター探しでも、好きに試してください。",
+          },
+        ],
         dismissible: false,
         actions: [
           {
@@ -288,18 +380,17 @@
       const state = store.getState();
       const playerMonster = state.party[0];
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
-      const moveLines = playerMonster.moveIds.map((moveId, index) => {
-        const move = dataRegistry.getMove(moveId);
-        return `${move.name} / ${move.type} / PP ${playerMonster.currentPp[index]}/${move.pp}`;
-      });
 
       audio.playSe("confirm");
       modal.openModal({
         title: "手持ち",
+        sections: buildMonsterPreviewSection(
+          playerSpecies,
+          `${playerSpecies.name} Lv${playerMonster.level}`
+        ),
         lines: [
-          `${playerSpecies.name} Lv${playerMonster.level}`,
           `HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
-          ...moveLines,
+          ...getMoveSummaryLines(playerMonster),
         ],
         actions: createBackToMenuActions(openMenu),
       });
@@ -319,24 +410,86 @@
     function openInventoryMenu() {
       const state = store.getState();
       const pickupRecord = countPickupRecords(state);
+      const actions = [];
+      if (canUseFullHeal(state)) {
+        actions.push({
+          id: "use_full_heal",
+          label: "回復薬を使う",
+          onSelect: consumeFieldFullHeal,
+        });
+      }
+      actions.push(...createBackToMenuActions(openMenu));
       audio.playSe("confirm");
       modal.openModal({
         title: "アイテム",
         lines: [
           "モンスターボール: 使い放題",
+          `回復薬: ${state.inventory.fullHealCount} 個`,
           `拾ったもの: ${pickupRecord.collected}/${pickupRecord.total}`,
         ],
-        actions: createBackToMenuActions(openMenu),
+        actions,
       });
     }
 
     function openObservationMenu() {
       const state = store.getState();
+      const capturedSpeciesIds = getCapturedSpeciesIds(state);
       audio.playSe("confirm");
+
+      if (capturedSpeciesIds.length === 0) {
+        modal.openModal({
+          title: "図鑑",
+          lines: ["まだ図鑑には記録がありません。草むらで出会った相手をつかまえると、ここに記録されます。"],
+          actions: createBackToMenuActions(openMenu),
+        });
+        return;
+      }
+
       modal.openModal({
         title: "図鑑",
-        lines: formatCapturedRecordLines(state, dataRegistry),
-        actions: createBackToMenuActions(openMenu),
+        lines: ["見たいモンスターを選んでください。"],
+        actions: [
+          ...capturedSpeciesIds.map((speciesId) => {
+            const species = dataRegistry.getSpecies(speciesId);
+            return {
+              id: `record_${speciesId}`,
+              label: species ? species.name : speciesId,
+              onSelect: () => {
+                const detailSpecies = dataRegistry.getSpecies(speciesId);
+                if (!detailSpecies) {
+                  return;
+                }
+                const moveNames = (detailSpecies.defaultMoveIds || [])
+                  .map((moveId) => {
+                    const move = dataRegistry.getMove(moveId);
+                    return move ? move.name : moveId;
+                  })
+                  .join(" / ");
+                audio.playSe("confirm");
+                modal.openModal({
+                  title: detailSpecies.name,
+                  sections: buildMonsterPreviewSection(detailSpecies, "図鑑データ"),
+                  lines: [
+                    `タイプ: ${detailSpecies.types.join(" / ")}`,
+                    `初期技: ${moveNames}`,
+                  ],
+                  actions: createBackToObservationActions(openObservationMenu),
+                });
+              },
+            };
+          }),
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
       });
     }
 
@@ -378,17 +531,17 @@
 
     const openStartChoice = () => {
       const savedAtText = formatSavedAt(save.getSavedInfo());
-      const lines = [
-        "保存された進行があります。",
-        "つづきから始めるか、最初から確認するかを選んでください。",
-      ];
-      if (savedAtText) {
-        lines.push(`最終保存: ${savedAtText}`);
-      }
-
       modal.openModal({
-        title: "つづきから始めますか？",
-        lines,
+        title: "",
+        lines: [],
+        sections: savedAtText
+          ? [
+              {
+                kind: "saveMeta",
+                text: `最新保存: ${savedAtText}`,
+              },
+            ]
+          : [],
         dismissible: false,
         actions: [
           {

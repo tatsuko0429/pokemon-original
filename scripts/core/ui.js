@@ -18,8 +18,6 @@
     let lastPanelKey = "";
     let lastOverlayKey = "";
     let lastTimerKey = "";
-    const fieldControlHint = "十字キーで移動 / Aで調べる / メニューで目的を確認";
-
     function createButton(label, className, onClick, disabled) {
       const button = document.createElement("button");
       button.type = "button";
@@ -116,7 +114,6 @@
         hidden: hideStatus,
         level: playerMonster.level,
         hp: shownHp,
-        balls: state.inventory.balls,
       });
 
       if (statusKey === lastStatusKey) {
@@ -146,13 +143,6 @@
     function renderFieldControls(state) {
       const wrapper = document.createElement("div");
       wrapper.className = "field-controls";
-
-      const note = document.createElement("p");
-      note.className = "panel-note";
-      note.textContent = state.field.message
-        ? "メッセージを閉じると移動を再開できます。"
-        : fieldControlHint;
-      wrapper.appendChild(note);
 
       const dPad = document.createElement("div");
       dPad.className = "direction-pad";
@@ -248,26 +238,34 @@
       return card;
     }
 
-    function createBattleCommandButtons(disabled) {
+    function createBattleCommandButtons(options) {
+      const settings = options || {};
       const wrapper = document.createElement("div");
       wrapper.className = "battle-buttons";
 
-      const fight = createButton("たたかう", "", null, disabled);
-      const ball = createButton("ボール", "", null, disabled);
-      const run = createButton("にげる", "is-subtle", null, disabled);
-      const menu = createButton("メニュー", "is-subtle is-menu", null, disabled);
+      const fight = createButton("たたかう", "", null, settings.disabledAll);
+      const ball = createButton("ボール", "", null, settings.disabledAll);
+      const run = createButton("にげる", "is-subtle", null, settings.disabledAll);
+      const item = createButton(
+        "アイテム",
+        settings.itemDisabled && !settings.disabledAll ? "is-subtle" : "",
+        null,
+        settings.disabledAll || settings.itemDisabled
+      );
 
-      if (!disabled) {
+      if (!settings.disabledAll) {
         input.attachActionButton(fight, "battle_open_move_menu");
         input.attachActionButton(ball, "battle_throw_ball");
         input.attachActionButton(run, "battle_attempt_run");
-        input.attachActionButton(menu, "menu");
+        if (!settings.itemDisabled) {
+          input.attachActionButton(item, "battle_use_item");
+        }
       }
 
       wrapper.appendChild(fight);
       wrapper.appendChild(ball);
       wrapper.appendChild(run);
-      wrapper.appendChild(menu);
+      wrapper.appendChild(item);
       return wrapper;
     }
 
@@ -324,6 +322,9 @@
     function renderBattleControls(state) {
       const battle = state.battle;
       const animationActive = Boolean(battle.animation) || state.transition.active;
+      const playerMonster = state.party[0];
+      const itemDisabled =
+        state.inventory.fullHealCount <= 0 || playerMonster.currentHp >= playerMonster.maxHp;
       const panel = document.createElement("div");
       panel.className = "battle-panel";
 
@@ -336,12 +337,17 @@
       panel.appendChild(message);
 
       if (battle.phase === "message") {
-        panel.appendChild(createBattleCommandButtons(true));
+        panel.appendChild(createBattleCommandButtons({ disabledAll: true, itemDisabled: true }));
         return panel;
       }
 
       if (battle.phase === "command") {
-        panel.appendChild(createBattleCommandButtons(animationActive));
+        panel.appendChild(
+          createBattleCommandButtons({
+            disabledAll: animationActive,
+            itemDisabled,
+          })
+        );
         return panel;
       }
 
@@ -363,7 +369,7 @@
         return panel;
       }
 
-      panel.appendChild(createBattleCommandButtons(true));
+      panel.appendChild(createBattleCommandButtons({ disabledAll: true, itemDisabled: true }));
       return panel;
     }
 
@@ -375,6 +381,8 @@
         battlePhase: state.battle ? state.battle.phase : null,
         battleMessage: state.battle ? state.battle.currentMessage : null,
         battleAnimation: state.battle ? state.battle.animation && state.battle.animation.kind : null,
+        fullHealCount: state.inventory.fullHealCount,
+        playerHp: state.party[0] ? state.party[0].currentHp : 0,
       });
 
       if (panelKey === lastPanelKey) {

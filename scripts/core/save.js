@@ -30,6 +30,10 @@
     return Number.isInteger(value) && value >= 0 ? value : fallback;
   }
 
+  function asPositiveInteger(value, fallback) {
+    return Number.isInteger(value) && value > 0 ? value : fallback;
+  }
+
   function asDirection(value, fallback) {
     return DIRECTIONS.has(value) ? value : fallback;
   }
@@ -74,8 +78,29 @@
 
   function buildStableInventory(inventory) {
     return {
-      balls: asNonNegativeInteger(inventory && inventory.balls, 0),
+      fullHealCount: asNonNegativeInteger(inventory && inventory.fullHealCount, 0),
     };
+  }
+
+  function buildStableParty(party) {
+    const monster = Array.isArray(party) ? party[0] : null;
+    if (!monster || typeof monster.speciesId !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        speciesId: monster.speciesId,
+        level: asPositiveInteger(monster.level, 1),
+        currentHp: asNonNegativeInteger(monster.currentHp, 0),
+        moveIds: Array.isArray(monster.moveIds)
+          ? monster.moveIds.filter((moveId) => typeof moveId === "string")
+          : [],
+        currentPp: Array.isArray(monster.currentPp)
+          ? monster.currentPp.map((pp) => asNonNegativeInteger(pp, 0))
+          : [],
+      },
+    ];
   }
 
   function buildStableCollection(collection) {
@@ -105,6 +130,7 @@
         steps: field.steps,
         lastEncounterStep: field.lastEncounterStep,
       },
+      party: buildStableParty(state.party || []),
       inventory: buildStableInventory(state.inventory || {}),
       collection: buildStableCollection(state.collection || {}),
       progress: buildStableProgress(state.progress || {}),
@@ -150,6 +176,45 @@
         nextState.inventory[key] = savedValue;
       }
     });
+  }
+
+  function restoreParty(savedParty, nextState, dataRegistry) {
+    if (!Array.isArray(savedParty) || savedParty.length === 0 || !dataRegistry) {
+      return;
+    }
+
+    const savedMonster = savedParty[0];
+    if (!isPlainObject(savedMonster) || typeof savedMonster.speciesId !== "string") {
+      return;
+    }
+
+    if (!dataRegistry.getSpecies(savedMonster.speciesId)) {
+      return;
+    }
+
+    const moveIds = Array.isArray(savedMonster.moveIds)
+      ? savedMonster.moveIds.filter((moveId) => Boolean(dataRegistry.getMove(moveId)))
+      : [];
+    const level = asPositiveInteger(savedMonster.level, nextState.party[0].level);
+    const monster = dataRegistry.createMonsterInstance(
+      savedMonster.speciesId,
+      level,
+      moveIds.length > 0 ? moveIds : undefined
+    );
+
+    monster.currentHp = Math.min(
+      monster.maxHp,
+      asNonNegativeInteger(savedMonster.currentHp, monster.currentHp)
+    );
+
+    if (Array.isArray(savedMonster.currentPp) && savedMonster.currentPp.length === monster.moveIds.length) {
+      monster.currentPp = savedMonster.currentPp.map((pp, index) => {
+        const maxPp = dataRegistry.getMove(monster.moveIds[index]).pp;
+        return Math.min(maxPp, asNonNegativeInteger(pp, maxPp));
+      });
+    }
+
+    nextState.party = [monster];
   }
 
   function restoreCollection(savedCollection, nextState, dataRegistry) {
@@ -225,6 +290,7 @@
       nextState.field.lastEncounterStep
     );
     restorePlayer(savedField, nextState, mapDef);
+    restoreParty(savedState.party, nextState, dataRegistry);
     restoreInventory(savedState.inventory, nextState);
     restoreCollection(savedState.collection, nextState, dataRegistry);
     restoreProgress(savedState.progress, nextState);

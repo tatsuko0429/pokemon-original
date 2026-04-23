@@ -94,12 +94,15 @@
     }
 
     function applyPickup(state, event) {
-      if (event.itemType === "balls") {
-        state.inventory.balls += event.amount;
+      if (event.itemType === "full_heal") {
+        state.inventory.fullHealCount += event.amount;
       }
       rememberResolvedEvent(state, event.id);
-      state.field.message =
-        event.message || `モンスターボールを ${event.amount} 個 みつけた！`;
+      if (event.message) {
+        state.field.message = event.message;
+      } else {
+        state.field.message = "回復薬を みつけた！";
+      }
     }
 
     function applyQuestEvent(state, event) {
@@ -266,8 +269,14 @@
         setGrassStepEffect(state);
       }
 
+      const encountersLockedByProgress =
+        mapDef.id === "camera_route" &&
+        state.progress &&
+        state.progress.prepGateUnlocked;
+
       if (
         tileCode === "g" &&
+        !encountersLockedByProgress &&
         state.field.steps - state.field.lastEncounterStep >
           App.config.game.timing.encounterCooldownSteps
       ) {

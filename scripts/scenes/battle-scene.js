@@ -27,6 +27,28 @@
       };
     }
 
+    function canUseFullHeal(state) {
+      const playerMonster = getPlayerMonster(state);
+      return Boolean(
+        playerMonster &&
+          state.inventory.fullHealCount > 0 &&
+          playerMonster.currentHp < playerMonster.maxHp
+      );
+    }
+
+    function rememberCapturedSpecies(state, speciesId) {
+      if (!speciesId) {
+        return false;
+      }
+
+      if (state.collection.capturedSpeciesIds.includes(speciesId)) {
+        return false;
+      }
+
+      state.collection.capturedSpeciesIds.push(speciesId);
+      return true;
+    }
+
     function healParty(state) {
       state.party.forEach((monster) => {
         monster.currentHp = monster.maxHp;
@@ -42,6 +64,17 @@
       if (effect.kind === "damage") {
         return {
           kind: "damage",
+          target: effect.target,
+          fromHp: effect.fromHp,
+          toHp: effect.toHp,
+          elapsedMs: 0,
+          durationMs: animationConfig.damage.durationMs,
+        };
+      }
+
+      if (effect.kind === "heal") {
+        return {
+          kind: "heal",
           target: effect.target,
           fromHp: effect.fromHp,
           toHp: effect.toHp,
@@ -93,7 +126,11 @@
 
     function applyBattleClose(state, result) {
       if (result && result.capturedSpeciesId) {
-        state.collection.capturedSpeciesIds.push(result.capturedSpeciesId);
+        result.addedToCollection = rememberCapturedSpecies(state, result.capturedSpeciesId);
+      }
+
+      if (result && result.capturedMonster) {
+        state.party = [result.capturedMonster];
       }
 
       healParty(state);
@@ -119,7 +156,9 @@
         lines: [
           `${species.name} Lv${result.capturedLevel}`,
           `タイプ: ${species.types.join(" / ")}`,
-          "観察用の記録に追加しました。",
+          result.addedToCollection
+            ? "新しく図鑑へ記録しました。"
+            : "このモンスターは、すでに図鑑へ記録されています。",
         ],
         buttonLabel: "戻る",
       });
@@ -217,9 +256,10 @@
 
       if (state.battle.nextPhase === "field_capture") {
         return {
-          message: "つかまえた相手は図鑑候補として記録されました。",
+          message: "つかまえた相手と 手持ちを入れ替えた！",
           capturedSpeciesId: state.battle.enemy.speciesId,
           capturedLevel: state.battle.enemy.level,
+          capturedMonster: state.battle.enemy,
         };
       }
 
@@ -228,7 +268,7 @@
       }
 
       if (state.battle.nextPhase === "field_defeat") {
-        return { message: "試作版のため、自動で体力を戻しました。" };
+        return { message: "力つきたため、体力を戻しました。" };
       }
 
       return null;
@@ -448,6 +488,39 @@
       });
     }
 
+    function useFullHeal() {
+      store.update((state) => {
+        if (!state.battle) {
+          return;
+        }
+
+        if (!canUseFullHeal(state)) {
+          startSequence(state, [createStep("回復薬は つかえない。", null, "error")], "command");
+          return;
+        }
+
+        const playerMonster = getPlayerMonster(state);
+        const fromHp = playerMonster.currentHp;
+        state.inventory.fullHealCount -= 1;
+        playerMonster.currentHp = playerMonster.maxHp;
+
+        const steps = [
+          createStep(
+            "回復薬を つかった！",
+            {
+              kind: "heal",
+              target: "player",
+              fromHp,
+              toHp: playerMonster.maxHp,
+            },
+            "heal"
+          ),
+        ];
+
+        queueEnemyTurn(state, steps);
+      });
+    }
+
     function autoAdvanceMessage(deltaMs) {
       let shouldAdvance = false;
 
@@ -486,7 +559,7 @@
       const animation = state.battle.animation;
       animation.elapsedMs += deltaMs;
 
-      if (animation.kind === "damage") {
+      if (animation.kind === "damage" || animation.kind === "heal") {
         const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
         const eased = 1 - Math.pow(1 - progress, 2);
         const currentHp =
@@ -584,19 +657,18 @@
         input.clearActions([
           "confirm",
           "cancel",
+          "menu",
           "battle_open_move_menu",
           "battle_throw_ball",
           "battle_attempt_run",
+          "battle_use_item",
           "battle_select_move",
         ]);
         autoAdvanceMessage(deltaMs);
         return;
       }
 
-      if (input.consumeAction("menu")) {
-        openMenu();
-        return;
-      }
+      input.clearActions("menu");
 
       if (state.battle.phase === "command") {
         if (input.consumeAction("battle_open_move_menu")) {
@@ -617,6 +689,13 @@
           input.clearActions();
           audio.playSe("confirm");
           attemptRun();
+          return;
+        }
+
+        if (input.consumeAction("battle_use_item")) {
+          input.clearActions();
+          audio.playSe("confirm");
+          useFullHeal();
           return;
         }
       }

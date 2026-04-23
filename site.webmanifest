@@ -1,7 +1,7 @@
 {
-  "name": "初代風モンスター試作",
-  "short_name": "モンスター試作",
-  "description": "非公開の個人用モンスターゲーム試作です。",
+  "name": "初代風モンスター",
+  "short_name": "モンスター",
+  "description": "短時間で遊べる個人用モンスターゲームです。",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#111316",

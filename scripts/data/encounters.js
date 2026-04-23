@@ -4,7 +4,7 @@
   App.data.encounters = [
     {
       id: "prototype_meadow",
-      label: "試作草むら",
+      label: "ながめのみちの草むら",
       rate: 0.16,
       slots: [
         {

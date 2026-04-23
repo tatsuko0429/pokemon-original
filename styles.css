@@ -19,8 +19,8 @@
   --button-face-hi: #5b5e67;
   --button-shadow: rgba(5, 7, 9, 0.4);
   --accent-red: #9b3638;
-  --screen-ratio: calc(160 / 154);
-  --battle-screen-ratio: calc(160 / 168);
+  --screen-ratio: calc(160 / 166);
+  --battle-screen-ratio: calc(160 / 176);
   --safe-padding: max(6px, env(safe-area-inset-left));
   --safe-padding-right: max(6px, env(safe-area-inset-right));
 }
@@ -68,7 +68,16 @@ body {
     var(--safe-padding-right)
     max(6px, env(safe-area-inset-bottom))
     var(--safe-padding);
-  touch-action: none;
+  touch-action: manipulation;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 button,
@@ -85,9 +94,9 @@ select {
   max-height: 780px;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
-  gap: clamp(6px, 1.15svh, 10px);
-  padding: clamp(10px, 2.5vw, 16px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: clamp(5px, 1svh, 8px);
+  padding: clamp(9px, 2.2vw, 14px);
   border: 3px solid rgba(22, 24, 25, 0.9);
   border-radius: 34px 34px 46px 46px;
   background:
@@ -116,7 +125,6 @@ select {
   display: none;
 }
 
-.app-header,
 .screen-card,
 .status-card,
 .action-card {
@@ -124,41 +132,8 @@ select {
   z-index: 1;
 }
 
-.app-header {
-  display: grid;
-  gap: 2px;
-  padding: 0 6px;
-  text-align: center;
-}
-
-.app-header h1 {
-  margin: 0;
-  color: #202327;
-  font-size: clamp(0.98rem, 4.1vw, 1.22rem);
-  letter-spacing: 0.08em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.eyebrow,
-.subtitle {
-  margin: 0;
-}
-
-.eyebrow {
-  color: #3e4448;
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
-}
-
-.subtitle {
-  color: var(--muted);
-  font-size: clamp(0.66rem, 2.65vw, 0.8rem);
-  line-height: 1.3;
-}
-
 .screen-card {
-  padding: clamp(7px, 1.9vw, 11px);
+  padding: clamp(6px, 1.7vw, 10px);
   border: 4px solid #070809;
   border-radius: 24px 24px 20px 20px;
   background:
@@ -305,7 +280,7 @@ select {
 
 .battle-hp-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4f6d39, #d2b948);
+  background: linear-gradient(90deg, #16656e, #20a6b3);
 }
 
 .battle-hp-fill.is-low {
@@ -442,35 +417,17 @@ select {
 .action-panel {
   display: grid;
   height: 100%;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
-}
-
-.panel-note {
-  grid-area: note;
-  margin: 0;
-  padding: 6px 10px;
-  border: 2px solid rgba(21, 24, 26, 0.76);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(230, 234, 215, 0.92), rgba(190, 199, 177, 0.9));
-  color: #202721;
-  font-size: clamp(0.66rem, 2.45vw, 0.8rem);
-  font-weight: 800;
-  line-height: 1.35;
-  text-align: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .field-controls {
   display: grid;
-  grid-template-areas:
-    "note note"
-    "dpad face";
+  grid-template-areas: "dpad face";
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
   align-items: center;
-  gap: clamp(8px, 2.1vw, 12px);
+  gap: clamp(6px, 1.8vw, 10px);
   min-height: 0;
 }
 
@@ -762,6 +719,10 @@ select {
   font-size: 1.2rem;
 }
 
+.modal-panel h2.is-hidden {
+  display: none;
+}
+
 .modal-body {
   display: grid;
   gap: 10px;
@@ -772,6 +733,76 @@ select {
 
 .modal-body p {
   margin: 0;
+}
+
+.modal-section {
+  display: grid;
+  gap: 8px;
+}
+
+.modal-save-meta {
+  padding: 12px 14px;
+  border: 3px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f7f2d8, #e0d29f);
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.modal-rule-box {
+  padding: 12px 14px;
+  border: 3px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #faf5e1, #e9debb);
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.modal-rule-list {
+  margin: 0;
+  padding: 0 0 0 1.2em;
+  display: grid;
+  gap: 6px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.modal-rule-footer {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.modal-monster-preview {
+  justify-items: center;
+}
+
+.modal-monster-frame {
+  min-width: 132px;
+  min-height: 132px;
+  padding: 12px;
+  border: 3px solid var(--line);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.78), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(222, 230, 207, 0.96));
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 5px 0 rgba(20, 24, 17, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.modal-monster-frame canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.modal-monster-caption {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: var(--muted);
 }
 
 .modal-actions {
@@ -802,18 +833,40 @@ select {
   background: linear-gradient(180deg, #f5d7cf, #e7b6aa);
 }
 
-@media (max-height: 760px) {
-  .app-shell {
-    gap: 5px;
-    padding: 9px 10px;
+.tap-ripple {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  border-radius: 999px;
+  border: 2px solid rgba(248, 244, 215, 0.82);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: 30;
+  animation: tap-ripple 280ms ease-out forwards;
+}
+
+@keyframes tap-ripple {
+  0% {
+    opacity: 0.88;
+    transform: scale(0.65);
   }
 
-  .subtitle {
-    display: none;
+  100% {
+    opacity: 0;
+    transform: scale(4.2);
+  }
+}
+
+@media (max-height: 760px) {
+  .app-shell {
+    gap: 4px;
+    padding: 8px 10px;
   }
 
   .screen-card {
-    padding: 6px;
+    padding: 5px;
   }
 
   .status-card {
@@ -823,12 +876,6 @@ select {
   .status-pill {
     min-height: 26px;
     padding: 3px 5px;
-  }
-
-  .panel-note {
-    max-height: 2.65em;
-    overflow: hidden;
-    padding: 5px 8px;
   }
 
   .direction-pad {

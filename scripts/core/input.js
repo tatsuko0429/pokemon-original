@@ -66,6 +66,10 @@
     }
 
     function handleKeyDown(event) {
+      if (isTextEditingTarget(event.target)) {
+        return;
+      }
+
       const key = event.key;
 
       if (["ArrowUp", "w", "W"].includes(key)) {
@@ -111,6 +115,10 @@
     }
 
     function handleKeyUp(event) {
+      if (isTextEditingTarget(event.target)) {
+        return;
+      }
+
       const key = event.key;
       if (["ArrowUp", "w", "W"].includes(key)) {
         keyboardDirections.delete("up");
@@ -215,8 +223,12 @@
       );
     }
 
+    function isWithinAppShell(target) {
+      return Boolean(target && typeof target.closest === "function" && target.closest(".app-shell"));
+    }
+
     function suppressTextGesture(event) {
-      if (!isTextEditingTarget(event.target)) {
+      if (isWithinAppShell(event.target) && !isTextEditingTarget(event.target)) {
         event.preventDefault();
       }
     }
