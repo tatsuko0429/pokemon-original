@@ -27,26 +27,36 @@
     },
     {
       id: "dummy_flare",
-      name: "ダミモン灯",
-      types: ["ほのお"],
+      name: "ダンゴマル",
+      types: ["くさ"],
       stats: {
-        hp: 21,
-        attack: 12,
-        defense: 9,
-        speed: 11,
-        special: 11,
+        hp: 24,
+        attack: 11,
+        defense: 13,
+        speed: 8,
+        special: 10,
       },
       catchRate: 175,
-      defaultMoveIds: ["body_tap", "ember_peck"],
+      defaultMoveIds: ["leaf_eat", "horn_jab_maybe"],
       palette: {
-        primary: "#cf7143",
-        secondary: "#ffe0b6",
+        primary: "#7d8f62",
+        secondary: "#d6d7cf",
       },
-      spriteIds: {
-        battleFront: "dummy_flare_front",
-        battleBack: "dummy_flare_back",
+      imageSprites: {
+        battleFront: "./assets/dangomaru-front.png",
+        battleBack: "./assets/dangomaru-back.png",
       },
-      shape: "flare",
+      imageSpriteSize: {
+        battleFront: {
+          width: 72,
+          height: 52,
+        },
+        battleBack: {
+          width: 70,
+          height: 56,
+        },
+      },
+      shape: "bud",
     },
     {
       id: "dummy_drop",

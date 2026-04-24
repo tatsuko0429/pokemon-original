@@ -7,6 +7,7 @@
     const damageAnimation = animation.damage;
     const fieldPixelArt = App.data.pixelArt.field;
     const battlePixelArt = App.data.pixelArt.battle || {};
+    const battleImageCache = new Map();
     const directionVectors = {
       up: { x: 0, y: -1 },
       right: { x: 1, y: 0 },
@@ -281,6 +282,31 @@
 
     function drawBattleMonster(position, species, view) {
       const spriteKey = view === "back" ? "battleBack" : "battleFront";
+      const imageSrc = species.imageSprites && species.imageSprites[spriteKey];
+      if (imageSrc) {
+        let image = battleImageCache.get(imageSrc);
+        if (!image) {
+          image = new Image();
+          image.decoding = "async";
+          image.src = imageSrc;
+          battleImageCache.set(imageSrc, image);
+        }
+
+        if (image.complete && image.naturalWidth > 0) {
+          const size = (species.imageSpriteSize && species.imageSpriteSize[spriteKey]) || {};
+          const width = size.width || image.naturalWidth;
+          const height = size.height || image.naturalHeight;
+          ctx.drawImage(
+            image,
+            Math.round(position.x - width / 2),
+            Math.round(position.y - height / 2),
+            width,
+            height
+          );
+          return;
+        }
+      }
+
       const spriteId = species.spriteIds && species.spriteIds[spriteKey];
       const sprite = spriteId ? battlePixelArt[spriteId] : null;
 

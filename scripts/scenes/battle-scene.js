@@ -317,13 +317,49 @@
       return random.percent(move.accuracy, "move_accuracy");
     }
 
+    function getUsableMoveIds(monster) {
+      return monster.moveIds.filter((moveId) => {
+        const moveIndex = findMoveIndex(monster, moveId);
+        return moveIndex >= 0 && monster.currentPp[moveIndex] > 0;
+      });
+    }
+
+    function chooseEnemyMoveId(enemyMonster) {
+      const usableMoveIds = getUsableMoveIds(enemyMonster);
+      if (usableMoveIds.length === 0) {
+        return "";
+      }
+
+      const healMoveId = usableMoveIds.find((moveId) => {
+        const move = dataRegistry.getMove(moveId);
+        return move && move.effect === "random_heal";
+      });
+      const attackMoveIds = usableMoveIds.filter((moveId) => {
+        const move = dataRegistry.getMove(moveId);
+        return move && move.effect !== "random_heal";
+      });
+      const hpRatio = enemyMonster.currentHp / Math.max(1, enemyMonster.maxHp);
+
+      if (healMoveId && enemyMonster.currentHp < enemyMonster.maxHp) {
+        if (hpRatio <= 0.35 || attackMoveIds.length === 0) {
+          return healMoveId;
+        }
+
+        if (hpRatio <= 0.65 && random.chance(0.4, "enemy_heal_choice")) {
+          return healMoveId;
+        }
+      }
+
+      return attackMoveIds[0] || healMoveId || usableMoveIds[0];
+    }
+
     function buildAttackSequence(
       attacker,
       defender,
       moveId,
       attackerLabel,
       defenderLabel,
-      hpTarget
+      hpTargets
     ) {
       const move = dataRegistry.getMove(moveId);
       const steps = [createStep(`${attackerLabel}の ${move.name}！`, null, "move")];
@@ -336,17 +372,106 @@
         };
       }
 
+      if (move.effect === "random_heal") {
+        const fromHp = attacker.currentHp;
+        const missingHp = Math.max(0, attacker.maxHp - attacker.currentHp);
+        if (missingHp <= 0) {
+          steps.push(createStep("しかし HPは これいじょう かいふくしない。"));
+          return {
+            steps,
+            defeated: false,
+          };
+        }
+
+        const healRatio = random.range(
+          move.healRatioMin || 0.2,
+          move.healRatioMax || 0.35,
+          `${move.id}_heal_ratio`
+        );
+        const requestedHeal = Math.max(1, Math.round(attacker.maxHp * healRatio));
+        attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + requestedHeal);
+        const healedAmount = attacker.currentHp - fromHp;
+
+        steps.push(
+          createStep(
+            `${attackerLabel} は ${healedAmount} HP かいふくした！`,
+            {
+              kind: "heal",
+              target: hpTargets.attacker,
+              fromHp,
+              toHp: attacker.currentHp,
+            },
+            "heal"
+          )
+        );
+
+        return {
+          steps,
+          defeated: false,
+        };
+      }
+
+      if (move.effect === "chance_big_damage") {
+        const activated = random.chance(move.triggerChance || 0.5, `${move.id}_trigger`);
+        if (!activated) {
+          steps.push(createStep(move.failText || "しかし うまく きまらなかった。"));
+          return {
+            steps,
+            defeated: false,
+          };
+        }
+
+        steps.push(createStep(move.successText || "うまく きまった！"));
+
+        const fromHp = defender.currentHp;
+        const outcome = dataRegistry.computeDamage(attacker, defender, moveId);
+        const scaledDamage = Math.max(
+          Math.round(outcome.damage * (move.damageMultiplier || 2)),
+          Math.round(defender.maxHp * (move.minimumDamageRatio || 0))
+        );
+        const appliedDamage = Math.max(1, Math.min(defender.currentHp, scaledDamage));
+        defender.currentHp = Math.max(0, defender.currentHp - appliedDamage);
+
+        steps.push(
+          createStep(
+            `${defenderLabel} に ${appliedDamage} ダメージ！`,
+            {
+              kind: "damage",
+              target: hpTargets.defender,
+              fromHp,
+              toHp: defender.currentHp,
+            },
+            "hit"
+          )
+        );
+
+        if (outcome.typeMultiplier > 1) {
+          steps.push(createStep("こうかは ばつぐんだ！"));
+        } else if (outcome.typeMultiplier < 1) {
+          steps.push(createStep("こうかは いまひとつのようだ。"));
+        }
+
+        return {
+          steps,
+          defeated: defender.currentHp <= 0,
+        };
+      }
+
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, moveId);
       defender.currentHp = Math.max(0, defender.currentHp - outcome.damage);
 
       steps.push(
-        createStep(`${defenderLabel} に ${outcome.damage} ダメージ！`, {
-          kind: "damage",
-          target: hpTarget,
-          fromHp,
-          toHp: defender.currentHp,
-        }, "hit")
+        createStep(
+          `${defenderLabel} に ${outcome.damage} ダメージ！`,
+          {
+            kind: "damage",
+            target: hpTargets.defender,
+            fromHp,
+            toHp: defender.currentHp,
+          },
+          "hit"
+        )
       );
 
       if (outcome.typeMultiplier > 1) {
@@ -366,15 +491,24 @@
       const enemyMonster = state.battle.enemy;
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
-      trySpendPp(enemyMonster, enemyMonster.moveIds[0]);
+      const enemyMoveId = chooseEnemyMoveId(enemyMonster);
+
+      if (!enemyMoveId || !trySpendPp(enemyMonster, enemyMoveId)) {
+        steps.push(createStep(`やせいの ${enemySpecies.name} は うごけない！`));
+        startSequence(state, steps, "command");
+        return;
+      }
 
       const enemyTurn = buildAttackSequence(
         enemyMonster,
         playerMonster,
-        enemyMonster.moveIds[0],
+        enemyMoveId,
         `やせいの ${enemySpecies.name}`,
         playerSpecies.name,
-        "player"
+        {
+          attacker: "enemy",
+          defender: "player",
+        }
       );
       steps.push(...enemyTurn.steps);
 
@@ -429,7 +563,10 @@
           moveId,
           playerSpecies.name,
           `やせいの ${enemySpecies.name}`,
-          "enemy"
+          {
+            attacker: "player",
+            defender: "enemy",
+          }
         );
         const steps = attack.steps.slice();
 

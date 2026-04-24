@@ -217,7 +217,7 @@ async def read_field_state(page):
           modalTitle: document.querySelector("#modal-title")?.textContent || "",
           modalLines: [...document.querySelectorAll("#modal-body p")].map((el) => el.textContent),
           modalBodyText: document.querySelector("#modal-body")?.textContent?.replace(/\\s+/g, " ").trim() || "",
-          modalPreviewCount: document.querySelectorAll("#modal-body .modal-monster-frame canvas").length,
+          modalPreviewCount: document.querySelectorAll("#modal-body .modal-monster-frame canvas, #modal-body .modal-monster-frame img").length,
           modalButtons: [...document.querySelectorAll("#modal-actions button")].map((el) => el.textContent),
           tapRippleCount: document.querySelectorAll(".tap-ripple").length,
           bodyText: document.body.textContent?.replace(/\\s+/g, " ").trim() || "",
@@ -889,10 +889,12 @@ async def run_smoke_test(base_url: str) -> None:
               window.__battleMessageAutoAdvanceMs = window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs;
               window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 99999;
               runtime.store.update((state) => {
-                const enemyMove = runtime.dataRegistry.getMove(state.battle.enemy.moveIds[0]);
-                if (enemyMove) {
-                  enemyMove.accuracy = 0;
-                }
+                state.battle.enemy.moveIds.forEach((moveId) => {
+                  const enemyMove = runtime.dataRegistry.getMove(moveId);
+                  if (enemyMove) {
+                    enemyMove.accuracy = 0;
+                  }
+                });
                 state.inventory.fullHealCount = 1;
                 state.party[0].currentHp = Math.max(1, state.party[0].currentHp - 6);
                 state.battle.display.playerHp = state.party[0].currentHp;

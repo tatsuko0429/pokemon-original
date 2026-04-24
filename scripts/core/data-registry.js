@@ -136,8 +136,10 @@
       }
 
       const spriteIds = species.spriteIds || {};
+      const imageSprites = species.imageSprites || {};
       const hasBattleSprites = Boolean(spriteIds.battleFront && spriteIds.battleBack);
-      if (!species.shape && !hasBattleSprites) {
+      const hasBattleImages = Boolean(imageSprites.battleFront && imageSprites.battleBack);
+      if (!species.shape && !hasBattleSprites && !hasBattleImages) {
         errors.push(`種族 ${species.id} に戦闘表示用の形状またはスプライト指定がありません。`);
       }
 

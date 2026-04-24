@@ -799,6 +799,16 @@ select {
   image-rendering: crisp-edges;
 }
 
+.modal-monster-frame img {
+  display: block;
+  width: min(100%, 210px);
+  height: auto;
+  max-height: 180px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 .modal-monster-caption {
   font-size: 0.82rem;
   font-weight: 900;

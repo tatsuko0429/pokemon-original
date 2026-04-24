@@ -87,9 +87,16 @@
             `linear-gradient(180deg, rgba(255, 255, 255, 0.84), ${section.backgroundColor})`,
           ].join(",");
         }
-        const canvas = createSpriteCanvas(section.spriteId, section.scaleMultiplier);
-        if (canvas) {
-          frame.appendChild(canvas);
+        if (section.imageSrc) {
+          const image = document.createElement("img");
+          image.src = section.imageSrc;
+          image.alt = section.caption || "モンスター画像";
+          frame.appendChild(image);
+        } else {
+          const canvas = createSpriteCanvas(section.spriteId, section.scaleMultiplier);
+          if (canvas) {
+            frame.appendChild(canvas);
+          }
         }
         wrapper.appendChild(frame);
 

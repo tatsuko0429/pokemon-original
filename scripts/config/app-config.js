@@ -22,6 +22,12 @@
     battleLayout: {
       groundY: 88,
       groundHeight: 22,
+      enemyLane: {
+        x: 0,
+        y: 63,
+        width: 78,
+        height: 8,
+      },
       enemy: {
         monsterX: 42,
         monsterY: 52,
@@ -51,18 +57,17 @@
     story: {
       preparationDurationMs: 300000,
       introTitle: "ルール",
-      introLead: "この5分は、自由に準備する時間です。",
       introRules: [
         "草むらで5分間、モンスターを育てられます",
         "手持ちは1体だけ。捕まえると入れ替わります",
         "5分後に道が開き、次のステージへ進めます",
       ],
-      introFooter: "レベル上げでも、モンスター探しでも、好きに試してください。",
       lockedGateMessage: "5分後に解放されます。",
       unlockedGateMessage: "5分が経過しました。次のマップへの道が開きました。",
     },
     animation: {
       wildEncounterTransitionMs: 430,
+      battleExitTransitionMs: 280,
       field: {
         grassStepDurationMs: 220,
         bumpDurationMs: 160,
@@ -211,6 +216,9 @@
       battleBg: "#ded7bf",
       battleGround: "#c3b27a",
       battleShadow: "#7b7f62",
+      battleEnemyLane: "#68834d",
+      battleEnemyLaneHighlight: "#a8c37b",
+      battleEnemyLaneEdge: "#4d643a",
     },
     fieldTiles: {
       ".": {

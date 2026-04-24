@@ -206,7 +206,22 @@
     let startChoicePending = shouldAskStartChoice;
 
     function buildMonsterPreviewSection(species, caption) {
-      if (!species || !species.spriteIds || !species.spriteIds.battleFront) {
+      if (!species) {
+        return [];
+      }
+
+      if (species.imageSprites && species.imageSprites.battleFront) {
+        return [
+          {
+            kind: "monsterPreview",
+            imageSrc: species.imageSprites.battleFront,
+            caption: caption || species.name,
+            backgroundColor: species.palette && species.palette.secondary,
+          },
+        ];
+      }
+
+      if (!species.spriteIds || !species.spriteIds.battleFront) {
         return [];
       }
 
