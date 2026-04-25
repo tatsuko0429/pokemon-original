@@ -203,10 +203,17 @@
       const name = document.createElement("div");
       name.className = "battle-name";
       name.textContent = options.name;
+      
+      const typeEl = document.createElement("div");
+      typeEl.className = "battle-type";
+      typeEl.textContent = options.type ? `[${options.type}]` : "";
+
       const level = document.createElement("div");
       level.className = "battle-level";
       level.textContent = `Lv${options.level}`;
+      
       top.appendChild(name);
+      top.appendChild(typeEl);
       top.appendChild(level);
       card.appendChild(top);
 
@@ -304,6 +311,7 @@
         createBattleCard({
           className: "is-enemy",
           name: enemySpecies.name,
+          type: enemySpecies.types.join(" / "),
           level: enemyMonster.level,
           hpRatio: enemyShownHp / enemyMonster.maxHp,
         })
@@ -312,6 +320,7 @@
         createBattleCard({
           className: "is-player",
           name: playerSpecies.name,
+          type: playerSpecies.types.join(" / "),
           level: playerMonster.level,
           hpRatio: playerShownHp / playerMonster.maxHp,
           hpText: `${playerShownHp}/${playerMonster.maxHp}`,

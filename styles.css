@@ -250,6 +250,15 @@ select {
   text-overflow: ellipsis;
 }
 
+.battle-type {
+  font-size: clamp(0.48rem, 1.8vw, 0.58rem);
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 4px;
+  margin-right: auto;
+  align-self: center;
+}
+
 .battle-level {
   flex-shrink: 0;
   font-size: clamp(0.55rem, 2.1vw, 0.64rem);
