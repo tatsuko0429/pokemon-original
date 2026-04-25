@@ -39,7 +39,7 @@
       accuracy: 100,
       pp: 15,
       effect: "chance_big_damage",
-      triggerChance: 0.5,
+      triggerChance: 0.25,
       damageMultiplier: 3,
       minimumDamageRatio: 0.35,
       failText: "角で突かなかった・・・",

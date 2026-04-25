@@ -468,6 +468,7 @@
         id: `${speciesId}_${level}_${random.token(6, "monster_id")}`,
         speciesId,
         level,
+        exp: 0,
         currentHp: maxHp,
         maxHp,
         attack: calculateOtherStat(species.stats.attack, level),

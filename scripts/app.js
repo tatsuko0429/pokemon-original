@@ -677,6 +677,16 @@
       const deltaMs = now - lastFrame;
       lastFrame = now;
 
+      if (store.getState().progress && store.getState().progress.gameOver) {
+        startChoicePending = false;
+        modal.closeModal({ force: true, silent: true });
+        store.reset();
+        save.clear(store.getState());
+        openStoryIntro();
+        audio.playSe("error");
+        return requestAnimationFrame(frame);
+      }
+
       if (modal.isOpen()) {
         if (input.consumeAction("menu")) {
           return requestAnimationFrame(frame);

@@ -48,12 +48,12 @@
       },
       imageSpriteSize: {
         battleFront: {
-          width: 72,
-          height: 52,
+          width: 36,
+          height: 26,
         },
         battleBack: {
-          width: 70,
-          height: 56,
+          width: 35,
+          height: 28,
         },
       },
       shape: "bud",

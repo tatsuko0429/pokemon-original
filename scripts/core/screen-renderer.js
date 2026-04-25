@@ -430,6 +430,10 @@
     function drawBattle(state) {
       const layout = getBattleLayout();
       clear(palette.battleBg || "#ded7bf");
+      
+      ctx.fillStyle = "#859c5e";
+      ctx.fillRect(0, layout.enemy.shadowY - 2, screen.width, 10);
+
       ctx.fillStyle = palette.battleGround || "#c3b27a";
       ctx.fillRect(0, layout.groundY, screen.width, layout.groundHeight);
       ctx.fillStyle = palette.battleShadow || "#7b7f62";
@@ -489,6 +493,10 @@
         }
 
         ctx.fillStyle = `rgba(248, 249, 238, ${progress * 0.35})`;
+        ctx.fillRect(0, 0, screen.width, screen.height);
+      } else if (state.transition.kind === "battle-end") {
+        const progress = Math.min(1, state.transition.elapsedMs / state.transition.durationMs);
+        ctx.fillStyle = `rgba(0, 0, 0, ${1 - progress})`;
         ctx.fillRect(0, 0, screen.width, screen.height);
       }
     }

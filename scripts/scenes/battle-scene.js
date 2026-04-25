@@ -125,6 +125,11 @@
     }
 
     function applyBattleClose(state, result) {
+      if (result && result.gameOver) {
+        state.progress.gameOver = true;
+        return;
+      }
+
       if (result && result.capturedSpeciesId) {
         result.addedToCollection = rememberCapturedSpecies(state, result.capturedSpeciesId);
       }
@@ -299,7 +304,7 @@
       }
 
       if (state.battle.nextPhase === "field_defeat") {
-        return { message: "力つきたため、体力を戻しました。" };
+        return { message: "目の前が まっくらになった…", gameOver: true };
       }
 
       return null;
