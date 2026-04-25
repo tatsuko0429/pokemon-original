@@ -277,6 +277,7 @@
         {
           id: "back_to_records",
           label: "図鑑へ戻る",
+          variant: "is-primary",
           onSelect: openObservationMenu,
         },
         {
@@ -317,14 +318,11 @@
       const storyConfig = App.config.game.story || {};
       modal.openModal({
         title: storyConfig.introTitle || "ルール",
-        lines: [storyConfig.introLead || "この5分は、自由に準備する時間です。"],
+        lines: storyConfig.introLead ? [storyConfig.introLead] : [],
         sections: [
           {
             kind: "ruleBox",
             items: storyConfig.introRules || [],
-            footer:
-              storyConfig.introFooter ||
-              "レベル上げでも、モンスター探しでも、好きに試してください。",
           },
         ],
         dismissible: false,
@@ -553,7 +551,7 @@
           ? [
               {
                 kind: "saveMeta",
-                text: `最新保存: ${savedAtText}`,
+                text: `保存: ${savedAtText}`,
               },
             ]
           : [],

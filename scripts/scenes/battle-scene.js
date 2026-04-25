@@ -138,6 +138,12 @@
       state.battle = null;
       state.field.message = result && result.message ? result.message : "";
       state.field.lastEncounterStep = state.field.steps;
+      state.transition = {
+        active: true,
+        kind: "battle-end",
+        elapsedMs: 0,
+        durationMs: 400,
+      };
       audio.playBgm("field");
     }
 
@@ -251,7 +257,32 @@
       }
 
       if (state.battle.nextPhase === "field_victory") {
-        return { message: "戦闘が終わり、ひと息つきました。" };
+        const playerMonster = getPlayerMonster(state);
+        const enemyMonster = state.battle.enemy;
+        const expGained = enemyMonster.level * 15;
+        let leveledUp = false;
+
+        playerMonster.exp = (playerMonster.exp || 0) + expGained;
+        const requiredExp = (level) => level * level * 10;
+
+        while (playerMonster.exp >= requiredExp(playerMonster.level)) {
+          playerMonster.exp -= requiredExp(playerMonster.level);
+          playerMonster.level += 1;
+          leveledUp = true;
+
+          const sp = dataRegistry.getSpecies(playerMonster.speciesId);
+          playerMonster.maxHp = Math.floor(((sp.stats.hp * 2) * playerMonster.level) / 100) + playerMonster.level + 10;
+          playerMonster.attack = Math.floor(((sp.stats.attack * 2) * playerMonster.level) / 100) + 5;
+          playerMonster.defense = Math.floor(((sp.stats.defense * 2) * playerMonster.level) / 100) + 5;
+          playerMonster.speed = Math.floor(((sp.stats.speed * 2) * playerMonster.level) / 100) + 5;
+          playerMonster.special = Math.floor(((sp.stats.special * 2) * playerMonster.level) / 100) + 5;
+        }
+
+        const message = leveledUp
+          ? `戦闘に勝利した！\nレベルが ${playerMonster.level} に上がった！`
+          : "戦闘が終わり、ひと息つきました。";
+
+        return { message };
       }
 
       if (state.battle.nextPhase === "field_capture") {

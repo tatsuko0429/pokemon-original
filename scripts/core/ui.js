@@ -323,8 +323,7 @@
       const battle = state.battle;
       const animationActive = Boolean(battle.animation) || state.transition.active;
       const playerMonster = state.party[0];
-      const itemDisabled =
-        state.inventory.fullHealCount <= 0 || playerMonster.currentHp >= playerMonster.maxHp;
+      const itemDisabled = state.inventory.fullHealCount <= 0;
       const panel = document.createElement("div");
       panel.className = "battle-panel";
 

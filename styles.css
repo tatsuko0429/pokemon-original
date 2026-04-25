@@ -741,12 +741,12 @@ select {
 }
 
 .modal-save-meta {
-  padding: 12px 14px;
-  border: 3px solid var(--line);
-  border-radius: 18px;
-  background: linear-gradient(180deg, #f7f2d8, #e0d29f);
-  font-weight: 900;
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 0.85rem;
   line-height: 1.35;
+  color: var(--muted);
+  text-align: center;
 }
 
 .modal-rule-box {
@@ -841,6 +841,12 @@ select {
 .modal-button.is-danger {
   border-color: #5b1812;
   background: linear-gradient(180deg, #f5d7cf, #e7b6aa);
+}
+
+.modal-button.is-primary {
+  border-color: #0d2a45;
+  background: linear-gradient(180deg, #d4e7f5, #9cbcdb);
+  color: #091b2e;
 }
 
 .tap-ripple {
