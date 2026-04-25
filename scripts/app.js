@@ -14,7 +14,7 @@
   function createInitialState(dataRegistry) {
     const configuredStartMapId = App.config.game.field && App.config.game.field.startMapId;
     const firstMap = dataRegistry.getMap(configuredStartMapId) || App.data.maps[0];
-    const starter = dataRegistry.createMonsterInstance("dummy_bud", 5);
+    const starter = dataRegistry.createMonsterInstance("nejimakidori", 5);
     const progress = {
       resolvedEventIds: [],
       storyStage: "preparation",

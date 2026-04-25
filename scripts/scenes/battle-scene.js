@@ -349,7 +349,10 @@
       return true;
     }
 
-    function attemptMoveHit(move) {
+    function attemptMoveHit(move, defender) {
+      if (defender && defender.evasionUp) {
+        return random.percent(Math.floor(move.accuracy * 0.5), "move_accuracy");
+      }
       return random.percent(move.accuracy, "move_accuracy");
     }
 
@@ -398,9 +401,30 @@
       hpTargets
     ) {
       const move = dataRegistry.getMove(moveId);
+
+      if (move.effect === "charge_attack") {
+        if (attacker.charging !== move.id) {
+          attacker.charging = move.id;
+          return {
+            steps: [createStep(`${attackerLabel}は ネジをまいている！`)],
+            defeated: false,
+          };
+        } else {
+          attacker.charging = null;
+        }
+      } else {
+        attacker.charging = null;
+      }
+
       const steps = [createStep(`${attackerLabel}の ${move.name}！`, null, "move")];
 
-      if (!attemptMoveHit(move)) {
+      if (move.effect === "evasion_up") {
+        attacker.evasionUp = true;
+        steps.push(createStep(`${attackerLabel}は 身軽になった！`));
+        return { steps, defeated: false };
+      }
+
+      if (!attemptMoveHit(move, defender)) {
         steps.push(createStep("しかし こうげきは はずれた！"));
         return {
           steps,

@@ -8,7 +8,7 @@
       rate: 0.16,
       slots: [
         {
-          speciesId: "dummy_bud",
+          speciesId: "nejimakidori",
           level: 3,
           weight: 45,
         },

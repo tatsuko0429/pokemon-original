@@ -3,27 +3,30 @@
 
   App.data.species = [
     {
-      id: "dummy_bud",
-      name: "ダミモン芽",
-      types: ["くさ"],
+      id: "nejimakidori",
+      name: "ネジマキドリ",
+      types: ["ノーマル", "はがね"],
       stats: {
-        hp: 22,
-        attack: 11,
-        defense: 10,
-        speed: 9,
-        special: 11,
+        hp: 20,
+        attack: 14,
+        defense: 12,
+        speed: 13,
+        special: 9,
       },
-      catchRate: 190,
-      defaultMoveIds: ["body_tap", "leaf_touch"],
+      catchRate: 150,
+      defaultMoveIds: ["gear_change", "wind_up"],
       palette: {
-        primary: "#7fa64d",
-        secondary: "#d7ebb8",
+        primary: "#858784",
+        secondary: "#c9b68d",
       },
-      spriteIds: {
-        battleFront: "dummy_bud_front",
-        battleBack: "dummy_bud_back",
+      imageSprites: {
+        battleFront: "./assets/nejimakidori-front.png",
+        battleBack: "./assets/nejimakidori-back.png",
       },
-      shape: "bud",
+      imageSpriteSize: {
+        battleFront: { width: 72, height: 72 },
+        battleBack: { width: 72, height: 72 },
+      },
     },
     {
       id: "dummy_flare",

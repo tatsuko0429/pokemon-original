@@ -304,6 +304,8 @@
             height
           );
           return;
+        } else if (!image.complete) {
+          return;
         }
       }
 

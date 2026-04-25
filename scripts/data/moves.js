@@ -54,5 +54,23 @@
       pp: 25,
       effect: "damage",
     },
+    {
+      id: "gear_change",
+      name: "ギアチェンジ",
+      type: "はがね",
+      power: 0,
+      accuracy: 100,
+      pp: 5,
+      effect: "evasion_up",
+    },
+    {
+      id: "wind_up",
+      name: "ネジまき",
+      type: "ノーマル",
+      power: 90,
+      accuracy: 100,
+      pp: 10,
+      effect: "charge_attack",
+    },
   ];
 })();
