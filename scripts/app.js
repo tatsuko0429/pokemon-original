@@ -64,9 +64,15 @@
       party: [starter],
       inventory: {
         fullHealCount: 0,
+        masterBallCount: 0,
       },
       collection: {
         capturedSpeciesIds: [],
+      },
+      timeAttack: {
+        active: false,
+        elapsedMs: 0,
+        finished: false,
       },
       progress,
     };
@@ -311,7 +317,14 @@
     }
 
     if (shell) {
-      shell.addEventListener("pointerdown", spawnTapRipple);
+      shell.addEventListener("pointerdown", (event) => {
+        spawnTapRipple(event);
+
+        const state = store.getState();
+        if (state.scene === "battle" && state.battle && state.battle.phase === "message") {
+          input.queueAction("confirm");
+        }
+      });
     }
 
     function openStoryIntro() {
@@ -437,6 +450,7 @@
         title: "アイテム",
         lines: [
           "モンスターボール: 使い放題",
+          `マスターボール: ${state.inventory.masterBallCount || 0} 個`,
           `回復薬: ${state.inventory.fullHealCount} 個`,
           `拾ったもの: ${pickupRecord.collected}/${pickupRecord.total}`,
         ],
@@ -551,7 +565,7 @@
           ? [
               {
                 kind: "saveMeta",
-                text: `保存: ${savedAtText}`,
+                text: `最新保存: ${savedAtText}`,
               },
             ]
           : [],
@@ -673,6 +687,26 @@
       });
     }
 
+    function updateTimeAttackTimer(deltaMs) {
+      const state = store.getState();
+      if (startChoicePending || modal.isOpen() || !state.progress.storyIntroAccepted || state.timeAttack.finished) {
+        return;
+      }
+
+      const currentMapId = state.field.mapId;
+      const shouldBeActive = currentMapId.startsWith("elite_") || currentMapId.startsWith("champion_");
+
+      if (shouldBeActive && !state.timeAttack.active) {
+        store.update(s => { s.timeAttack.active = true; });
+      }
+
+      if (state.timeAttack.active) {
+        store.update(s => {
+          s.timeAttack.elapsedMs += deltaMs;
+        });
+      }
+    }
+
     function frame(now) {
       const deltaMs = now - lastFrame;
       lastFrame = now;
@@ -684,6 +718,54 @@
         save.clear(store.getState());
         openStoryIntro();
         audio.playSe("error");
+        return requestAnimationFrame(frame);
+      }
+
+      if (store.getState().progress && store.getState().progress.gameCleared) {
+        startChoicePending = false;
+        store.update(s => { s.timeAttack.finished = true; });
+        const finalTimeMs = store.getState().timeAttack.elapsedMs;
+        const totalSeconds = Math.floor(finalTimeMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        let timeString = "";
+        if (hours > 0) timeString += `${hours}時間`;
+        if (minutes > 0 || hours > 0) timeString += `${minutes}分`;
+        timeString += `${seconds}秒`;
+
+        let rank = "C";
+        if (totalSeconds < 300) rank = "S";
+        else if (totalSeconds < 600) rank = "A";
+        else if (totalSeconds < 1200) rank = "B";
+
+        audio.playSe("confirm");
+        modal.openModal({
+          title: "殿堂入り",
+          lines: [
+            "おめでとうございます！",
+            `クリアタイム: ${timeString}`,
+            `ランク: ${rank}`,
+            "あなたの記録は殿堂入りとして登録されました。"
+          ],
+          dismissible: false,
+          actions: [
+            {
+              id: "return_title",
+              label: "タイトルへ",
+              onSelect: () => {
+                modal.closeModal({ force: true, silent: true });
+                store.reset();
+                save.clear(store.getState());
+                openStoryIntro();
+                audio.playSe("confirm");
+              }
+            }
+          ]
+        });
+
+        // Prevent it from triggering again by removing the flag
+        store.update(s => { s.progress.gameCleared = false; });
         return requestAnimationFrame(frame);
       }
 
@@ -704,6 +786,7 @@
       fieldScene.update(deltaMs);
       battleScene.update(deltaMs);
       updatePreparationTimer(deltaMs);
+      updateTimeAttackTimer(deltaMs);
       saveElapsedMs += deltaMs;
       if (saveElapsedMs >= autoSaveIntervalMs) {
         if (!startChoicePending && store.getState().progress.storyIntroAccepted) {

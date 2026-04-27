@@ -72,5 +72,23 @@
       pp: 10,
       effect: "charge_attack",
     },
+    {
+      id: "muscle_training",
+      name: "きんとれ",
+      type: "ノーマル",
+      power: 0,
+      accuracy: 100,
+      pp: 5,
+      effect: "damage_boost",
+    },
+    {
+      id: "punch",
+      name: "なぐる",
+      type: "ノーマル",
+      power: 40,
+      accuracy: 100,
+      pp: 20,
+      effect: "damage",
+    },
   ];
 })();

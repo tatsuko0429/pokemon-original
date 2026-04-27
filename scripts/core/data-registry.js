@@ -72,7 +72,7 @@
     const typeChart = App.config.game.typeChart || {};
     const validTypes = new Set(Object.keys(typeChart));
     const knownTiles = new Set(Object.keys(App.config.game.fieldTiles || {}));
-    const knownEventKinds = new Set(["talk", "warp", "pickup"]);
+    const knownEventKinds = new Set(["talk", "warp", "pickup", "battle", "champion_intro"]);
     const knownEventTriggers = new Set(["interact", "step"]);
     const knownSprites = new Set(
       Object.keys((App.data.pixelArt && App.data.pixelArt.field) || {}).filter(
@@ -503,8 +503,9 @@
       }, 1);
     }
 
-    function computeDamage(attacker, defender, moveId) {
+    function computeDamage(attacker, defender, moveId, options) {
       const move = getMove(moveId);
+      const settings = options || {};
       const attackerSpecies = getSpecies(attacker.speciesId);
       const defenderSpecies = getSpecies(defender.speciesId);
       const attackStat =
@@ -514,9 +515,11 @@
       const stab = attackerSpecies.types.includes(move.type) ? 1.5 : 1;
       const typeMultiplier = getTypeMultiplier(move.type, defenderSpecies.types);
       const randomFactor = 217 + random.integer(0, 38, "damage_roll");
+      const multiplier = settings.damageMultiplier || 1;
+      
       const base =
         Math.floor(
-          (((2 * attacker.level) / 5 + 2) * move.power * attackStat) / Math.max(1, defenseStat)
+          (((2 * attacker.level) / 5 + 2) * move.power * attackStat * multiplier) / Math.max(1, defenseStat)
         ) /
           50 +
         2;

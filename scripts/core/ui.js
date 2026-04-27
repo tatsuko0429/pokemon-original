@@ -82,7 +82,14 @@
         return;
       }
 
-      const timerText = getPreparationTimerText(state);
+      let timerText = "";
+      
+      if (state.timeAttack.active || state.progress.storyStage !== "preparation") {
+        timerText = formatTimer(state.timeAttack.elapsedMs);
+      } else {
+        timerText = getPreparationTimerText(state);
+      }
+
       const timerKey = JSON.stringify({
         text: timerText,
         visible: Boolean(timerText),
@@ -213,9 +220,16 @@
       level.textContent = `Lv${options.level}`;
       
       top.appendChild(name);
-      top.appendChild(typeEl);
       top.appendChild(level);
       card.appendChild(top);
+
+      const typeRow = document.createElement("div");
+      typeRow.className = "battle-type-row";
+      const typeRowEl = document.createElement("div");
+      typeRowEl.className = "battle-type";
+      typeRowEl.textContent = options.type ? `タイプ: ${options.type}` : "";
+      typeRow.appendChild(typeRowEl);
+      card.appendChild(typeRow);
 
       const hpRow = document.createElement("div");
       hpRow.className = "battle-hp-row";
@@ -242,6 +256,20 @@
       }
 
       card.appendChild(hpRow);
+
+      if (typeof options.expRatio === "number") {
+        const expRow = document.createElement("div");
+        expRow.className = "battle-exp-row";
+        const expTrack = document.createElement("div");
+        expTrack.className = "battle-exp-track";
+        const expFill = document.createElement("div");
+        expFill.className = "battle-exp-fill";
+        expFill.style.width = `${Math.max(0, Math.min(100, options.expRatio * 100))}%`;
+        expTrack.appendChild(expFill);
+        expRow.appendChild(expTrack);
+        card.appendChild(expRow);
+      }
+
       return card;
     }
 
@@ -249,6 +277,9 @@
       const settings = options || {};
       const wrapper = document.createElement("div");
       wrapper.className = "battle-buttons";
+      if (settings.hasMasterBall) {
+        wrapper.classList.add("has-master-ball");
+      }
 
       const fight = createButton("たたかう", "", null, settings.disabledAll);
       const ball = createButton("ボール", "", null, settings.disabledAll);
@@ -273,6 +304,15 @@
       wrapper.appendChild(ball);
       wrapper.appendChild(run);
       wrapper.appendChild(item);
+
+      if (settings.hasMasterBall) {
+        const masterBall = createButton("Mボール", "is-primary", null, settings.disabledAll);
+        if (!settings.disabledAll) {
+          input.attachActionButton(masterBall, "battle_throw_master_ball");
+        }
+        wrapper.appendChild(masterBall);
+      }
+
       return wrapper;
     }
 
@@ -291,11 +331,17 @@
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const playerShownHp = formatShownHp(state.battle.display.playerHp);
       const enemyShownHp = formatShownHp(state.battle.display.enemyHp);
+
+      const requiredExp = playerMonster.level * playerMonster.level * 10;
+      const expRatio = (playerMonster.exp || 0) / requiredExp;
+
       const overlayKey = JSON.stringify({
         playerShownHp,
         enemyShownHp,
         playerName: playerSpecies.name,
         enemyName: enemySpecies.name,
+        playerLevel: playerMonster.level,
+        playerExp: playerMonster.exp,
       });
 
       battleOverlay.classList.remove("is-hidden");
@@ -324,6 +370,7 @@
           level: playerMonster.level,
           hpRatio: playerShownHp / playerMonster.maxHp,
           hpText: `${playerShownHp}/${playerMonster.maxHp}`,
+          expRatio: expRatio,
         })
       );
     }
@@ -333,6 +380,7 @@
       const animationActive = Boolean(battle.animation) || state.transition.active;
       const playerMonster = state.party[0];
       const itemDisabled = state.inventory.fullHealCount <= 0;
+      const hasMasterBall = state.inventory.masterBallCount > 0;
       const panel = document.createElement("div");
       panel.className = "battle-panel";
 
@@ -345,7 +393,11 @@
       panel.appendChild(message);
 
       if (battle.phase === "message") {
-        panel.appendChild(createBattleCommandButtons({ disabledAll: true, itemDisabled: true }));
+        panel.appendChild(createBattleCommandButtons({ 
+          disabledAll: true, 
+          itemDisabled: true,
+          hasMasterBall: hasMasterBall,
+        }));
         return panel;
       }
 
@@ -354,6 +406,7 @@
           createBattleCommandButtons({
             disabledAll: animationActive,
             itemDisabled,
+            hasMasterBall: hasMasterBall,
           })
         );
         return panel;

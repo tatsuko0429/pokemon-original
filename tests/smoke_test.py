@@ -30,7 +30,7 @@ from pyppeteer import launch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_START_CAPTION = "ながめのみち"
-EXPECTED_SQUARE_CAPTION = "しずかなひろば"
+EXPECTED_SQUARE_CAPTION = "受付"
 EXPECTED_BATTLE_CAPTION = "やせいとの戦い"
 
 
@@ -533,7 +533,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.field.lastEncounterStep = 10;
                 state.inventory.fullHealCount = 2;
                 state.party = [restoredMonster];
-                state.collection.capturedSpeciesIds = ["dummy_bud"];
+                state.collection.capturedSpeciesIds = ["dummy_flare"];
                 state.progress.resolvedEventIds = ["route_ball_pickup"];
                 state.progress.observationQuestState = "reported";
               });
@@ -577,7 +577,7 @@ async def run_smoke_test(base_url: str) -> None:
             "保存した手持ちモンスターが復元されていません。",
         )
         expect(
-            restored_state["state"]["collection"]["capturedSpeciesIds"] == ["dummy_bud"],
+            restored_state["state"]["collection"]["capturedSpeciesIds"] == ["dummy_flare"],
             "保存した捕獲記録が復元されていません。",
         )
         expect(
@@ -599,7 +599,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.field.player.fromY = 4;
                 state.field.player.toX = 6;
                 state.field.player.toY = 4;
-                state.collection.capturedSpeciesIds = ["dummy_bud"];
+                state.collection.capturedSpeciesIds = ["dummy_flare"];
                 state.progress.resolvedEventIds = ["route_ball_pickup"];
                 state.progress.observationQuestState = "reported";
               });
@@ -628,7 +628,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(new_game_state["state"]["field"]["player"]["y"] == 10, "はじめから選択後の縦位置が初期値ではありません。")
         expect(new_game_state["state"]["inventory"]["fullHealCount"] == 0, "はじめから選択後に回復薬数が初期化されていません。")
         expect(
-            new_game_state["state"]["party"][0]["speciesId"] == "dummy_bud",
+            new_game_state["state"]["party"][0]["speciesId"] == "nejimakidori",
             "はじめから選択後に手持ちモンスターが初期化されていません。",
         )
         expect(not new_game_state["state"]["collection"]["capturedSpeciesIds"], "はじめから選択後に捕獲記録が残っています。")
@@ -782,17 +782,17 @@ async def run_smoke_test(base_url: str) -> None:
         await asyncio.sleep(0.2)
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
-              state.collection.capturedSpeciesIds = ["dummy_bud"];
+              state.collection.capturedSpeciesIds = ["dummy_flare"];
             })"""
         )
         await click_modal_button(page, "図鑑")
         await asyncio.sleep(0.2)
         recorded_observation_state = await read_field_state(page)
-        expect("ダミモン芽" in recorded_observation_state["modalButtons"], "図鑑一覧に種族ボタンが表示されていません。")
-        await click_modal_button(page, "ダミモン芽")
+        expect("ダンゴマル" in recorded_observation_state["modalButtons"], "図鑑一覧に種族ボタンが表示されていません。")
+        await click_modal_button(page, "ダンゴマル")
         await asyncio.sleep(0.2)
         observation_detail_state = await read_field_state(page)
-        expect(observation_detail_state["modalTitle"] == "ダミモン芽", "図鑑詳細画面が開いていません。")
+        expect(observation_detail_state["modalTitle"] == "ダンゴマル", "図鑑詳細画面が開いていません。")
         expect(observation_detail_state["modalPreviewCount"] >= 1, "図鑑詳細にモンスター画像が表示されていません。")
         expect(any("タイプ:" in line for line in observation_detail_state["modalLines"]), "図鑑詳細にタイプが表示されていません。")
         await click_modal_button(page, "図鑑へ戻る")
@@ -1050,7 +1050,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(not quest_active_state["actionNotePresent"], "依頼中も常設の操作説明が残っています。")
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
-              state.collection.capturedSpeciesIds = ["dummy_bud"];
+              state.collection.capturedSpeciesIds = ["dummy_flare"];
             })"""
         )
         await press(page, "Enter")

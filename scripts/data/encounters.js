@@ -9,18 +9,18 @@
       slots: [
         {
           speciesId: "nejimakidori",
-          level: 3,
-          weight: 45,
+          level: 5,
+          weight: 40,
         },
         {
           speciesId: "dummy_flare",
-          level: 4,
+          level: 5,
           weight: 30,
         },
         {
-          speciesId: "dummy_drop",
-          level: 4,
-          weight: 25,
+          speciesId: "aribou",
+          level: 5,
+          weight: 30,
         },
       ],
     },

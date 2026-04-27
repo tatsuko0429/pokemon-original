@@ -36,6 +36,10 @@
       );
     }
 
+    function canUseMasterBall(state) {
+      return Boolean(state.inventory && state.inventory.masterBallCount > 0);
+    }
+
     function rememberCapturedSpecies(state, speciesId) {
       if (!speciesId) {
         return false;
@@ -99,6 +103,7 @@
           success: Boolean(effect.success),
           shakeIndex: effect.shakeIndex || 0,
           totalShakes: effect.totalShakes || 0,
+          ballType: effect.ballType || "normal",
         };
       }
 
@@ -138,10 +143,16 @@
         state.party = [result.capturedMonster];
       }
 
+      let finalMessage = result && result.message ? result.message : "";
+      if (result && result.rewardItem === "full_heal") {
+        state.inventory.fullHealCount += 1;
+        finalMessage += "\n回復薬を 1つ 手に入れた！";
+      }
+
       healParty(state);
       state.scene = "field";
       state.battle = null;
-      state.field.message = result && result.message ? result.message : "";
+      state.field.message = finalMessage;
       state.field.lastEncounterStep = state.field.steps;
       state.transition = {
         active: true,
@@ -150,6 +161,10 @@
         durationMs: 400,
       };
       audio.playBgm("field");
+
+      if (result && result.gameCleared) {
+        state.progress.gameCleared = true;
+      }
     }
 
     function openCaptureRecordModal(result) {
@@ -175,9 +190,10 @@
       });
     }
 
-    function beginEncounter(enemyMonster) {
+    function beginEncounter(enemyMonster, context) {
       store.update((state) => {
         const playerMonster = getPlayerMonster(state);
+        const isTrainer = context && context.kind === "trainer-encounter";
 
         state.scene = "battle";
         state.field.message = "";
@@ -190,6 +206,8 @@
           messageElapsedMs: 0,
           captureBall: null,
           enemy: enemyMonster,
+          isTrainerBattle: isTrainer,
+          trainerInfo: isTrainer ? context : null,
           display: {
             playerHp: playerMonster.currentHp,
             enemyHp: enemyMonster.currentHp,
@@ -199,17 +217,58 @@
         const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
         const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
 
-        startSequence(
-          state,
-          [
-            createStep(`やせいの ${enemySpecies.name} が あらわれた！`),
-            createStep(`${playerSpecies.name} を くりだした！`),
-          ],
-          "command"
-        );
+        const introSteps = [];
+        if (isTrainer) {
+          introSteps.push(createStep(`${context.trainerName} が しょうぶを しかけてきた！`));
+          if (context.introMessage) {
+            introSteps.push(createStep(context.introMessage));
+          }
+          introSteps.push(createStep(`${context.trainerName} は ${enemySpecies.name} を くりだした！`));
+        } else {
+          introSteps.push(createStep(`やせいの ${enemySpecies.name} が あらわれた！`));
+        }
+        introSteps.push(createStep(`${playerSpecies.name} を くりだした！`));
+
+        startSequence(state, introSteps, "command");
       });
       audio.playBgm("battle");
       input.setActionLock(false, { clearQueue: true });
+      input.clearDirections();
+    }
+
+    function beginTrainerBattle(event) {
+      input.setActionLock(true, { clearQueue: true });
+      store.update((state) => {
+        let enemyMonster;
+        if (event.monsterSpecies === "first_caught") {
+          // 図鑑の最初の1匹、なければ手持ちの先頭
+          const firstSpeciesId =
+            (state.collection.capturedSpeciesIds && state.collection.capturedSpeciesIds[0]) ||
+            state.party[0].speciesId;
+          enemyMonster = dataRegistry.createMonsterInstance(firstSpeciesId, event.level || 5);
+        } else {
+          enemyMonster = dataRegistry.createMonsterInstance(
+            event.monsterSpecies || "aribou",
+            event.level || 5
+          );
+        }
+
+        state.transition = {
+          active: true,
+          kind: "trainer-encounter",
+          elapsedMs: 0,
+          durationMs: animationConfig.wildEncounterTransitionMs,
+          enemy: enemyMonster,
+          trainerName: event.trainerName,
+          introMessage: event.introMessage,
+          winMessage: event.winMessage,
+          loseMessage: event.loseMessage,
+          rewardItem: event.rewardItem,
+          resolvedEventId: event.resolvedEventId,
+          unlockCondition: event.unlockCondition,
+        };
+      });
+      audio.playSe("encounter");
       input.clearDirections();
     }
 
@@ -230,6 +289,8 @@
 
     function finishTransitionIfNeeded(deltaMs) {
       let pendingEncounter = null;
+      let transitionContext = null;
+      let isChampionIntro = false;
 
       store.update((state) => {
         if (!state.transition.active) {
@@ -238,13 +299,29 @@
 
         state.transition.elapsedMs += deltaMs;
         if (state.transition.elapsedMs >= state.transition.durationMs) {
+          isChampionIntro = state.transition.kind === "champion-intro";
           pendingEncounter = state.transition.enemy;
+          transitionContext = {
+            kind: state.transition.kind,
+            trainerName: state.transition.trainerName,
+            introMessage: state.transition.introMessage,
+            winMessage: state.transition.winMessage,
+            loseMessage: state.transition.loseMessage,
+            rewardItem: state.transition.rewardItem,
+            resolvedEventId: state.transition.resolvedEventId,
+          };
+          if (state.transition.event && state.transition.event.resolvedEventId) {
+            state.progress[state.transition.event.resolvedEventId] = true;
+          }
           state.transition = createEmptyTransition();
+          if (isChampionIntro) {
+            state.progress.championCutsceneActive = true;
+          }
         }
       });
 
       if (pendingEncounter) {
-        beginEncounter(pendingEncounter);
+        beginEncounter(pendingEncounter, transitionContext);
       }
     }
 
@@ -283,11 +360,31 @@
           playerMonster.special = Math.floor(((sp.stats.special * 2) * playerMonster.level) / 100) + 5;
         }
 
-        const message = leveledUp
-          ? `戦闘に勝利した！\nレベルが ${playerMonster.level} に上がった！`
-          : "戦闘が終わり、ひと息つきました。";
+        let message;
+        let gameCleared = false;
+        if (state.battle.isTrainerBattle && state.battle.trainerInfo) {
+          message = state.battle.trainerInfo.winMessage || `${state.battle.trainerInfo.trainerName} に 勝利した！`;
+          if (state.battle.trainerInfo.resolvedEventId) {
+            state.progress[state.battle.trainerInfo.resolvedEventId] = true;
+            if (state.battle.trainerInfo.resolvedEventId === "game_cleared") {
+               gameCleared = true;
+            }
+          }
+        } else {
+          message = leveledUp
+            ? `戦闘に勝利した！\nレベルが ${playerMonster.level} に上がった！`
+            : "戦闘が終わり、ひと息つきました。";
+        }
 
-        return { message };
+        const rewardItem =
+          (state.battle.isTrainerBattle && state.battle.trainerInfo && state.battle.trainerInfo.rewardItem) ||
+          (state.timeAttack.active ? "full_heal" : null);
+
+        return { 
+          message,
+          rewardItem,
+          gameCleared,
+        };
       }
 
       if (state.battle.nextPhase === "field_capture") {
@@ -424,7 +521,14 @@
         return { steps, defeated: false };
       }
 
+      if (move.effect === "damage_boost") {
+        attacker.nextDamageBoost = 2;
+        steps.push(createStep(`${attackerLabel}は 筋肉を いじめぬいている！`));
+        return { steps, defeated: false };
+      }
+
       if (!attemptMoveHit(move, defender)) {
+        attacker.nextDamageBoost = 1;
         steps.push(createStep("しかし こうげきは はずれた！"));
         return {
           steps,
@@ -433,6 +537,7 @@
       }
 
       if (move.effect === "random_heal") {
+        attacker.nextDamageBoost = 1;
         const fromHp = attacker.currentHp;
         const missingHp = Math.max(0, attacker.maxHp - attacker.currentHp);
         if (missingHp <= 0) {
@@ -472,6 +577,12 @@
       }
 
       if (move.effect === "chance_big_damage") {
+        const damageMultiplier = attacker.nextDamageBoost || 1;
+        attacker.nextDamageBoost = 1;
+        if (damageMultiplier > 1) {
+          steps.push(createStep("きんとれの せいかが はっきされた！"));
+        }
+
         const activated = random.chance(move.triggerChance || 0.5, `${move.id}_trigger`);
         if (!activated) {
           steps.push(createStep(move.failText || "しかし うまく きまらなかった。"));
@@ -484,7 +595,7 @@
         steps.push(createStep(move.successText || "うまく きまった！"));
 
         const fromHp = defender.currentHp;
-        const outcome = dataRegistry.computeDamage(attacker, defender, moveId);
+        const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
         const scaledDamage = Math.max(
           Math.round(outcome.damage * (move.damageMultiplier || 2)),
           Math.round(defender.maxHp * (move.minimumDamageRatio || 0))
@@ -517,8 +628,14 @@
         };
       }
 
+      const damageMultiplier = attacker.nextDamageBoost || 1;
+      attacker.nextDamageBoost = 1;
+      if (damageMultiplier > 1) {
+        steps.push(createStep("きんとれの せいかが はっきされた！"));
+      }
+
       const fromHp = defender.currentHp;
-      const outcome = dataRegistry.computeDamage(attacker, defender, moveId);
+      const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
       defender.currentHp = Math.max(0, defender.currentHp - outcome.damage);
 
       steps.push(
@@ -617,12 +734,16 @@
           return;
         }
 
+        const enemyLabel = state.battle.isTrainerBattle && state.battle.trainerInfo
+          ? `${state.battle.trainerInfo.trainerName} の ${enemySpecies.name}`
+          : `やせいの ${enemySpecies.name}`;
+
         const attack = buildAttackSequence(
           playerMonster,
           enemyMonster,
           moveId,
           playerSpecies.name,
-          `やせいの ${enemySpecies.name}`,
+          enemyLabel,
           {
             attacker: "player",
             defender: "enemy",
@@ -631,7 +752,9 @@
         const steps = attack.steps.slice();
 
         if (attack.defeated) {
-          steps.push(createStep(`やせいの ${enemySpecies.name} は たおれた！`));
+          const expGained = enemyMonster.level * 15;
+          steps.push(createStep(`${enemyLabel} は たおれた！`));
+          steps.push(createStep(`${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`));
           startSequence(state, steps, "field_victory");
           return;
         }
@@ -646,6 +769,11 @@
           return;
         }
 
+        if (state.battle.isTrainerBattle) {
+          startSequence(state, [createStep("人のモンスターを とったら どろぼう！", null, "error")], "command");
+          return;
+        }
+
         const enemyMonster = state.battle.enemy;
         const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
         const healthRatio = enemyMonster.currentHp / enemyMonster.maxHp;
@@ -657,6 +785,7 @@
             kind: "ball",
             phase: "throw",
             success,
+            ballType: "normal",
           }, "ball"),
         ];
 
@@ -667,6 +796,7 @@
             success,
             shakeIndex: count + 1,
             totalShakes: shakes,
+            ballType: "normal",
           }, "shake"));
         }
 
@@ -680,8 +810,55 @@
           kind: "ball",
           phase: "release",
           success: false,
+          ballType: "normal",
         }, "error"));
         queueEnemyTurn(state, steps);
+      });
+    }
+
+    function throwMasterBall() {
+      store.update((state) => {
+        if (!state.battle) {
+          return;
+        }
+
+        if (state.battle.isTrainerBattle) {
+          startSequence(state, [createStep("人のモンスターを とったら どろぼう！", null, "error")], "command");
+          return;
+        }
+
+        if (!canUseMasterBall(state)) {
+          startSequence(state, [createStep("マスターボールが ありません。", null, "error")], "command");
+          return;
+        }
+
+        state.inventory.masterBallCount -= 1;
+        const enemyMonster = state.battle.enemy;
+        const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
+        const success = true;
+        const shakes = 3;
+        const steps = [
+          createStep("マスターボールを なげた！", {
+            kind: "ball",
+            phase: "throw",
+            success,
+            ballType: "master",
+          }, "ball"),
+        ];
+
+        for (let count = 0; count < shakes; count += 1) {
+          steps.push(createStep("カタカタ…", {
+            kind: "ball",
+            phase: "shake",
+            success,
+            shakeIndex: count + 1,
+            totalShakes: shakes,
+            ballType: "master",
+          }, "shake"));
+        }
+
+        steps.push(createStep(`${enemySpecies.name} を つかまえた！`, null, "capture"));
+        startSequence(state, steps, "field_capture");
       });
     }
 
@@ -744,6 +921,10 @@
         if (!state.battle) {
           return;
         }
+        if (state.battle.isTrainerBattle) {
+          startSequence(state, [createStep("トレーナーとの 戦いからは にげられない！", null, "error")], "command");
+          return;
+        }
         startSequence(state, [createStep("うまく にげきれた！", null, "run")], "field_run");
       });
     }
@@ -781,6 +962,7 @@
             y,
             hideEnemy: progress >= (ballConfig.absorbAt || 0.62),
             open: 0,
+            ballType: animation.ballType || "normal",
           };
         } else if (animation.phase === "shake") {
           const shakeOffset =
@@ -792,6 +974,7 @@
             y: ballConfig.endY,
             hideEnemy: true,
             open: 0,
+            ballType: animation.ballType || "normal",
           };
         } else if (animation.phase === "release") {
           const open = Math.min(1, progress * 1.35);
@@ -803,6 +986,7 @@
                   y: ballConfig.endY,
                   hideEnemy: true,
                   open,
+                  ballType: animation.ballType || "normal",
                 }
               : null;
         }
@@ -815,6 +999,7 @@
               y: ballConfig.endY,
               hideEnemy: true,
               open: 0,
+              ballType: animation.ballType || "normal",
             };
           } else if (animation.phase === "release") {
             state.battle.captureBall = null;
@@ -851,6 +1036,10 @@
       }
 
       if (state.battle.phase === "message") {
+        if (input.consumeAction("confirm")) {
+          advanceMessage();
+          return;
+        }
         input.clearActions([
           "confirm",
           "cancel",
@@ -879,6 +1068,13 @@
           input.clearActions();
           audio.playSe("confirm");
           throwBall();
+          return;
+        }
+
+        if (input.consumeAction("battle_throw_master_ball")) {
+          input.clearActions();
+          audio.playSe("confirm");
+          throwMasterBall();
           return;
         }
 
@@ -921,6 +1117,7 @@
       backToCommand,
       selectMove,
       throwBall,
+      throwMasterBall,
       attemptRun,
       update,
     };

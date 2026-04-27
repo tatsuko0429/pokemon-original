@@ -79,6 +79,7 @@
   function buildStableInventory(inventory) {
     return {
       fullHealCount: asNonNegativeInteger(inventory && inventory.fullHealCount, 0),
+      masterBallCount: asNonNegativeInteger(inventory && inventory.masterBallCount, 0),
     };
   }
 
@@ -133,6 +134,11 @@
       party: buildStableParty(state.party || []),
       inventory: buildStableInventory(state.inventory || {}),
       collection: buildStableCollection(state.collection || {}),
+      timeAttack: {
+        active: Boolean(state.timeAttack && state.timeAttack.active),
+        elapsedMs: asNonNegativeInteger(state.timeAttack && state.timeAttack.elapsedMs, 0),
+        finished: Boolean(state.timeAttack && state.timeAttack.finished),
+      },
       progress: buildStableProgress(state.progress || {}),
     };
   }
@@ -294,6 +300,12 @@
     restoreInventory(savedState.inventory, nextState);
     restoreCollection(savedState.collection, nextState, dataRegistry);
     restoreProgress(savedState.progress, nextState);
+
+    if (isPlainObject(savedState.timeAttack)) {
+      nextState.timeAttack.active = Boolean(savedState.timeAttack.active);
+      nextState.timeAttack.elapsedMs = asNonNegativeInteger(savedState.timeAttack.elapsedMs, 0);
+      nextState.timeAttack.finished = Boolean(savedState.timeAttack.finished);
+    }
 
     return nextState;
   }

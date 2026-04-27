@@ -14,7 +14,7 @@
       blockedFeedbackCooldownMs: 420,
     },
     battle: {
-      messageAutoAdvanceMs: 650,
+      messageAutoAdvanceMs: 1000,
     },
     field: {
       startMapId: "camera_route",
@@ -30,17 +30,17 @@
       },
       enemy: {
         monsterX: 42,
-        monsterY: 52,
-        shadowX: 39,
+        monsterY: 39,
+        shadowX: 42,
         shadowY: 66,
         shadowWidth: 29,
         shadowHeight: 8,
       },
       player: {
-        monsterX: 120,
-        monsterY: 84,
-        shadowX: 119,
-        shadowY: 100,
+        monsterX: 118,
+        monsterY: 68,
+        shadowX: 118,
+        shadowY: 92,
         shadowWidth: 35,
         shadowHeight: 10,
       },
@@ -57,6 +57,7 @@
     story: {
       preparationDurationMs: 300000,
       introTitle: "ルール",
+      introLead: "この5分は、自由に準備する時間です。",
       introRules: [
         "草むらで5分間、モンスターを育てられます",
         "手持ちは1体だけ。捕まえると入れ替わります",
@@ -226,6 +227,11 @@
         passable: true,
         color: "#c9c08e",
       },
+      "1": { label: "四天王1", passable: true, color: "#8da5b3" },
+      "2": { label: "四天王2", passable: true, color: "#b3948d" },
+      "3": { label: "四天王3", passable: true, color: "#9c8db3" },
+      "4": { label: "四天王4", passable: true, color: "#b38da5" },
+      "c": { label: "王者", passable: true, color: "#b3ad8d" },
       "=": {
         label: "道",
         passable: true,

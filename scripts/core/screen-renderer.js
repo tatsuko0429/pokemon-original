@@ -371,7 +371,11 @@
       ctx.arc(x, y + shellLift, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = palette.captureRed || "#b14933";
+      if (ballState.ballType === "master") {
+        ctx.fillStyle = "#7038f8"; // Master Ball Purple
+      } else {
+        ctx.fillStyle = palette.captureRed || "#b14933";
+      }
       ctx.beginPath();
       ctx.arc(x, y - 1 - shellLift, 5, Math.PI, Math.PI * 2);
       ctx.fill();
@@ -496,6 +500,54 @@
 
         ctx.fillStyle = `rgba(248, 249, 238, ${progress * 0.35})`;
         ctx.fillRect(0, 0, screen.width, screen.height);
+      } else if (state.transition.kind === "trainer-encounter") {
+        const progress = Math.min(1, state.transition.elapsedMs / state.transition.durationMs);
+        
+        ctx.fillStyle = palette.deepest;
+        
+        // Circular mask closing in
+        ctx.beginPath();
+        ctx.rect(0, 0, screen.width, screen.height);
+        
+        const radius = Math.max(0, screen.width - (progress * screen.width * 1.5));
+        ctx.arc(screen.width / 2, screen.height / 2, radius, 0, Math.PI * 2, true);
+        ctx.fill();
+
+        // Flash screen white briefly at the start
+        if (progress < 0.1) {
+           ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+           ctx.fillRect(0, 0, screen.width, screen.height);
+        }
+
+      } else if (state.transition.kind === "champion-intro") {
+        const progress = state.transition.elapsedMs / state.transition.durationMs;
+        
+        ctx.fillStyle = `rgba(0, 0, 0, 1)`;
+        ctx.fillRect(0, 0, screen.width, screen.height);
+
+        // 4 lights appearing over time
+        // 0-0.1: light 1, 0.1-0.2: light 2, etc.
+        const numLights = 4;
+        for (let i = 0; i < numLights; i++) {
+          if (progress > i * 0.1) {
+            ctx.fillStyle = "rgba(255, 255, 200, 0.3)";
+            const lx = screen.width / 2 + (i % 2 === 0 ? -30 : 30);
+            const ly = screen.height / 2 + (i < 2 ? -30 : 30) - 20;
+            ctx.beginPath();
+            ctx.arc(lx, ly, 20, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        
+        if (progress > 0.4) {
+           // Reveal map and champion
+           ctx.globalCompositeOperation = "destination-out";
+           const radius = Math.min(screen.width, (progress - 0.4) * 2 * screen.width);
+           ctx.beginPath();
+           ctx.arc(screen.width / 2, screen.height / 2 - 30, radius, 0, Math.PI * 2);
+           ctx.fill();
+           ctx.globalCompositeOperation = "source-over";
+        }
       } else if (state.transition.kind === "battle-end") {
         const progress = Math.min(1, state.transition.elapsedMs / state.transition.durationMs);
         ctx.fillStyle = `rgba(0, 0, 0, ${1 - progress})`;

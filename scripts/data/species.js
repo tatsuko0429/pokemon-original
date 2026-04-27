@@ -24,8 +24,34 @@
         battleBack: "./assets/nejimakidori-back.png",
       },
       imageSpriteSize: {
-        battleFront: { width: 72, height: 72 },
-        battleBack: { width: 72, height: 72 },
+        battleFront: { width: 54, height: 54 },
+        battleBack: { width: 54, height: 54 },
+      },
+    },
+    {
+      id: "aribou",
+      name: "アリボウ",
+      types: ["ノーマル"],
+      stats: {
+        hp: 25,
+        attack: 16,
+        defense: 10,
+        speed: 12,
+        special: 8,
+      },
+      catchRate: 160,
+      defaultMoveIds: ["muscle_training", "punch"],
+      palette: {
+        primary: "#946a4d",
+        secondary: "#d6c4b0",
+      },
+      imageSprites: {
+        battleFront: "./assets/aribou-front.png",
+        battleBack: "./assets/aribou-back.png",
+      },
+      imageSpriteSize: {
+        battleFront: { width: 48, height: 48 },
+        battleBack: { width: 48, height: 48 },
       },
     },
     {
@@ -51,12 +77,12 @@
       },
       imageSpriteSize: {
         battleFront: {
-          width: 36,
-          height: 26,
+          width: 48,
+          height: 34,
         },
         battleBack: {
-          width: 35,
-          height: 28,
+          width: 46,
+          height: 36,
         },
       },
       shape: "bud",
@@ -78,11 +104,41 @@
         primary: "#5c8fa9",
         secondary: "#d5edf7",
       },
-      spriteIds: {
-        battleFront: "dummy_drop_front",
-        battleBack: "dummy_drop_back",
+      imageSprites: {
+        battleFront: "./assets/nejimakidori-front.png",
+        battleBack: "./assets/nejimakidori-back.png",
+      },
+      imageSpriteSize: {
+        battleFront: { width: 54, height: 54 },
+        battleBack: { width: 54, height: 54 },
       },
       shape: "drop",
     },
+    {
+      id: "king",
+      name: "キング",
+      types: ["ノーマル", "はがね"],
+      stats: {
+        hp: 45,
+        attack: 28,
+        defense: 25,
+        speed: 25,
+        special: 30,
+      },
+      catchRate: 25,
+      defaultMoveIds: ["gear_change", "wind_up", "punch"],
+      palette: {
+        primary: "#b36d6d",
+        secondary: "#cfc3c3",
+      },
+      imageSprites: {
+        battleFront: "./assets/nejimakidori-front.png",
+        battleBack: "./assets/nejimakidori-back.png",
+      },
+      imageSpriteSize: {
+        battleFront: { width: 54, height: 54 },
+        battleBack: { width: 54, height: 54 },
+      },
+    }
   ];
 })();

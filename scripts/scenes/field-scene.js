@@ -50,13 +50,16 @@
       });
     }
 
-    function isPreparationGateLocked(state, event) {
-      return Boolean(
-        event &&
-          event.kind === "warp" &&
-          event.unlockCondition === "prep_complete" &&
-          !(state.progress && state.progress.prepGateUnlocked)
-      );
+    function isEventLocked(state, event) {
+      if (!event || !event.unlockCondition) {
+        return false;
+      }
+
+      if (event.unlockCondition === "prep_complete") {
+        return !(state.progress && state.progress.prepGateUnlocked);
+      }
+
+      return !state.progress[event.unlockCondition];
     }
 
     function isBlockingEvent(event) {
@@ -96,12 +99,14 @@
     function applyPickup(state, event) {
       if (event.itemType === "full_heal") {
         state.inventory.fullHealCount += event.amount;
+      } else if (event.itemType === "master_ball") {
+        state.inventory.masterBallCount += event.amount;
       }
       rememberResolvedEvent(state, event.id);
       if (event.message) {
         state.field.message = event.message;
       } else {
-        state.field.message = "回復薬を みつけた！";
+        state.field.message = "アイテムを みつけた！";
       }
     }
 
@@ -175,6 +180,11 @@
         return;
       }
 
+      if (event.kind === "battle") {
+        battleScene.beginTrainerBattle(event);
+        return;
+      }
+
       store.update((state) => {
         if (event.kind === "talk") {
           if (event.questId) {
@@ -210,13 +220,13 @@
         state.field.player.direction = direction;
 
         const lockedGate = findEvent(state, mapDef, targetX, targetY, (event) => {
-          return event.trigger === "step" && isPreparationGateLocked(state, event);
+          return event.trigger === "step" && isEventLocked(state, event);
         });
         if (lockedGate) {
           state.field.message =
             lockedGate.lockedMessage ||
             (App.config.game.story && App.config.game.story.lockedGateMessage) ||
-            "5分後に解放されます。";
+            "道が 閉ざされている。";
           if (!state.field.blockedFeedbackCooldownMs) {
             setBumpEffect(state, direction);
             soundId = "error";
@@ -260,6 +270,12 @@
           applyWarp(state, stepEvent);
           return {
             kind: "warp",
+          };
+        }
+        if (stepEvent.kind === "champion_intro") {
+          return {
+            kind: "champion_intro",
+            event: stepEvent,
           };
         }
       }
@@ -333,6 +349,41 @@
         return;
       }
 
+      if (state.progress && state.progress.championCutsceneActive) {
+        if (state.field.player.moving) {
+          let pendingResult = null;
+          const currentMoveDuration = moveDuration * 1.5; // walk slowly
+          store.update((nextState) => {
+            nextState.field.player.progress = Math.min(
+              1,
+              nextState.field.player.progress + deltaMs / currentMoveDuration
+            );
+            if (nextState.field.player.progress >= 1) {
+              pendingResult = completeMove(nextState);
+            }
+          });
+          if (pendingResult && pendingResult.kind === "step" && pendingResult.soundId) {
+            audio.playSe(pendingResult.soundId);
+          }
+          return;
+        } else {
+          // not moving, start moving left if x > 6
+          if (state.field.player.x > 6) {
+            startMove("left");
+          } else {
+            // Reached champion
+            store.update(nextState => {
+              nextState.progress.championCutsceneActive = false;
+            });
+            const event = findEvent(state, currentMap(state), 5, 9, (e) => e.trigger === "interact");
+            if (event) {
+              handleInteractEvent(event);
+            }
+          }
+          return;
+        }
+      }
+
       if (input.consumeAction("menu")) {
         openMenu();
         return;
@@ -371,6 +422,18 @@
         }
         if (pendingResult && pendingResult.kind === "encounter") {
           battleScene.beginEncounterTransition(pendingResult.enemy);
+        }
+        if (pendingResult && pendingResult.kind === "champion_intro") {
+          store.update((state) => {
+            state.transition = {
+              active: true,
+              kind: "champion-intro",
+              elapsedMs: 0,
+              durationMs: 4000,
+              event: pendingResult.event,
+            };
+            audio.playSe("encounter");
+          });
         }
         return;
       }
