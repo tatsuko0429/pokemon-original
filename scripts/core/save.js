@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// localStorage保存の境界を担当する。保存対象は「安定して復元できる進行状態」に限定し、戦闘中や遷移中は保存しない。
+// schemaVersion / storageKey / buildStableStateの変更は既存セーブ互換性に直結するため、必ず保存再開テストを行う。
 (() => {
   const App = window.MonsterPrototype;
   const DIRECTIONS = new Set(["up", "right", "down", "left"]);
@@ -117,6 +120,7 @@
   }
 
   function buildStableState(state) {
+    // DOM表示、モーダル、戦闘途中アニメーションは保存しない。復元後は必ずフィールド状態から再開する設計。
     const field = state.field || {};
     const player = field.player || {};
 
@@ -144,6 +148,7 @@
   }
 
   function restorePlayer(savedField, nextState, mapDef) {
+    // 保存位置が地形変更で通行不可になった場合はspawnへ戻す。マップ編集時の破損セーブ対策。
     const savedPlayer = (savedField && savedField.player) || {};
     const fallbackPlayer = nextState.field.player;
     const spawn = mapDef && mapDef.spawn ? mapDef.spawn : fallbackPlayer;
@@ -271,6 +276,7 @@
   }
 
   function restoreStableState(initialState, savedState, dataRegistry) {
+    // 復元は初期状態へ安全な差分だけを戻す。新しいprogress/inventoryキーは初期値が基準になる。
     const nextState = deepClone(initialState);
     if (!isPlainObject(savedState)) {
       return nextState;
@@ -311,6 +317,7 @@
   }
 
   function canPersist(state) {
+    // 戦闘・画面遷移中は中間状態が多く、復元不能になりやすいので保存禁止。
     return Boolean(
       state &&
         state.scene === "field" &&

@@ -1,3 +1,9 @@
+/*
+  2026年4月27日時点の開発者向け保守メモ:
+  このCSSはゲーム機風の単一画面UIを、ページスクロールなしでスマホ縦長画面へ収めるためのレイアウト契約を持つ。
+  JavaScript側はbodyのis-battle-scene、各id/classの表示切替、モーダルのis-hiddenに依存している。
+  印刷用CSSは現時点では存在しない。追加する場合も、canvas比率・固定vh・モーダルz-indexの検証を先に行う。
+*/
 :root {
   color-scheme: light;
   --bg-top: #d9d9d4;
@@ -88,6 +94,10 @@ select {
 }
 
 .app-shell {
+  /*
+    本体は常に1画面内へ収める前提。height:100% と max-height の組み合わせは
+    tests/smoke_test.py のスマホ表示・縦スクロール禁止チェックと結びついている。
+  */
   position: relative;
   width: min(100%, 430px);
   height: 100%;
@@ -168,6 +178,10 @@ select {
 }
 
 .screen-wrap {
+  /*
+    通常時は160x166相当、戦闘時は下部操作領域との重なりを避けるため別比率にする。
+    #game-screen自体のwidth/height属性は160x144のままなので、ここは見た目だけの拡大枠。
+  */
   position: relative;
   width: 100%;
   aspect-ratio: var(--screen-ratio);
@@ -199,7 +213,15 @@ select {
   background: #ded7bf;
 }
 
+.is-battle-scene #game-screen {
+  image-rendering: auto;
+}
+
 .battle-overlay {
+  /*
+    戦闘HPカードはcanvasではなくDOMで重ねる。screen-renderer.jsのモンスター座標と
+    ui.jsのカード位置の両方に依存するため、片方だけ動かすとHP表示が相手/味方画像に重なる。
+  */
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -322,6 +344,10 @@ select {
 }
 
 .screen-message {
+  /*
+    フィールドメッセージ専用。戦闘中のメッセージは操作パネル側へ出す設計なので、
+    battle時にここへ文言を戻すとHPカード・canvasと衝突しやすい。
+  */
   position: absolute;
   left: 6px;
   right: 6px;
@@ -366,6 +392,10 @@ select {
 }
 
 .screen-timer {
+  /*
+    準備5分タイマーと四天王以降のタイムアタック表示を同じ部品で扱う。
+    ui.jsのrenderScreenTimerがテキスト有無でis-hiddenを切り替える。
+  */
   position: absolute;
   top: 6px;
   right: 6px;
@@ -388,6 +418,10 @@ select {
 }
 
 .status-card {
+  /*
+    フィールド専用の状態表示。戦闘中はHPカードをbattle-overlayに出すため、
+    ui.jsが親要素へis-hiddenを付けて二重表示を避ける。
+  */
   padding: 6px;
   border: 2px solid rgba(12, 14, 16, 0.74);
   border-radius: 16px;
@@ -449,6 +483,10 @@ select {
 }
 
 .field-controls {
+  /*
+    十字キーとA/B/Menuの操作面は毎renderで再生成される。
+    input.jsがpointerイベントを直接付与するので、ボタン構造変更時はキーボード・タッチ両方を確認する。
+  */
   display: grid;
   grid-template-areas: "dpad face";
   grid-template-columns: 1fr 1fr;
@@ -498,16 +536,20 @@ select {
 }
 
 .battle-panel {
+  /*
+    戦闘メッセージとコマンドをcanvas外へ置くことで、HP表示とモンスター描画の視認性を守っている。
+    行数やボタン数を増やす場合はmax-height 760pxのメディアクエリも同時に確認する。
+  */
   display: grid;
-  grid-template-rows: minmax(72px, 1fr) auto;
-  gap: 8px;
+  grid-template-rows: minmax(54px, 0.9fr) auto;
+  gap: 6px;
   height: 100%;
   min-height: 0;
 }
 
 .battle-message-panel {
-  min-height: 72px;
-  padding: 10px 12px;
+  min-height: 54px;
+  padding: 8px 10px;
   border: 3px solid var(--line);
   border-radius: 16px;
   background:
@@ -528,7 +570,7 @@ select {
 .battle-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-self: end;
   min-height: 0;
 }
@@ -539,7 +581,7 @@ select {
 }
 
 .battle-buttons.has-master-ball .control-button {
-  min-height: 54px;
+  min-height: 50px;
   padding: 8px 4px;
   font-size: clamp(0.68rem, 2.5vw, 0.8rem);
 }
@@ -551,6 +593,12 @@ select {
 
 .battle-buttons.is-move-select {
   align-items: stretch;
+}
+
+.battle-buttons .control-button {
+  min-height: 54px;
+  padding: 8px 8px;
+  border-radius: 14px;
 }
 
 .control-button {
@@ -727,6 +775,10 @@ select {
 }
 
 .modal-root {
+  /*
+    開始説明、保存選択、メニュー、捕獲記録の共通モーダル。
+    z-indexはtap-rippleや画面オーバーレイより上に置く必要がある。
+  */
   position: fixed;
   inset: 0;
   display: flex;
@@ -849,8 +901,7 @@ select {
   height: auto;
   max-height: 180px;
   object-fit: contain;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
 }
 
 .modal-monster-caption {
@@ -920,6 +971,10 @@ select {
 }
 
 @media (max-height: 760px) {
+  /*
+    低い端末でスクロールを出さないための圧縮ルール。
+    ボタンや画面の高さを増やしたら、390x844だけでなく低めのviewportでも確認する。
+  */
   .app-shell {
     gap: 4px;
     padding: 8px 10px;
@@ -948,13 +1003,13 @@ select {
   }
 
   .battle-panel {
-    grid-template-rows: minmax(62px, 1fr) auto;
-    gap: 7px;
+    grid-template-rows: minmax(50px, 0.9fr) auto;
+    gap: 5px;
   }
 
   .battle-message-panel {
-    min-height: 62px;
-    padding: 8px 10px;
+    min-height: 50px;
+    padding: 7px 9px;
   }
 
   .control-button.face-button {
@@ -963,6 +1018,11 @@ select {
 
   .control-button {
     min-height: 62px;
+  }
+
+  .battle-buttons .control-button {
+    min-height: 50px;
+    padding: 7px 7px;
   }
 
   .control-button.system-button {

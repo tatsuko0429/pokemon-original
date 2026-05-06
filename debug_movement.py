@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# 手動でプレイヤー位置を固定し、左移動の座標変化を確認する一時デバッグ用。
+# storeの内部座標を直接書き換えるため、通常のユーザー操作再現にはtests/smoke_test.pyを優先する。
 import asyncio
 from playwright.async_api import async_playwright
 import os

@@ -1,9 +1,13 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// canvas内のフィールド/戦闘背景/モンスター/遷移だけを描く。HPカードや操作ボタンはui.jsのDOM描画が担当する。
+// 内部解像度はconfig.screenの160x144前提で、CSS側の拡大比率と分離している。
 (() => {
   const App = window.MonsterPrototype;
 
   function createScreenRenderer(canvas, messageElement, captionElement, dataRegistry) {
     const ctx = canvas.getContext("2d");
     const { screen, palette, fieldTiles, animation } = App.config.game;
+    const renderScale = Math.max(1, Math.floor(screen.renderScale || 1));
     const damageAnimation = animation.damage;
     const fieldPixelArt = App.data.pixelArt.field;
     const battlePixelArt = App.data.pixelArt.battle || {};
@@ -14,6 +18,9 @@
       down: { x: 0, y: 1 },
       left: { x: -1, y: 0 },
     };
+    canvas.width = screen.width * renderScale;
+    canvas.height = screen.height * renderScale;
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
     function clear(color) {
@@ -46,6 +53,13 @@
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    function resolveImageDrawSize(size, image) {
+      const naturalRatio = image.naturalWidth / image.naturalHeight;
+      const width = size.width || (size.height ? size.height * naturalRatio : image.naturalWidth);
+      const height = size.height || (size.width ? size.width / naturalRatio : image.naturalHeight);
+      return { width, height };
     }
 
     function drawTileAt(left, top, tileCode) {
@@ -147,6 +161,7 @@
     }
 
     function getFieldCamera(mapDef, playerPosition) {
+      // カメラはマップ外を見せないようclampする。rowsが矩形である前提はdata-registry.jsで検証済み。
       const mapWidth = mapDef.rows[0].length * screen.tileSize;
       const mapHeight = mapDef.rows.length * screen.tileSize;
       const offsetX = clamp(
@@ -193,6 +208,8 @@
     }
 
     function drawField(state) {
+      // 描画順は地形 -> イベント -> プレイヤー -> 草むら前景 -> 歩行エフェクト。
+      // 草むらの前景を後描きすることで、プレイヤーの足元が隠れる見た目を作っている。
       clear(palette.light);
       const mapDef = dataRegistry.getMap(state.field.mapId);
       const playerPos = getInterpolatedPosition(state.field.player, state.field.bumpEffect);
@@ -281,6 +298,7 @@
     }
 
     function drawBattleMonster(position, species, view) {
+      // 外部PNG画像、pixel-art定義、簡易shapeの順でフォールバックする。種族データ変更時の表示互換性を保つため。
       const spriteKey = view === "back" ? "battleBack" : "battleFront";
       const imageSrc = species.imageSprites && species.imageSprites[spriteKey];
       if (imageSrc) {
@@ -294,15 +312,24 @@
 
         if (image.complete && image.naturalWidth > 0) {
           const size = (species.imageSpriteSize && species.imageSpriteSize[spriteKey]) || {};
-          const width = size.width || image.naturalWidth;
-          const height = size.height || image.naturalHeight;
+          const drawSize = resolveImageDrawSize(size, image);
+          const width = drawSize.width;
+          const height = drawSize.height;
+
+          // PNGアセットは種族ごとに見た目の中心が違うため、species.battleOffsetで最終調整する。
+          const offset = (species.battleOffset && species.battleOffset[view === "back" ? "player" : "enemy"]) || { x: 0, y: 0 };
+
+          // 通常のpixel-art描画はスムージング無効だが、PNGモンスターは原寸縮小時の荒れを避けるため一時的に有効化する。
+          const originalSmoothing = ctx.imageSmoothingEnabled;
+          ctx.imageSmoothingEnabled = true;
           ctx.drawImage(
             image,
-            Math.round(position.x - width / 2),
-            Math.round(position.y - height / 2),
+            Math.round(position.x - width / 2 + (offset.x || 0)),
+            Math.round(position.y - height / 2 + (offset.y || 0)),
             width,
             height
           );
+          ctx.imageSmoothingEnabled = originalSmoothing;
           return;
         } else if (!image.complete) {
           return;
@@ -434,6 +461,7 @@
     }
 
     function drawBattle(state) {
+      // 戦闘画面はcanvasに背景とモンスターだけを描き、HP表示はDOMのbattle-overlayへ任せる。
       const layout = getBattleLayout();
       clear(palette.battleBg || "#ded7bf");
       
@@ -479,6 +507,7 @@
     }
 
     function drawTransitionOverlay(state) {
+      // transition.kindはfield-scene/battle-sceneが設定する。演出追加時は遷移完了処理finishTransitionIfNeededも見る。
       if (!state.transition.active) {
         return;
       }
@@ -556,6 +585,7 @@
     }
 
     function renderMessage(state, dataRegistryInstance) {
+      // フィールドメッセージのみscreen-messageへ出す。戦闘文言はui.jsのbattle-message-panelへ分離して重なりを防ぐ。
       let message = "";
       let caption = "";
 

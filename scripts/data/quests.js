@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 依頼データ。progressKeyは保存データに残るため、名称変更は既存進行の破壊になる。
+// field-scene.jsは会話イベントのquestIdからここを参照し、data-registry.jsが目的文と報告文を解決する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -8,6 +11,7 @@
       initialState: "not_started",
       primary: true,
       completionRequirement: {
+        // 現時点でdata-registry.jsが対応する達成条件はcaptured_count_at_leastのみ。
         kind: "captured_count_at_least",
         count: 1,
       },

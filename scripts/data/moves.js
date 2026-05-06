@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 技データの定義。idはspecies.defaultMoveIds、battle-scene.jsの効果分岐、ui.jsの表示に参照される。
+// effectを増やす場合はdata-registry.jsの検証、battle-scene.jsの処理、ui.jsの説明文をセットで更新する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -28,6 +31,7 @@
       accuracy: 100,
       pp: 10,
       effect: "random_heal",
+      // 回復量は最大HP比率の乱数。randomの呼び出し順が戦闘結果の再現性に影響する。
       healRatioMin: 0.18,
       healRatioMax: 0.42,
     },
@@ -39,6 +43,7 @@
       accuracy: 100,
       pp: 15,
       effect: "chance_big_damage",
+      // 成功時だけ大ダメージを出す特殊技。minimumDamageRatioは低レベル戦の見せ場を保証する下限。
       triggerChance: 0.25,
       damageMultiplier: 3,
       minimumDamageRatio: 0.35,

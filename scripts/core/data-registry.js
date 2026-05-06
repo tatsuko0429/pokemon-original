@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// data配下の定義をid検索できる形へまとめ、起動時に整合性を検証する中核。
+// ここで検出したerrorsはapp.jsの起動を止めるため、データ追加時はまずこの検証を通す。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -68,6 +71,7 @@
   }
 
   function createDataRegistry(random) {
+    // 以降のscene/render/saveはデータが妥当である前提で動く。検証を弱める場合は実行時防御も同時に増やす。
     const errors = [];
     const typeChart = App.config.game.typeChart || {};
     const validTypes = new Set(Object.keys(typeChart));
@@ -218,6 +222,7 @@
     });
 
     mapsById.forEach((mapDef) => {
+      // マップ文字列は矩形であることが前提。カメラ計算、移動判定、保存復元がrows[0].lengthを基準にする。
       if (!Array.isArray(mapDef.rows) || mapDef.rows.length === 0) {
         errors.push(`マップ ${mapDef.id} に地形データがありません。`);
         return;
@@ -425,6 +430,7 @@
     }
 
     function getQuestInteractionMessage(state, questId, fallbackMessage) {
+      // 依頼の表示文は進行状態と達成条件から決まる。field-scene.jsはここで得た文言をそのままfield.messageに出す。
       const quest = getQuest(questId);
       if (!quest || !quest.messages) {
         return fallbackMessage || "";
@@ -453,6 +459,7 @@
     }
 
     function createMonsterInstance(speciesId, level, overrideMoveIds) {
+      // 戦闘・保存復元・トレーナー生成が同じ生成関数を使う。返却形を変える場合はsave.jsのparty復元も更新する。
       const species = getSpecies(speciesId);
       if (!species) {
         throw new Error(`未定義の種族 ${speciesId} が指定されました。`);
@@ -504,6 +511,7 @@
     }
 
     function computeDamage(attacker, defender, moveId, options) {
+      // ダメージ式はbattle-scene.jsの技効果から呼ばれる共通計算。乱数消費順も戦闘再現性に影響する。
       const move = getMove(moveId);
       const settings = options || {};
       const attackerSpecies = getSpecies(attacker.speciesId);

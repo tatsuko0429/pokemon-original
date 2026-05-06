@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// モンスター種族データ。idは保存データ、遭遇テーブル、トレーナー戦、図鑑記録に永続的に使われる。
+// 画像サイズやbattleOffsetはscreen-renderer.jsの戦闘配置と結合しているため、アセット差し替え時は戦闘画面を確認する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -20,12 +23,13 @@
         secondary: "#c9b68d",
       },
       imageSprites: {
+        // PNGアセットはpixel-art定義より優先して描画される。パス変更時はfile://とHTTPサーバの両方で確認する。
         battleFront: "./assets/nejimakidori-front.png",
         battleBack: "./assets/nejimakidori-back.png",
       },
       imageSpriteSize: {
-        battleFront: { width: 54, height: 54 },
-        battleBack: { width: 54, height: 54 },
+        battleFront: { height: 54 },
+        battleBack: { height: 54 },
       },
     },
     {
@@ -50,8 +54,8 @@
         battleBack: "./assets/aribou-back.png",
       },
       imageSpriteSize: {
-        battleFront: { width: 48, height: 48 },
-        battleBack: { width: 48, height: 48 },
+        battleFront: { height: 54 },
+        battleBack: { height: 54 },
       },
     },
     {
@@ -77,13 +81,16 @@
       },
       imageSpriteSize: {
         battleFront: {
-          width: 48,
-          height: 34,
+          width: 54,
         },
         battleBack: {
-          width: 46,
-          height: 36,
+          width: 50,
         },
+      },
+      battleOffset: {
+        // ダンゴマルは画像の余白・重心が他種族と異なるため、相手側だけ下げて地面との接地感を合わせている。
+        enemy: { x: 0, y: 9 },
+        player: { x: 0, y: 4 },
       },
       shape: "bud",
     },

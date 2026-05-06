@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# 2026年4月27日時点の開発者向け保守メモ:
+# ブラウザで実際に静的アプリを起動し、初期表示、タイマー、保存復元、移動、メニュー、戦闘、捕獲、依頼をまとめて確認する主テスト。
+# UI文言やDOM構造への期待が多いため、見た目だけの変更でも失敗する場合がある。失敗箇所は仕様変更か回帰かを確認してから期待値を更新する。
 """
 最小スモークテスト。
 
@@ -42,6 +45,7 @@ def expand_route(*segments):
 
 
 ROUTE_TO_SQUARE = expand_route(("ArrowLeft", 10))
+# ルート定数はマップ座標と密結合。maps.jsのrows/spawn/warp座標を変えたら最初にここを見直す。
 ROUTE_BACK_TO_ROUTE = ["ArrowRight"]
 ROUTE_TO_SQUARE_GUIDE = expand_route(("ArrowDown", 1), ("ArrowLeft", 13))
 ROUTE_TO_PICKUP = expand_route(
@@ -157,6 +161,7 @@ async def wait_for_caption(page, expected: str) -> None:
 
 
 async def load_fresh(page, base_url: str, accept_intro: bool = True) -> None:
+    # localStorageを消してから再読込する。保存再開テストの前提を汚さないため、通常起動確認は必ずここを通す。
     await page.goto(base_url, {"waitUntil": "networkidle0"})
     await page.evaluate(
         """() => {
@@ -180,6 +185,7 @@ async def load_fresh(page, base_url: str, accept_intro: bool = True) -> None:
 
 
 async def unlock_preparation_gate(page) -> None:
+    # 5分待たずにゲート解放済み状態を作る。app.jsのタイマー仕様を変えた時は、この直接操作が妥当かも確認する。
     await page.evaluate(
         """() => {
           const runtime = window.MonsterPrototype.runtime;
@@ -250,6 +256,7 @@ async def click_modal_button(page, label: str) -> None:
 
 
 async def run_smoke_test(base_url: str) -> None:
+    # この関数はユーザーが触る主要導線を1本で流す。途中の状態注入は、長時間待機や乱数依存を避けるための検査用ショートカット。
     browser_errors = []
     executable_path = find_browser_executable()
     launch_options = {

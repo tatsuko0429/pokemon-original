@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// Node上で設定/データ/registryだけを読み、データ検証エラーを確認する軽量スクリプト。
+// ブラウザDOMやsceneは見ないため、起動全体の確認にはtests/smoke_test.pyを使う。
 const fs = require('fs');
 const window = { MonsterPrototype: { config: { game: {} }, data: {}, core: {}, runtime: {} } };
 const files = [

@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# prepElapsedMsを直接進め、prepGateUnlockedと左出口ワープの挙動を見る補助。
+# 準備5分ルールを触った時は、この観点に加えてapp.js/ui.js/save.jsの連携も確認する。
 import asyncio
 from playwright.async_api import async_playwright
 import os

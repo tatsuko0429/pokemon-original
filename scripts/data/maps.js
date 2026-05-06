@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// マップ、イベント、四天王/チャンピオン導線の定義。rowsの文字はapp-config.jsのfieldTilesと対応する。
+// event.id / resolvedEventId / unlockConditionはprogressや保存データに残るため、変更時は復元・再取得防止・ワープ解放を確認する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -8,6 +11,7 @@
   const CHAMPION_LEVEL = 50;
 
   function createEliteChamber(id, name, tile, level, trainerName, intro, win, lose, clearedKey, nextMapId) {
+    // 四天王部屋は同じ構造を生成する。出口解放はbattleイベントのresolvedEventIdとwarp.unlockConditionでつながる。
     return {
       id,
       name,
@@ -28,6 +32,7 @@
           y: 9,
           trainerName,
           monsterSpecies: "first_caught",
+          // first_caughtはbattle-scene.jsで「図鑑の最初の1匹、なければ手持ち」を相手にする特別指定。
           level,
           introMessage: intro,
           winMessage: win,
@@ -44,6 +49,7 @@
           targetMapId: nextMapId,
           target: { x: 18, y: 9, direction: "left" },
           unlockCondition: clearedKey,
+          // 勝利フラグが立つまで左出口をロックする。lockedMessageはfield-scene.jsの移動開始時に表示される。
           lockedMessage: "勝負に勝つまでは 先へは通せません。",
         },
         {
@@ -64,6 +70,7 @@
       id: "camera_route",
       name: "ながめのみち",
       encounterTableId: "prototype_meadow",
+      bgmId: "first_grass",
       spawn: { x: 10, y: 10, direction: "right" },
       rows: [
         "############################",
@@ -99,6 +106,7 @@
           x: 0,
           y: 10,
           unlockCondition: "prep_complete",
+          // 初期ルートの左出口は準備5分完了で解放される特別条件。field-scene.jsのisEventLockedで個別扱い。
           lockedMessage: "5分後に解放されます。",
           targetMapId: "quiet_square",
           target: { x: 18, y: 9, direction: "left" },
@@ -166,6 +174,7 @@
         return "#" + "c".repeat(18) + "#";
       }),
       events: [
+        // チャンピオン部屋の自動歩行演出入口。screen-renderer.jsのchampion-intro描画とfield-scene.jsのcutscene処理に依存する。
         { id: "champion_intro_trigger", kind: "champion_intro", trigger: "step", x: 17, y: 9, resolvedEventId: "champion_intro_seen" },
         {
           id: "champion_npc",

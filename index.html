@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  2026年4月27日時点の開発者向け保守メモ:
+  このHTMLはアプリの静的な骨格だけを持ち、画面内容・ボタン・モーダル本文はJavaScriptが差し替える。
+  id属性とscriptの読み込み順は実行時の契約なので、DOM名や順番を変える場合は起動、保存再開、フィールド、戦闘、モーダルをまとめて確認する。
+-->
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
@@ -21,6 +26,11 @@
   </head>
   <body>
     <main class="app-shell">
+      <!--
+        canvasは160x144の内部解像度を維持し、CSSで本体サイズへ拡大する。
+        battle-overlay / screen-timer / screen-message / screen-caption は同じ画面座標系に重なるため、
+        どれかを移動・削除すると描画、戦闘HP表示、準備タイマー、フィールドメッセージの重なり方に影響する。
+      -->
       <section class="screen-card" aria-label="ゲーム画面">
         <div class="screen-wrap">
           <canvas
@@ -45,6 +55,10 @@
       </section>
     </main>
 
+    <!--
+      モーダルはcreateModalControllerが再構築する共有領域。開始説明、保存データ選択、メニュー、捕獲記録が同じrootを使う。
+      confirmボタンは初期DOMのフォールバック兼actionsRoot算出に使われるため、削除やid変更はmodal.js側も同時に見る。
+    -->
     <div id="modal-root" class="modal-root is-hidden" aria-hidden="true">
       <div class="modal-backdrop"></div>
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -56,6 +70,10 @@
       </div>
     </div>
 
+    <!--
+      読み込み順は依存関係そのもの。namespace -> config/data -> core -> scenes -> app の順で、
+      data-registryが全データを検証し、app.jsが最後に起動する。
+    -->
     <script defer src="./scripts/core/namespace.js"></script>
     <script defer src="./scripts/config/app-config.js"></script>
     <script defer src="./scripts/data/moves.js"></script>

@@ -1,8 +1,12 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// canvasへ直接描く小さなドット絵定義。fieldはマップイベント/プレイヤー、battleはPNGがない種族のフォールバックに使う。
+// rowsの文字は各sprite.paletteのキーに対応する。未定義文字を入れると描画色が壊れるため、追加時は表示確認する。
 (() => {
   const App = window.MonsterPrototype;
 
   App.data.pixelArt = {
     field: {
+      // field側のキーはmaps.jsのevent.spriteとscreen-renderer.jsのplayer描画から参照される。
       player: {
         palette: {
           h: "#20331a",
@@ -79,6 +83,7 @@
       },
     },
     battle: {
+      // battle側のキーはspecies.spriteIdsから参照される。PNG指定がある種族では通常こちらは使われない。
       dummy_bud_front: {
         scale: 2,
         palette: {

@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# 準備ゲート解放前後の移動とメッセージを手早く追う旧式のデバッグスクリプト。
+# 網羅的な保証はtests/smoke_test.py側に集約されている。
 import asyncio
 from playwright.async_api import async_playwright
 import os

@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// フィールド移動、会話/拾得/ワープ/遭遇イベントを担当するscene。
+// マップ定義、地形通行可否、progress.resolvedEventIds、battleScene起動が強く結合している。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -51,6 +54,8 @@
     }
 
     function isEventLocked(state, event) {
+      // unlockConditionはprep_completeだけ特別扱いし、それ以外はprogress上の真偽値を見る。
+      // maps.jsで条件を増やす場合はここを拡張する。
       if (!event || !event.unlockCondition) {
         return false;
       }
@@ -82,6 +87,7 @@
     }
 
     function applyWarp(state, event) {
+      // ワープ時は移動補間情報も移動先へ揃える。x/yだけ変えると次フレームで旧座標から補間される。
       state.field.mapId = event.targetMapId;
       state.field.player.x = event.target.x;
       state.field.player.y = event.target.y;
@@ -97,6 +103,7 @@
     }
 
     function applyPickup(state, event) {
+      // 拾得済みはprogress.resolvedEventIdsで管理する。保存復元・再取得防止・描画非表示がこのidに依存する。
       if (event.itemType === "full_heal") {
         state.inventory.fullHealCount += event.amount;
       } else if (event.itemType === "master_ball") {
@@ -172,11 +179,8 @@
     }
 
     function handleInteractEvent(event) {
+      // 正面にイベントがない場合は無音・無メッセージで戻る現在仕様。操作説明的な文言を出すと既存テストが変わる。
       if (!event) {
-        store.update((nextState) => {
-          nextState.field.message = "いまは ここで反応するものがありません。";
-        });
-        audio.playSe("error");
         return;
       }
 
@@ -211,6 +215,7 @@
     }
 
     function startMove(direction) {
+      // 移動開始では向きだけ先に更新する。通行不可でも向きが変わるので、会話対象の向き合わせに影響する。
       let soundId = "";
       store.update((state) => {
         const mapDef = currentMap(state);
@@ -255,6 +260,7 @@
     }
 
     function completeMove(state) {
+      // 1歩完了後にstepイベント、草むら効果、ランダム遭遇の順で判定する。順序変更はワープと遭遇の競合を生む。
       state.field.player.x = state.field.player.toX;
       state.field.player.y = state.field.player.toY;
       state.field.player.moving = false;
@@ -289,6 +295,7 @@
         mapDef.id === "camera_route" &&
         state.progress &&
         state.progress.prepGateUnlocked;
+      // 準備ゲート解放後の初期ルートでは遭遇を止める仕様。次ステージへの移動時にランダム戦で足止めしないため。
 
       if (
         tileCode === "g" &&
@@ -334,6 +341,7 @@
     }
 
     function update(deltaMs) {
+      // モーダルや遷移中は方向入力を捨てる。閉じた直後に押しっぱなし移動が漏れないようにするため。
       let state = store.getState();
       if (state.scene !== "field") {
         return;

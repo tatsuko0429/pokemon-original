@@ -1,3 +1,7 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 起動、初期状態、保存選択、メニュー、メインループを束ねるアプリの入口。
+// 個別機能の実装はcore/scenesへ分けているが、初期表示・保存・タイマー・画面遷移の順序はここが管理する。
+// 挙動変更時は「起動説明 -> 保存再開/はじめから -> フィールド -> 戦闘 -> クリア/リセット」を通しで確認する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -12,6 +16,7 @@
   }
 
   function createInitialState(dataRegistry) {
+    // 保存復元とリセットはこの形へ戻す。新しい状態キーを足す場合はsave.jsのstable/restore対象も判断する。
     const configuredStartMapId = App.config.game.field && App.config.game.field.startMapId;
     const firstMap = dataRegistry.getMap(configuredStartMapId) || App.data.maps[0];
     const starter = dataRegistry.createMonsterInstance("nejimakidori", 5);
@@ -79,6 +84,7 @@
   }
 
   function getObjectiveText(state, dataRegistry) {
+    // 目的表示はステータス帯・メニュー系表示の共通文言。準備期間は依頼よりストーリー進行を優先する。
     if (state.progress && state.progress.storyStage === "preparation") {
       return state.progress.prepGateUnlocked
         ? "目的: 準備時間が終わりました。左の出口から次のステージへ進む。"
@@ -122,6 +128,7 @@
   }
 
   function formatSavedAt(savedInfo) {
+    // 保存日時は表示専用。保存データ本体の互換性判定はsave.jsのschemaVersionで行う。
     if (!savedInfo || !savedInfo.savedAt) {
       return "";
     }
@@ -159,6 +166,8 @@
   }
 
   function boot() {
+    // 起動時にDOM参照、乱数、データ検証、保存、入力、音声、モーダル、scene、rendererを順番に組み立てる。
+    // index.htmlのidやscript順を変えた場合、ここが最初に壊れる。
     const shell = document.querySelector(".app-shell");
     const screen = document.getElementById("game-screen");
     const message = document.getElementById("screen-message");
@@ -173,6 +182,7 @@
     const dataRegistry = App.core.createDataRegistry(random);
 
     if (dataRegistry.errors.length > 0) {
+      // データ不整合時はゲームを進めず、モーダル領域へ全エラーを出す。scene初期化前に止めるのが安全。
       const fatalRoot = document.getElementById("modal-root");
       fatalRoot.classList.remove("is-hidden");
       fatalRoot.setAttribute("aria-hidden", "false");
@@ -190,6 +200,7 @@
     const initialState = createInitialState(dataRegistry);
     const save = App.core.createSaveManager(App.config.game.save, dataRegistry);
     const shouldAskStartChoice = save.hasSavedState();
+    // 保存データの有無はstore生成直後に判断する。以降はstartChoicePendingで自動保存とタイマー進行を止める。
     const store = App.core.createStore(initialState);
     App.runtime.store = store;
     App.runtime.dataRegistry = dataRegistry;
@@ -211,7 +222,20 @@
     const getCurrentObjectiveText = (state) => getObjectiveText(state, dataRegistry);
     let startChoicePending = shouldAskStartChoice;
 
+    function getFieldBgmId(state) {
+      const mapDef = state.field ? dataRegistry.getMap(state.field.mapId) : null;
+      return (mapDef && mapDef.bgmId) || "field";
+    }
+
+    function syncFieldBgm() {
+      const state = store.getState();
+      if (state.scene === "field") {
+        audio.playBgm(getFieldBgmId(state));
+      }
+    }
+
     function buildMonsterPreviewSection(species, caption) {
+      // メニューと捕獲記録で共通利用するプレビュー定義。画像アセット優先、なければpixel-art canvasへフォールバック。
       if (!species) {
         return [];
       }
@@ -258,6 +282,7 @@
     }
 
     function consumeFieldFullHeal() {
+      // フィールドでの回復薬使用はモーダルを閉じ、結果をfield.messageへ出す。戦闘中の使用処理とはbattle-scene.js側。
       let used = false;
 
       store.update((state) => {
@@ -317,6 +342,7 @@
     }
 
     if (shell) {
+      // 画面全体のタップ演出と、戦闘メッセージ送りを兼ねる。pointerdownの扱いを変えるとモバイル操作感に影響する。
       shell.addEventListener("pointerdown", (event) => {
         spawnTapRipple(event);
 
@@ -328,6 +354,7 @@
     }
 
     function openStoryIntro() {
+      // 初回説明はdismissible:false。ここを閉じない限り準備タイマーと自動保存は実質開始しない。
       const storyConfig = App.config.game.story || {};
       modal.openModal({
         title: storyConfig.introTitle || "ルール",
@@ -356,6 +383,7 @@
     }
 
     function openMenu() {
+      // メニューのボタン順とラベルはsmoke testの期待値にもなっている。onSelect名変更時は該当関数との対応を確認する。
       const state = store.getState();
       const playerSpecies = dataRegistry.getSpecies(state.party[0].speciesId);
       const currentMap = dataRegistry.getMap(state.field.mapId);
@@ -389,11 +417,6 @@
             onSelect: openRestartMenu,
           },
           {
-            id: "objective",
-            label: "目的",
-            onSelect: openObjectiveMenu,
-          },
-          {
             id: "close",
             label: "閉じる",
             variant: "is-subtle",
@@ -422,18 +445,8 @@
       });
     }
 
-    function openObjectiveMenu() {
-      const state = store.getState();
-      const currentMap = dataRegistry.getMap(state.field.mapId);
-      audio.playSe("confirm");
-      modal.openModal({
-        title: "目的",
-        lines: [getCurrentObjectiveText(state), `現在地: ${currentMap.name}`],
-        actions: createBackToMenuActions(openMenu),
-      });
-    }
+    function openPartyMenu() {
 
-    function openInventoryMenu() {
       const state = store.getState();
       const pickupRecord = countPickupRecords(state);
       const actions = [];
@@ -521,6 +534,7 @@
     }
 
     function openRestartMenu() {
+      // やり直しはstore.resetとsave.clearを同時に行う。片方だけだと画面上の状態と次回起動時の状態がずれる。
       audio.playSe("confirm");
       modal.openModal({
         title: "やり直しますか？",
@@ -557,6 +571,7 @@
     }
 
     const openStartChoice = () => {
+      // 保存データがある時だけ起動直後に出る選択。ここでは説明文を出さず、保存日時と2択に絞っている。
       const savedAtText = formatSavedAt(save.getSavedInfo());
       modal.openModal({
         title: "",
@@ -579,6 +594,7 @@
               startChoicePending = false;
               modal.closeModal({ force: true, silent: true });
               store.replace(restoredState);
+              syncFieldBgm();
               if (!store.getState().progress.storyIntroAccepted) {
                 openStoryIntro();
               }
@@ -594,6 +610,7 @@
               modal.closeModal({ force: true, silent: true });
               store.reset();
               save.clear(store.getState());
+              syncFieldBgm();
               openStoryIntro();
               audio.playSe("confirm");
             },
@@ -639,12 +656,13 @@
       getObjectiveText: getCurrentObjectiveText,
     });
 
-    audio.playBgm("field");
+    syncFieldBgm();
     let lastFrame = performance.now();
     let saveElapsedMs = 0;
     const autoSaveIntervalMs = App.config.game.save.autoSaveIntervalMs || 600;
 
     window.addEventListener("pagehide", () => {
+      // タブ終了・ページ離脱時の最後の保存。開始選択中と説明未承諾時は初期データで上書きしない。
       if (!startChoicePending && store.getState().progress.storyIntroAccepted) {
         save.persistIfChanged(store.getState());
       }
@@ -657,6 +675,7 @@
     }
 
     function updatePreparationTimer(deltaMs) {
+      // モーダル表示中は準備タイマーを止める。説明や保存選択を読んでいる時間が5分に含まれない仕様。
       const state = store.getState();
       if (
         startChoicePending ||
@@ -688,6 +707,7 @@
     }
 
     function updateTimeAttackTimer(deltaMs) {
+      // 四天王/チャンピオン系マップに入ってからの経過時間。準備ステージとは同じscreen-timer表示を共有する。
       const state = store.getState();
       if (startChoicePending || modal.isOpen() || !state.progress.storyIntroAccepted || state.timeAttack.finished) {
         return;
@@ -708,6 +728,8 @@
     }
 
     function frame(now) {
+      // 1フレーム内の順序は、入力処理 -> scene更新 -> タイマー -> 保存 -> 描画。
+      // 順番変更はメッセージ送り、自動保存、遷移演出の競合を生みやすい。
       const deltaMs = now - lastFrame;
       lastFrame = now;
 
@@ -716,6 +738,7 @@
         modal.closeModal({ force: true, silent: true });
         store.reset();
         save.clear(store.getState());
+        syncFieldBgm();
         openStoryIntro();
         audio.playSe("error");
         return requestAnimationFrame(frame);
@@ -757,6 +780,7 @@
                 modal.closeModal({ force: true, silent: true });
                 store.reset();
                 save.clear(store.getState());
+                syncFieldBgm();
                 openStoryIntro();
                 audio.playSe("confirm");
               }
@@ -785,10 +809,12 @@
 
       fieldScene.update(deltaMs);
       battleScene.update(deltaMs);
+      syncFieldBgm();
       updatePreparationTimer(deltaMs);
       updateTimeAttackTimer(deltaMs);
       saveElapsedMs += deltaMs;
       if (saveElapsedMs >= autoSaveIntervalMs) {
+        // 自動保存は差分がある時だけlocalStorageへ書く。戦闘/遷移中はsave.js側のcanPersistで弾かれる。
         if (!startChoicePending && store.getState().progress.storyIntroAccepted) {
           save.persistIfChanged(store.getState());
         }

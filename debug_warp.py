@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# 初期ルート左出口のロック解除後ワープをfile://で追うデバッグ用。
+# 入力タイミングに依存するため、失敗時は本体不具合か待機不足かを切り分ける。
 import asyncio
 from playwright.async_api import async_playwright
 import os

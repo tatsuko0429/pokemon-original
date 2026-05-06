@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// キーボード、タッチ、画面ボタンを共通のaction/directionキューへ正規化する層。
+// scene側はDOMイベントを直接見ず、ここからconsumeする前提なので、入力名の変更はui.jsとscene両方へ影響する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -57,6 +60,7 @@
     }
 
     function setActionLock(locked, options) {
+      // アニメーション中の連打を防ぐ安全弁。clearQueue付きで使う箇所は、古い入力が次フェーズへ漏れないようにしている。
       actionsLocked = Boolean(locked);
       if (options && options.clearQueue) {
         clearActions();
@@ -66,6 +70,7 @@
     }
 
     function handleKeyDown(event) {
+      // WASD/矢印/Z/X/Mをゲーム操作に割り当てる。テキスト入力中はブラウザ標準操作を優先する。
       if (isTextEditingTarget(event.target)) {
         return;
       }
@@ -284,6 +289,7 @@
         button.addEventListener("pointercancel", deactivate);
       },
       attachDirectionalPad(container, buttons) {
+        // 十字キー内を押したまま滑らせる操作を許可するため、container座標から方向を再計算する。
         const updateDirection = (event) => {
           const direction = getDirectionFromPadPoint(container, event);
           if (direction) {
@@ -317,6 +323,7 @@
         container.addEventListener("pointercancel", release);
       },
       attachActionButton(button, action, payload) {
+        // pointerupとclickの二重発火をhandledByPointerで抑える。モバイル操作の重複入力を防ぐ重要箇所。
         let handledByPointer = false;
         const activate = (event) => {
           event.preventDefault();

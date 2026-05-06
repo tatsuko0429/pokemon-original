@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 戦闘の状態機械、技処理、捕獲、戦闘終了処理を担当するscene。
+// UIはui.js、canvas描画はscreen-renderer.jsだが、phase/currentMessage/display/animationの形はこのファイルが決める。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -17,6 +20,11 @@
 
     function getPlayerMonster(state) {
       return state.party[0];
+    }
+
+    function getFieldBgmId(state) {
+      const mapDef = state.field ? dataRegistry.getMap(state.field.mapId) : null;
+      return (mapDef && mapDef.bgmId) || "field";
     }
 
     function createStep(text, effect, soundId) {
@@ -111,6 +119,7 @@
     }
 
     function showStep(state, step) {
+      // 1メッセージ単位で入力キューを消し、アニメーション中は入力ロックする。連打が次フェーズへ漏れるのを防ぐ。
       input.clearActions();
       state.battle.currentMessage = step ? step.text : "";
       state.battle.messageElapsedMs = 0;
@@ -122,6 +131,7 @@
     }
 
     function startSequence(state, steps, nextPhase) {
+      // 戦闘はsteps配列を順に表示し、最後にnextPhaseへ進む。新しい分岐もこの流れに乗せるとUIと自動送りが保たれる。
       state.battle.phase = "message";
       state.battle.steps = steps.slice();
       state.battle.nextPhase = nextPhase;
@@ -130,6 +140,8 @@
     }
 
     function applyBattleClose(state, result) {
+      // 戦闘終了時だけfieldへ戻し、手持ち回復・最終メッセージ・battle-end遷移をまとめて行う。
+      // セーブは戦闘中禁止なので、ここで復元可能なフィールド状態へ戻すことが重要。
       if (result && result.gameOver) {
         state.progress.gameOver = true;
         return;
@@ -160,7 +172,7 @@
         elapsedMs: 0,
         durationMs: 400,
       };
-      audio.playBgm("field");
+      audio.playBgm(getFieldBgmId(state));
 
       if (result && result.gameCleared) {
         state.progress.gameCleared = true;
@@ -191,6 +203,7 @@
     }
 
     function beginEncounter(enemyMonster, context) {
+      // state.battleの形はui.js/screen-renderer.js/save.jsの前提。新しい表示値を足す時は差分キーも見る。
       store.update((state) => {
         const playerMonster = getPlayerMonster(state);
         const isTrainer = context && context.kind === "trainer-encounter";
@@ -266,6 +279,7 @@
           rewardItem: event.rewardItem,
           resolvedEventId: event.resolvedEventId,
           unlockCondition: event.unlockCondition,
+          hoveredMoveId: null,
         };
       });
       audio.playSe("encounter");
@@ -288,6 +302,8 @@
     }
 
     function finishTransitionIfNeeded(deltaMs) {
+      // transition完了時に実際の戦闘開始やチャンピオン演出後の自動歩行へ橋渡しする。
+      // transition.kindを追加したら、screen-renderer.jsの描画とここでの完了処理をセットで実装する。
       let pendingEncounter = null;
       let transitionContext = null;
       let isChampionIntro = false;
@@ -326,6 +342,7 @@
     }
 
     function handleMessageCompletion(state) {
+      // message列の終端で次phaseまたはフィールド復帰結果を決める。勝敗・捕獲・逃走の保存境界でもある。
       if (state.battle.nextPhase === "command") {
         state.battle.phase = "command";
         state.battle.currentMessage = "";
@@ -409,6 +426,7 @@
 
     function advanceMessage() {
       let closeResult = null;
+      let chargingMoveId = null;
 
       store.update((state) => {
         if (!state.battle || state.battle.phase !== "message" || state.battle.animation) {
@@ -421,7 +439,19 @@
         }
 
         closeResult = handleMessageCompletion(state);
+
+        if (!closeResult && state.battle.phase === "command") {
+          const playerMonster = getPlayerMonster(state);
+          if (playerMonster && playerMonster.charging) {
+            chargingMoveId = playerMonster.charging;
+          }
+        }
       });
+
+      if (chargingMoveId) {
+        selectMove(chargingMoveId);
+        return;
+      }
 
       if (closeResult) {
         store.update((state) => {
@@ -437,6 +467,7 @@
     }
 
     function trySpendPp(monster, moveId) {
+      // PP消費は選択時に行う。溜め技の2ターン目だけはselectMove/queueEnemyTurn側で消費をスキップする。
       const moveIndex = findMoveIndex(monster, moveId);
       if (moveIndex < 0 || monster.currentPp[moveIndex] <= 0) {
         return false;
@@ -461,6 +492,10 @@
     }
 
     function chooseEnemyMoveId(enemyMonster) {
+      if (enemyMonster.charging) {
+        return enemyMonster.charging;
+      }
+
       const usableMoveIds = getUsableMoveIds(enemyMonster);
       if (usableMoveIds.length === 0) {
         return "";
@@ -497,6 +532,7 @@
       defenderLabel,
       hpTargets
     ) {
+      // 技効果はここに集約。moves.jsのeffect追加時は、UI説明文と敵AI選択もあわせて確認する。
       const move = dataRegistry.getMove(moveId);
 
       if (move.effect === "charge_attack") {
@@ -664,18 +700,20 @@
     }
 
     function queueEnemyTurn(state, steps) {
+      // プレイヤー行動後に敵行動を同じstepsへ連結する。捕獲失敗やアイテム使用後もここを通る。
       const playerMonster = getPlayerMonster(state);
       const enemyMonster = state.battle.enemy;
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const enemyMoveId = chooseEnemyMoveId(enemyMonster);
 
-      if (!enemyMoveId || !trySpendPp(enemyMonster, enemyMoveId)) {
+      // 敵の溜め技継続時はPP消費をスキップ
+      const isChagingContinuation = enemyMonster.charging === enemyMoveId;
+      if (!enemyMoveId || (!isChagingContinuation && !trySpendPp(enemyMonster, enemyMoveId))) {
         steps.push(createStep(`やせいの ${enemySpecies.name} は うごけない！`));
         startSequence(state, steps, "command");
         return;
       }
-
       const enemyTurn = buildAttackSequence(
         enemyMonster,
         playerMonster,
@@ -718,7 +756,16 @@
       });
     }
 
+    function hoverMove(moveId) {
+      // 技ホバーの説明表示用状態。戦闘ロジックには使わないが、ui.jsの再描画条件と結合している。
+      store.update((state) => {
+        if (!state.battle) return;
+        state.battle.hoveredMoveId = moveId;
+      });
+    }
+
     function selectMove(moveId) {
+      // プレイヤーの技選択入口。PP、溜め技、敵反撃、勝利遷移をここから一気に組み立てる。
       store.update((state) => {
         if (!state.battle) {
           return;
@@ -729,7 +776,9 @@
         const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
         const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
 
-        if (!trySpendPp(playerMonster, moveId)) {
+        // 溜め中の技を継続して放つ場合は、PP消費をスキップする
+        const isChagingContinuation = playerMonster.charging === moveId;
+        if (!isChagingContinuation && !trySpendPp(playerMonster, moveId)) {
           startSequence(state, [createStep("PPが たりません。", null, "error")], "command");
           return;
         }
@@ -764,6 +813,7 @@
     }
 
     function throwBall() {
+      // 通常ボールは消費数を持たない仕様。捕獲成功時は手持ち1体ルールにより相手と入れ替える。
       store.update((state) => {
         if (!state.battle) {
           return;
@@ -817,6 +867,7 @@
     }
 
     function throwMasterBall() {
+      // マスターボールは所持数を消費し、野生戦のみ確定捕獲。トレーナー戦では通常ボール同様に禁止する。
       store.update((state) => {
         if (!state.battle) {
           return;
@@ -930,6 +981,7 @@
     }
 
     function updateAnimation(state, deltaMs) {
+      // HP表示は実HPではなくbattle.displayを補間して見せる。UIのHPカードはこのdisplay値を読む。
       if (!state.battle || !state.battle.animation) {
         return;
       }
@@ -1010,6 +1062,7 @@
     }
 
     function update(deltaMs) {
+      // 遷移、アニメーション、モーダル、phase入力をこの順で処理する。順序を変えるとロック解除や自動送りが崩れやすい。
       const rootState = store.getState();
 
       if (rootState.transition.active) {
@@ -1115,6 +1168,7 @@
       advanceMessage,
       openMoveMenu,
       backToCommand,
+      hoverMove,
       selectMove,
       throwBall,
       throwMasterBall,

@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// jsdomで最低限のDOMを用意し、app.jsまで読み込んで起動時の致命エラーを拾う補助スクリプト。
+// Canvas/Web Audio/ブラウザ実操作の再現は限定的なので、UI挙動の最終確認はsmoke testか実ブラウザで行う。
 const fs = require('fs');
 
 const { JSDOM } = require('jsdom');
@@ -49,4 +52,3 @@ window.dispatchEvent(new dom.window.Event('load'));
 setTimeout(() => {
   console.log('Boot completed without fatal error');
 }, 100);
-

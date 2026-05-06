@@ -1,3 +1,5 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 遭遇、捕獲、ダメージ乱数を再現しやすくするための軽量PRNG。Math.randomへ置き換えるとテスト再現性が落ちる。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -16,6 +18,7 @@
   }
 
   function createRandomController(config) {
+    // seedと呼び出し順が結果を決める。新しい乱数呼び出しを挟むと遭遇・捕獲・ダメージの既存期待値がずれる。
     const initialSeed = normalizeSeed(config && config.seed);
     const logLimit = Math.max(8, (config && config.logLimit) || 32);
     let state = initialSeed;

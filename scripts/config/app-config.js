@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// ゲーム全体の定数を集約する設定ファイル。描画寸法、タイマー、保存キー、地形コードは複数ファイルから参照される。
+// 値を変える場合はdata-registryの検証、save.jsの復元、styles.cssの画面比率、smoke testの期待値を同時に確認する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -5,6 +8,7 @@
     screen: {
       width: 160,
       height: 144,
+      renderScale: 3,
       tileSize: 8,
     },
     timing: {
@@ -50,11 +54,13 @@
       logLimit: 48,
     },
     save: {
+      // storageKeyとschemaVersionは既存セーブの互換性境界。変更時は移行処理なしに過去データを読めなくなる。
       schemaVersion: 1,
       storageKey: "monster_prototype_save_v1",
       autoSaveIntervalMs: 600,
     },
     story: {
+      // 準備5分の運用ルール。app.jsのupdatePreparationTimerとui.jsのタイマー表示がこの値を共有する。
       preparationDurationMs: 300000,
       introTitle: "ルール",
       introLead: "この5分は、自由に準備する時間です。",
@@ -101,6 +107,11 @@
     audio: {
       masterVolume: 0.07,
       bgm: {
+        first_grass: {
+          src: "./assets/audio/first-grass.mp3",
+          loop: true,
+          volume: 0.18,
+        },
         field: {
           wave: "square",
           beatMs: 230,
@@ -222,6 +233,7 @@
       battleEnemyLaneEdge: "#4d643a",
     },
     fieldTiles: {
+      // マップ文字列の1文字と通行可否の対応。maps.js、field-scene.js、screen-renderer.js、save.jsの復元判定で共有する。
       ".": {
         label: "土",
         passable: true,

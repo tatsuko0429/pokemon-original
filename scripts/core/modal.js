@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 共有モーダルの描画とボタンハンドラを管理する。モーダルの可視状態はstoreへ保存し、onSelect関数はMapで一時保持する。
+// 保存復元ではモーダルを持ち越さないため、永続化したい情報はmodalではなくprogress/inventory等へ入れる。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -128,6 +131,7 @@
     }
 
     function render() {
+      // renderKeyでDOM再構築を抑制している。actionsの構造を変える時は、キーに必要な情報が入るか確認する。
       const state = store.getState();
       const modal = state.modal;
       const isOpen = Boolean(modal && modal.open);
@@ -214,6 +218,7 @@
     }
 
     function openModal(payload) {
+      // state.modalへはシリアライズ可能な表示情報だけを入れる。実処理はactionHandlersへ逃がす設計。
       actionHandlers.clear();
       const actions = (payload.actions || []).map((action, index) => {
         const id = action.id || `action_${index}`;
@@ -241,6 +246,7 @@
     }
 
     function closeModal(options) {
+      // dismissible:falseは開始説明や保存選択のように、明示ボタン以外で閉じてはいけない画面に使う。
       if (!store.getState().modal.open) {
         return;
       }

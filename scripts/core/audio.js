@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// Web Audioの生成音とHTMLAudioElementのBGMを扱う。ブラウザ制約により初回ユーザー操作まで音は鳴らせない。
+// 音が鳴らない不具合を追う時は、playBgmより先にbindUserGesture/unlockの状態を確認する。
 (() => {
   const App = window.MonsterPrototype;
 
@@ -13,7 +16,10 @@
     let currentBgmId = "";
     let bgmLoopToken = 0;
     let bgmTimeoutId = null;
+    let activeBgmElement = null;
+    let unlockPromise = null;
     const activeBgmNodes = new Set();
+    const bgmAudioElements = new Map();
 
     function ensureContext() {
       if (!AudioContextCtor) {
@@ -100,6 +106,65 @@
         bgmTimeoutId = null;
       }
       stopCollection(activeBgmNodes);
+      if (activeBgmElement) {
+        activeBgmElement.pause();
+        activeBgmElement.currentTime = 0;
+        activeBgmElement = null;
+      }
+    }
+
+    function getBgmAudioElement(id, pattern) {
+      let element = bgmAudioElements.get(id);
+      if (!element) {
+        element = new Audio(pattern.src);
+        element.preload = "auto";
+        element.playsInline = true;
+        element.setAttribute("playsinline", "");
+        bgmAudioElements.set(id, element);
+      }
+
+      element.loop = pattern.loop !== false;
+      element.volume = Math.max(0, Math.min(1, pattern.volume === undefined ? masterVolume : pattern.volume));
+      return element;
+    }
+
+    async function playFileBgm(id, pattern) {
+      const element = getBgmAudioElement(id, pattern);
+      activeBgmElement = element;
+      currentBgmId = id;
+
+      try {
+        await element.play();
+        return true;
+      } catch (error) {
+        if (desiredBgmId === id) {
+          currentBgmId = "";
+          activeBgmElement = null;
+          unlocked = false;
+        }
+        return false;
+      }
+    }
+
+    async function startBgmPlayback(id) {
+      const pattern = bgmPatterns[id];
+      if (!pattern) {
+        currentBgmId = "";
+        return false;
+      }
+
+      if (pattern.src) {
+        return playFileBgm(id, pattern);
+      }
+
+      if (!ensureContext()) {
+        currentBgmId = "";
+        return false;
+      }
+
+      currentBgmId = id;
+      scheduleBgmLoop(id, bgmLoopToken);
+      return true;
     }
 
     function scheduleBgmLoop(id, token) {
@@ -121,38 +186,64 @@
     }
 
     async function unlock() {
-      const audioContext = ensureContext();
-      if (!audioContext) {
-        return false;
+      if (unlockPromise) {
+        return unlockPromise;
       }
 
-      if (audioContext.state === "suspended") {
-        await audioContext.resume();
-      }
+      unlockPromise = (async () => {
+        // iOS/Chromeの自動再生制限対策。ここを通るまでdesiredBgmIdだけを保持し、実再生は待機する。
+        const audioContext = ensureContext();
 
-      unlocked = true;
-      if (desiredBgmId && desiredBgmId !== currentBgmId) {
-        stopBgmPlayback();
-        scheduleBgmLoop(desiredBgmId, bgmLoopToken);
+        if (audioContext && audioContext.state === "suspended") {
+          try {
+            await audioContext.resume();
+          } catch (error) {
+            unlocked = false;
+            return false;
+          }
+        }
+
+        unlocked = true;
+        if (desiredBgmId && desiredBgmId !== currentBgmId) {
+          stopBgmPlayback();
+          return startBgmPlayback(desiredBgmId);
+        }
+        return true;
+      })();
+
+      try {
+        return await unlockPromise;
+      } finally {
+        unlockPromise = null;
       }
-      return true;
     }
 
     function bindUserGesture(target) {
       const root = target || window;
       const handler = () => {
-        unlock();
-        root.removeEventListener("pointerdown", handler);
-        root.removeEventListener("keydown", handler);
-        root.removeEventListener("touchstart", handler);
+        unlock().then((success) => {
+          if (!success) {
+            return;
+          }
+          root.removeEventListener("pointerdown", handler);
+          root.removeEventListener("pointerup", handler);
+          root.removeEventListener("click", handler);
+          root.removeEventListener("keydown", handler);
+          root.removeEventListener("touchstart", handler);
+          root.removeEventListener("touchend", handler);
+        });
       };
 
       root.addEventListener("pointerdown", handler, { passive: true });
+      root.addEventListener("pointerup", handler, { passive: true });
+      root.addEventListener("click", handler);
       root.addEventListener("keydown", handler);
       root.addEventListener("touchstart", handler, { passive: true });
+      root.addEventListener("touchend", handler, { passive: true });
     }
 
     function playBgm(id) {
+      // desiredBgmIdは未unlock時にも記録する。起動直後にplayBgm("field")しても、初回操作後に再開できる。
       desiredBgmId = id || "";
       if (!desiredBgmId) {
         stopBgmPlayback();
@@ -168,7 +259,7 @@
       }
 
       stopBgmPlayback();
-      scheduleBgmLoop(desiredBgmId, bgmLoopToken);
+      startBgmPlayback(desiredBgmId);
     }
 
     function playSe(id) {

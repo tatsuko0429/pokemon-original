@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# 単発の左移動が開始されるかを確認する最小デバッグ用。
+# 移動補間中のfrom/to/progressを直接見る時の足場として残している。
 import asyncio
 from playwright.async_api import async_playwright
 import os

@@ -1,3 +1,6 @@
+// 2026年4月27日時点の開発者向け保守メモ:
+// 最小限のwindow.MonsterPrototypeを手で用意してdata-registry検証だけを動かす補助。
+// app-config.jsを読まないため、fieldTiles/typeChartの追加時はこのスタブも実設定と合わせる。
 const fs = require('fs');
 
 global.window = {

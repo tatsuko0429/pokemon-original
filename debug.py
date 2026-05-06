@@ -1,3 +1,6 @@
+# 2026年4月27日時点の開発者向け保守メモ:
+# Playwrightでindex.htmlをfile://起動し、console/pageerrorだけを見る最小デバッグ用。
+# 仕様保証用ではなく、起動直後の例外切り分けに使う。
 import asyncio
 from playwright.async_api import async_playwright
 import os
