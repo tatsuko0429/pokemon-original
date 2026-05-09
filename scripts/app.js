@@ -462,8 +462,8 @@
       modal.openModal({
         title: "アイテム",
         lines: [
-          "モンスターボール: 使い放題",
-          `マスターボール: ${state.inventory.masterBallCount || 0} 個`,
+          "キャプチャーボール: 使い放題",
+          `パーフェクトボール: ${state.inventory.masterBallCount || 0} 個`,
           `回復薬: ${state.inventory.fullHealCount} 個`,
           `拾ったもの: ${pickupRecord.collected}/${pickupRecord.total}`,
         ],

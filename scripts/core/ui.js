@@ -339,7 +339,7 @@
       wrapper.appendChild(item);
 
       if (settings.hasMasterBall) {
-        const masterBall = createButton("Mボール", "is-primary", null, settings.disabledAll);
+        const masterBall = createButton("Pボール", "is-primary", null, settings.disabledAll);
         if (!settings.disabledAll) {
           input.attachActionButton(masterBall, "battle_throw_master_ball");
         }

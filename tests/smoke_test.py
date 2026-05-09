@@ -736,9 +736,12 @@ async def run_smoke_test(base_url: str) -> None:
 
         await load_fresh(page, base_url)
 
+        await asyncio.sleep(1.0)
         await press(page, "m")
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.4)
         menu_state = await read_field_state(page)
+        if not menu_state["modalOpen"]:
+            print(f"Browser errors: {browser_errors}")
         expect(menu_state["modalOpen"], "メニューポップが開きません。")
         expect(menu_state["modalTitle"] == "メニュー", "メニューポップの見出しが想定と違います。")
         expect("手持ち" in menu_state["modalButtons"], "メニューに手持ちボタンがありません。")
@@ -771,7 +774,7 @@ async def run_smoke_test(base_url: str) -> None:
         await asyncio.sleep(0.2)
         inventory_state = await read_field_state(page)
         expect(inventory_state["modalTitle"] == "アイテム", "アイテム画面に切り替わっていません。")
-        expect("モンスターボール: 使い放題" in inventory_state["modalLines"], "アイテム画面にボール使い放題の説明が表示されていません。")
+        expect("キャプチャーボール: 使い放題" in inventory_state["modalLines"], "アイテム画面にボール使い放題の説明が表示されていません。")
         expect("回復薬: 0 個" in inventory_state["modalLines"], "アイテム画面に回復薬数が表示されていません。")
         expect("拾ったもの: 0/1" in inventory_state["modalLines"], "アイテム画面に拾得記録が表示されていません。")
         expect("回復薬を使う" not in inventory_state["modalButtons"], "回復薬がないのに使用ボタンが表示されています。")
@@ -1008,7 +1011,7 @@ async def run_smoke_test(base_url: str) -> None:
               };
             }"""
         )
-        expect("モンスターボールを なげた" in capture_state["message"], "捕獲の投球メッセージが表示されていません。")
+        expect("キャプチャーボールを なげた" in capture_state["message"], "捕獲の投球メッセージが表示されていません。")
         expect(capture_state["captureBall"]["hideEnemy"], "捕獲演出中に相手が隠れていません。")
         capture_record_state = await advance_battle_until_modal(page)
         expect(capture_record_state["modalOpen"], "捕獲後の記録ポップが開いていません。")

@@ -418,7 +418,7 @@
       }
 
       if (state.battle.nextPhase === "field_defeat") {
-        return { message: "目の前が まっくらになった…", gameOver: true };
+        return { message: "力尽きてしまった…", gameOver: true };
       }
 
       return null;
@@ -653,9 +653,9 @@
         );
 
         if (outcome.typeMultiplier > 1) {
-          steps.push(createStep("こうかは ばつぐんだ！"));
+          steps.push(createStep("効果は 非常に大きい！"));
         } else if (outcome.typeMultiplier < 1) {
-          steps.push(createStep("こうかは いまひとつのようだ。"));
+          steps.push(createStep("効果は あまりないようだ。"));
         }
 
         return {
@@ -688,9 +688,9 @@
       );
 
       if (outcome.typeMultiplier > 1) {
-        steps.push(createStep("こうかは ばつぐんだ！"));
+        steps.push(createStep("効果は 非常に大きい！"));
       } else if (outcome.typeMultiplier < 1) {
-        steps.push(createStep("こうかは いまひとつのようだ。"));
+        steps.push(createStep("効果は あまりないようだ。"));
       }
 
       return {
@@ -831,7 +831,7 @@
         const success = random.chance(baseChance, "capture_roll");
         const shakes = success ? 3 : Math.max(1, Math.min(2, Math.floor(baseChance * 4)));
         const steps = [
-          createStep("モンスターボールを なげた！", {
+          createStep("キャプチャーボールを なげた！", {
             kind: "ball",
             phase: "throw",
             success,
@@ -867,7 +867,7 @@
     }
 
     function throwMasterBall() {
-      // マスターボールは所持数を消費し、野生戦のみ確定捕獲。トレーナー戦では通常ボール同様に禁止する。
+      // パーフェクトボールは所持数を消費し、野生戦のみ確定捕獲。トレーナー戦では通常ボール同様に禁止する。
       store.update((state) => {
         if (!state.battle) {
           return;
@@ -879,7 +879,7 @@
         }
 
         if (!canUseMasterBall(state)) {
-          startSequence(state, [createStep("マスターボールが ありません。", null, "error")], "command");
+          startSequence(state, [createStep("パーフェクトボールが ありません。", null, "error")], "command");
           return;
         }
 
@@ -889,7 +889,7 @@
         const success = true;
         const shakes = 3;
         const steps = [
-          createStep("マスターボールを なげた！", {
+          createStep("パーフェクトボールを なげた！", {
             kind: "ball",
             phase: "throw",
             success,
