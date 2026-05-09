@@ -286,7 +286,12 @@ async def run_smoke_test(base_url: str) -> None:
                 "hasTouch": True,
             }
         )
-        await load_fresh(page, base_url, accept_intro=False)
+        try:
+            await load_fresh(page, base_url, accept_intro=False)
+        except Exception as e:
+            print(f"Exception during load_fresh: {e}")
+            print(f"Browser errors: {browser_errors}")
+            raise
 
         intro_state = await read_field_state(page)
         expect(intro_state["modalOpen"], "起動直後のルール説明が開いていません。")
