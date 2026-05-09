@@ -1444,6 +1444,24 @@ select {
 
   App.data.moves = [
     {
+      id: "forget",
+      name: "わすれる",
+      type: "ノーマル",
+      power: 0,
+      accuracy: 100,
+      pp: 3,
+      effect: "chance_full_heal",
+    },
+    {
+      id: "rely_on_ai",
+      name: "AIにたよる",
+      type: "ノーマル",
+      power: 55,
+      accuracy: 100,
+      pp: 15,
+      effect: "ai_weakness_attack",
+    },
+    {
       id: "body_tap",
       name: "たいあたり",
       type: "ノーマル",
@@ -1546,6 +1564,30 @@ select {
   const App = window.MonsterPrototype;
 
   App.data.species = [
+    {
+      id: "takuma",
+      name: "西川巧真",
+      types: ["ノーマル"],
+      stats: {
+        hp: 30,
+        attack: 14,
+        defense: 12,
+        speed: 13,
+        special: 14,
+      },
+      catchRate: 100,
+      defaultMoveIds: ["forget", "rely_on_ai"],
+      palette: {
+        primary: "#333333",
+        secondary: "#dddddd",
+      },
+      imageSprites: {
+        battleFront: "./assets/takuma-front.png",
+        battleBack: "./assets/takuma-back.png",
+      },
+      spriteScale: 1.0,
+      spriteAnchorY: 0.9,
+    },
     {
       id: "nejimakidori",
       name: "ネジマキドリ",
@@ -1707,6 +1749,11 @@ select {
       rate: 0.16,
       // weightは合計値に対する相対比。slotsの順番は同一weight時の選ばれ方やテスト調整にも影響する。
       slots: [
+        {
+          speciesId: "takuma",
+          level: 5,
+          weight: 15,
+        },
         {
           speciesId: "nejimakidori",
           level: 5,
@@ -6340,6 +6387,41 @@ select {
           steps,
           defeated: defender.currentHp <= 0,
         };
+      }
+
+      if (move.effect === "chance_full_heal") {
+        attacker.nextDamageBoost = 1;
+        const activated = random.chance(0.6, `${move.id}_trigger`);
+        if (!activated) {
+          steps.push(createStep("自分がダメージを受けていたことを忘れて全回復、、、だめだ、やっぱり忘れられない！"));
+          return { steps, defeated: false };
+        }
+        
+        const fromHp = attacker.currentHp;
+        attacker.currentHp = attacker.maxHp;
+        const healedAmount = attacker.currentHp - fromHp;
+        
+        if (healedAmount <= 0) {
+           steps.push(createStep("しかし HPは これいじょう かいふくしない。"));
+           return { steps, defeated: false };
+        }
+        
+        steps.push(createStep(
+          `${attackerLabel} は HPが ぜんかいふくした！`,
+          {
+            kind: "heal",
+            target: hpTargets.attacker,
+            fromHp,
+            toHp: attacker.currentHp,
+          },
+          "heal"
+        ));
+        
+        return { steps, defeated: false };
+      }
+
+      if (move.effect === "ai_weakness_attack") {
+        steps.push(createStep("AIのぶんせきにより、じゃくてんをついた！"));
       }
 
       const damageMultiplier = attacker.nextDamageBoost || 1;
