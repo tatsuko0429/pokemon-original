@@ -11,6 +11,8 @@
     const masterVolume = config && config.masterVolume ? config.masterVolume : 0.07;
     let context = null;
     let masterGain = null;
+    let bgmGain = null;
+    let seGain = null;
     let unlocked = false;
     let desiredBgmId = "";
     let currentBgmId = "";
@@ -18,8 +20,105 @@
     let bgmTimeoutId = null;
     let activeBgmElement = null;
     let unlockPromise = null;
+    let fadeIntervalId = null;
     const activeBgmNodes = new Set();
     const bgmAudioElements = new Map();
+
+    function clearFadeInterval() {
+      if (fadeIntervalId) {
+        window.clearInterval(fadeIntervalId);
+        fadeIntervalId = null;
+      }
+    }
+
+    function transitionBgm(newId, durationMs) {
+      clearFadeInterval();
+      const steps = 10;
+      const stepMs = durationMs / steps;
+      let currentStep = 0;
+
+      const startElementVol = activeBgmElement ? activeBgmElement.volume : 0;
+      const startSynthVol = bgmGain ? bgmGain.gain.value : 1.0;
+
+      if (durationMs <= 0) {
+        stopBgmPlayback();
+        if (newId) {
+          startBgmPlayback(newId).then((started) => {
+            if (started) {
+              const pattern = bgmPatterns[newId];
+              if (activeBgmElement) {
+                activeBgmElement.volume = Math.max(0, Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume));
+              }
+              if (bgmGain) bgmGain.gain.value = 1.0;
+            }
+          });
+        }
+        return;
+      }
+
+      fadeIntervalId = window.setInterval(() => {
+        currentStep += 1;
+        const ratio = 1 - (currentStep / steps);
+
+        if (activeBgmElement) {
+          activeBgmElement.volume = Math.max(0, startElementVol * ratio);
+        }
+        if (bgmGain) {
+          bgmGain.gain.value = Math.max(0, startSynthVol * ratio);
+        }
+
+        if (currentStep >= steps) {
+          clearFadeInterval();
+          stopBgmPlayback();
+
+          if (newId) {
+            const pattern = bgmPatterns[newId];
+            if (pattern && pattern.src) {
+              const el = getBgmAudioElement(newId, pattern);
+              el.volume = 0;
+            }
+            if (bgmGain) bgmGain.gain.value = 0;
+
+            startBgmPlayback(newId).then((started) => {
+              if (started) fadeInBgm(newId, durationMs);
+            });
+          }
+        }
+      }, stepMs);
+    }
+
+    function fadeInBgm(id, durationMs) {
+      clearFadeInterval();
+      const pattern = bgmPatterns[id];
+      const targetVol = Math.max(0, Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume));
+      const steps = 10;
+      const stepMs = durationMs / steps;
+      let currentStep = 0;
+
+      if (activeBgmElement) activeBgmElement.volume = 0;
+      if (bgmGain) bgmGain.gain.value = 0;
+
+      fadeIntervalId = window.setInterval(() => {
+        if (desiredBgmId !== id) {
+          clearFadeInterval();
+          return;
+        }
+
+        currentStep += 1;
+        const ratio = currentStep / steps;
+
+        if (activeBgmElement) {
+          activeBgmElement.volume = Math.min(targetVol, targetVol * ratio);
+        }
+        if (bgmGain) {
+          bgmGain.gain.value = Math.min(1.0, 1.0 * ratio);
+        }
+
+        if (currentStep >= steps) {
+          clearFadeInterval();
+        }
+      }, stepMs);
+    }
 
     function ensureContext() {
       if (!AudioContextCtor) {
@@ -31,6 +130,14 @@
         masterGain = context.createGain();
         masterGain.gain.value = masterVolume;
         masterGain.connect(context.destination);
+
+        bgmGain = context.createGain();
+        bgmGain.gain.value = 1.0;
+        bgmGain.connect(masterGain);
+
+        seGain = context.createGain();
+        seGain.gain.value = 1.0;
+        seGain.connect(masterGain);
       }
 
       return context;
@@ -68,8 +175,11 @@
       gain.gain.exponentialRampToValueAtTime(peak, startTime + Math.min(0.015, durationSeconds / 4));
       gain.gain.exponentialRampToValueAtTime(0.0001, Math.max(startTime + 0.02, endTime - 0.015));
 
+      const isBgm = collection === activeBgmNodes;
+      const targetGain = isBgm ? bgmGain : seGain;
+
       oscillator.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(targetGain || masterGain);
       oscillator.onended = () => {
         forgetNode(collection, oscillator);
         gain.disconnect();
@@ -135,6 +245,12 @@
 
       try {
         await element.play();
+        if (desiredBgmId !== id) {
+          element.pause();
+          element.currentTime = 0;
+          if (activeBgmElement === element) activeBgmElement = null;
+          return false;
+        }
         return true;
       } catch (error) {
         if (desiredBgmId === id) {
@@ -205,8 +321,8 @@
 
         unlocked = true;
         if (desiredBgmId && desiredBgmId !== currentBgmId) {
-          stopBgmPlayback();
-          return startBgmPlayback(desiredBgmId);
+          playBgm(desiredBgmId);
+          return true;
         }
         return true;
       })();
@@ -246,7 +362,7 @@
       // desiredBgmIdは未unlock時にも記録する。起動直後にplayBgm("field")しても、初回操作後に再開できる。
       desiredBgmId = id || "";
       if (!desiredBgmId) {
-        stopBgmPlayback();
+        transitionBgm("", 200);
         return;
       }
 
@@ -258,8 +374,13 @@
         return;
       }
 
-      stopBgmPlayback();
-      startBgmPlayback(desiredBgmId);
+      // 現在何も再生されていない場合はフェードアウト処理を挟まず遅延なく再生する
+      if (!currentBgmId) {
+        transitionBgm(desiredBgmId, 0);
+        return;
+      }
+
+      transitionBgm(desiredBgmId, 200);
     }
 
     function playSe(id) {
