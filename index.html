@@ -1063,8 +1063,19 @@ select {
 }
 
 @media (min-width: 640px) {
+  body {
+    overflow-y: auto;
+    align-items: flex-start;
+  }
+
   .app-shell {
     width: min(100%, 540px);
+    margin: auto;
+    height: 780px;
+    transform: scale(0.95);
+    transform-origin: center top;
+    margin-top: 20px;
+    margin-bottom: 20px;
   }
 
   .modal-actions.is-multiple {
@@ -1585,8 +1596,17 @@ select {
         battleFront: "./assets/takuma-front.png",
         battleBack: "./assets/takuma-back.png",
       },
-      spriteScale: 1.0,
-      spriteAnchorY: 0.9,
+      imageSpriteSize: {
+        // height: enemyは影中心(66)への接地感から逆算。playerは影中心(92)基準で算出。
+        battleFront: { height: 68 },
+        battleBack: { height: 88 },
+      },
+      // battleOffsetのyは「画像の中心→足元」へのアンカーずらし量。
+      // monsterYが影の中心座標のため、足元が影より少し下(+5px)に来るよう逆算で設定。
+      battleOffset: {
+        player: { x: 0, y: -16 },
+        enemy: { x: 0, y: -4 },
+      },
     },
     {
       id: "nejimakidori",
@@ -3876,6 +3896,13 @@ select {
       }
 
       fadeIntervalId = window.setInterval(() => {
+        // フェード開始後にdesiredBgmIdが変わった場合（別のplayBgm呼び出し）は
+        // このインターバルを破棄して新しいtransitionBgmに委ねる。
+        if (newId && desiredBgmId !== newId) {
+          clearFadeInterval();
+          return;
+        }
+
         currentStep += 1;
         const ratio = 1 - (currentStep / steps);
 
@@ -4035,11 +4062,14 @@ select {
         bgmTimeoutId = null;
       }
       stopCollection(activeBgmNodes);
-      if (activeBgmElement) {
-        activeBgmElement.pause();
-        activeBgmElement.currentTime = 0;
-        activeBgmElement = null;
-      }
+      
+      bgmAudioElements.forEach((el) => {
+        try {
+          el.pause();
+          el.currentTime = 0;
+        } catch (error) {}
+      });
+      activeBgmElement = null;
     }
 
     function getBgmAudioElement(id, pattern) {
