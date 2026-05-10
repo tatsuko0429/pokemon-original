@@ -368,6 +368,11 @@ select {
   background: linear-gradient(90deg, #6c8c41, #94b566);
 }
 
+.battle-exp-fill.is-gaining {
+  background: linear-gradient(90deg, #728f3e, #c5d66f);
+  box-shadow: 0 0 6px rgba(248, 244, 215, 0.72);
+}
+
 .screen-message {
   /*
     フィールドメッセージ専用。戦闘中のメッセージは操作パネル側へ出す設計なので、
@@ -1175,13 +1180,15 @@ select {
     },
     battle: {
       messageAutoAdvanceMs: 1000,
+      messageAutoAdvancePerCharMs: 8,
+      messageAutoAdvanceMaxExtraMs: 360,
     },
     field: {
       startMapId: "camera_route",
     },
     battleLayout: {
-      groundY: 88,
-      groundHeight: 22,
+      groundY: 91,
+      groundHeight: 23,
       enemyLane: {
         x: 0,
         y: 63,
@@ -1198,10 +1205,10 @@ select {
       },
       player: {
         monsterX: 118,
-        monsterY: 68,
+        monsterY: 75,
         shadowX: 118,
-        shadowY: 92,
-        shadowWidth: 35,
+        shadowY: 101,
+        shadowWidth: 37,
         shadowHeight: 10,
       },
     },
@@ -1239,6 +1246,9 @@ select {
         durationMs: 420,
         wiggleDurationMs: 180,
         flashIntervalMs: 40,
+      },
+      exp: {
+        durationMs: 620,
       },
       ball: {
         durationMs: 520,
@@ -1301,6 +1311,10 @@ select {
           { freq: 523.25, ms: 70 },
           { freq: 392, ms: 90 },
         ],
+        message: [
+          { freq: 622.25, ms: 42, wave: "triangle", volume: 0.48 },
+          { freq: 739.99, ms: 48, wave: "triangle", volume: 0.42 },
+        ],
         menu: [
           { freq: 587.33, ms: 60 },
           { freq: 739.99, ms: 100 },
@@ -1328,6 +1342,15 @@ select {
         hit: [
           { freq: 220, ms: 35, wave: "sawtooth" },
           { freq: 160, ms: 90, wave: "triangle" },
+        ],
+        exp: [
+          { freq: 587.33, ms: 42, wave: "triangle", volume: 0.5 },
+          { freq: 659.25, ms: 48, wave: "triangle", volume: 0.52 },
+          { freq: 783.99, ms: 66, wave: "triangle", volume: 0.46 },
+        ],
+        item: [
+          { freq: 783.99, ms: 52, wave: "triangle", volume: 0.5 },
+          { freq: 1046.5, ms: 82, wave: "triangle", volume: 0.42 },
         ],
         ball: [
           { freq: 440, ms: 50 },
@@ -1597,15 +1620,14 @@ select {
         battleBack: "./assets/takuma-back.png",
       },
       imageSpriteSize: {
-        // height: enemyは影中心(66)への接地感から逆算。playerは影中心(92)基準で算出。
-        battleFront: { height: 68 },
-        battleBack: { height: 88 },
+        // 西川巧真は縦長アセットなので、戦闘カードへ食い込まない表示サイズに抑える。
+        battleFront: { height: 62 },
+        battleBack: { height: 52 },
       },
       // battleOffsetのyは「画像の中心→足元」へのアンカーずらし量。
-      // monsterYが影の中心座標のため、足元が影より少し下(+5px)に来るよう逆算で設定。
       battleOffset: {
-        player: { x: 0, y: -16 },
-        enemy: { x: 0, y: -4 },
+        player: { x: 0, y: 0 },
+        enemy: { x: 0, y: -2 },
       },
     },
     {
@@ -3863,6 +3885,13 @@ select {
     const activeBgmNodes = new Set();
     const bgmAudioElements = new Map();
 
+    function getPatternVolume(pattern) {
+      return Math.max(
+        0,
+        Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume)
+      );
+    }
+
     function clearFadeInterval() {
       if (fadeIntervalId) {
         window.clearInterval(fadeIntervalId);
@@ -3886,7 +3915,7 @@ select {
             if (started) {
               const pattern = bgmPatterns[newId];
               if (activeBgmElement) {
-                activeBgmElement.volume = Math.max(0, Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume));
+                activeBgmElement.volume = getPatternVolume(pattern);
               }
               if (bgmGain) bgmGain.gain.value = 1.0;
             }
@@ -3936,7 +3965,7 @@ select {
     function fadeInBgm(id, durationMs) {
       clearFadeInterval();
       const pattern = bgmPatterns[id];
-      const targetVol = Math.max(0, Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume));
+      const targetVol = getPatternVolume(pattern);
       const steps = 10;
       const stepMs = durationMs / steps;
       let currentStep = 0;
@@ -4067,6 +4096,7 @@ select {
         try {
           el.pause();
           el.currentTime = 0;
+          el.muted = false;
         } catch (error) {}
       });
       activeBgmElement = null;
@@ -4083,14 +4113,58 @@ select {
       }
 
       element.loop = pattern.loop !== false;
-      element.volume = Math.max(0, Math.min(1, pattern.volume === undefined ? masterVolume : pattern.volume));
+      element.volume = getPatternVolume(pattern);
       return element;
+    }
+
+    function primeFileBgmElements(excludeId) {
+      Object.entries(bgmPatterns).forEach(([id, pattern]) => {
+        if (!pattern || !pattern.src || id === excludeId) {
+          return;
+        }
+
+        const element = getBgmAudioElement(id, pattern);
+        const previousMuted = element.muted;
+        const previousVolume = element.volume;
+        element.muted = true;
+        element.volume = 0;
+        try {
+          const playResult = element.play();
+          if (playResult && typeof playResult.then === "function") {
+            playResult
+              .then(() => {
+                if (activeBgmElement !== element) {
+                  element.pause();
+                  element.currentTime = 0;
+                }
+                element.muted = previousMuted;
+                element.volume = previousVolume;
+              })
+              .catch(() => {
+                element.muted = previousMuted;
+                element.volume = previousVolume;
+              });
+          } else {
+            if (activeBgmElement !== element) {
+              element.pause();
+              element.currentTime = 0;
+            }
+            element.muted = previousMuted;
+            element.volume = previousVolume;
+          }
+        } catch (error) {
+          element.muted = previousMuted;
+          element.volume = previousVolume;
+        }
+      });
     }
 
     async function playFileBgm(id, pattern) {
       const element = getBgmAudioElement(id, pattern);
       activeBgmElement = element;
       currentBgmId = id;
+      element.muted = false;
+      element.volume = getPatternVolume(pattern);
 
       try {
         await element.play();
@@ -4156,22 +4230,27 @@ select {
       }
 
       unlockPromise = (async () => {
-        // iOS/Chromeの自動再生制限対策。ここを通るまでdesiredBgmIdだけを保持し、実再生は待機する。
+        // iOS/Chromeの自動再生制限対策。ユーザー操作中にHTMLAudioElementのplayも開始しておく。
         const audioContext = ensureContext();
-
-        if (audioContext && audioContext.state === "suspended") {
-          try {
-            await audioContext.resume();
-          } catch (error) {
-            unlocked = false;
-            return false;
-          }
-        }
+        const resumePromise =
+          audioContext && audioContext.state === "suspended"
+            ? audioContext.resume().then(() => true).catch(() => false)
+            : Promise.resolve(true);
 
         unlocked = true;
         if (desiredBgmId && desiredBgmId !== currentBgmId) {
           playBgm(desiredBgmId);
-          return true;
+        }
+        primeFileBgmElements(desiredBgmId);
+
+        const contextReady = await resumePromise;
+        if (!contextReady) {
+          unlocked = false;
+          return false;
+        }
+
+        if (desiredBgmId && desiredBgmId !== currentBgmId) {
+          playBgm(desiredBgmId);
         }
         return true;
       })();
@@ -4598,6 +4677,7 @@ select {
     const ctx = canvas.getContext("2d");
     const { screen, palette, fieldTiles, animation } = App.config.game;
     const renderScale = Math.max(1, Math.floor(screen.renderScale || 1));
+    const maxRenderScale = 9;
     const damageAnimation = animation.damage;
     const fieldPixelArt = App.data.pixelArt.field;
     const battlePixelArt = App.data.pixelArt.battle || {};
@@ -4608,10 +4688,30 @@ select {
       down: { x: 0, y: 1 },
       left: { x: -1, y: 0 },
     };
-    canvas.width = screen.width * renderScale;
-    canvas.height = screen.height * renderScale;
-    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    let backingWidth = 0;
+    let backingHeight = 0;
+
+    function syncCanvasResolution() {
+      const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+      const cssWidth = canvas.clientWidth || screen.width;
+      const cssHeight = canvas.clientHeight || screen.height;
+      const targetWidth = Math.ceil(
+        Math.min(screen.width * maxRenderScale, Math.max(screen.width * renderScale, cssWidth * pixelRatio))
+      );
+      const targetHeight = Math.ceil(
+        Math.min(screen.height * maxRenderScale, Math.max(screen.height * renderScale, cssHeight * pixelRatio))
+      );
+
+      if (targetWidth !== backingWidth || targetHeight !== backingHeight) {
+        backingWidth = targetWidth;
+        backingHeight = targetHeight;
+        canvas.width = backingWidth;
+        canvas.height = backingHeight;
+      }
+
+      ctx.setTransform(backingWidth / screen.width, 0, 0, backingHeight / screen.height, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+    }
 
     function clear(color) {
       ctx.fillStyle = color;
@@ -4911,7 +5011,9 @@ select {
 
           // 通常のpixel-art描画はスムージング無効だが、PNGモンスターは原寸縮小時の荒れを避けるため一時的に有効化する。
           const originalSmoothing = ctx.imageSmoothingEnabled;
+          const originalSmoothingQuality = ctx.imageSmoothingQuality;
           ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
           ctx.drawImage(
             image,
             Math.round(position.x - width / 2 + (offset.x || 0)),
@@ -4920,6 +5022,7 @@ select {
             height
           );
           ctx.imageSmoothingEnabled = originalSmoothing;
+          ctx.imageSmoothingQuality = originalSmoothingQuality;
           return;
         } else if (!image.complete) {
           return;
@@ -5196,6 +5299,7 @@ select {
     }
 
     function render(state) {
+      syncCanvasResolution();
       if (state.scene === "field") {
         drawField(state);
       } else if (state.scene === "battle") {
@@ -5516,6 +5620,9 @@ select {
         expTrack.className = "battle-exp-track";
         const expFill = document.createElement("div");
         expFill.className = "battle-exp-fill";
+        if (options.expActive) {
+          expFill.classList.add("is-gaining");
+        }
         expFill.style.width = `${Math.max(0, Math.min(100, options.expRatio * 100))}%`;
         expTrack.appendChild(expFill);
         expRow.appendChild(expTrack);
@@ -5584,13 +5691,20 @@ select {
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const playerShownHp = formatShownHp(state.battle.display.playerHp);
       const enemyShownHp = formatShownHp(state.battle.display.enemyHp);
+      const shownExp =
+        typeof state.battle.display.playerExp === "number"
+          ? state.battle.display.playerExp
+          : playerMonster.exp || 0;
+      const expActive = Boolean(state.battle.animation && state.battle.animation.kind === "exp");
 
       const requiredExp = playerMonster.level * playerMonster.level * 10;
-      const expRatio = (playerMonster.exp || 0) / requiredExp;
+      const expRatio = shownExp / requiredExp;
 
       const overlayKey = JSON.stringify({
         playerShownHp,
         enemyShownHp,
+        playerShownExp: Math.round(shownExp * 10) / 10,
+        expActive,
         playerName: playerSpecies.name,
         enemyName: enemySpecies.name,
         playerLevel: playerMonster.level,
@@ -5624,6 +5738,7 @@ select {
           hpRatio: playerShownHp / playerMonster.maxHp,
           hpText: `${playerShownHp}/${playerMonster.maxHp}`,
           expRatio: expRatio,
+          expActive,
         })
       );
     }
@@ -5771,6 +5886,7 @@ select {
   }) {
     const animationConfig = App.config.game.animation;
     const ballConfig = animationConfig.ball;
+    const expConfig = animationConfig.exp || {};
     const battleConfig = App.config.game.battle || {};
 
     function getPlayerMonster(state) {
@@ -5790,6 +5906,41 @@ select {
       };
     }
 
+    function requiredExp(level) {
+      return level * level * 10;
+    }
+
+    function createExpGainEffect(monster, expGained) {
+      const fromExp = monster.exp || 0;
+      const needed = requiredExp(monster.level);
+      return {
+        kind: "exp",
+        fromExp,
+        toExp: Math.min(needed, fromExp + expGained),
+        requiredExp: needed,
+      };
+    }
+
+    function applyExpGain(monster, expGained) {
+      let leveledUp = false;
+      monster.exp = (monster.exp || 0) + expGained;
+
+      while (monster.exp >= requiredExp(monster.level)) {
+        monster.exp -= requiredExp(monster.level);
+        monster.level += 1;
+        leveledUp = true;
+
+        const sp = dataRegistry.getSpecies(monster.speciesId);
+        monster.maxHp = Math.floor(((sp.stats.hp * 2) * monster.level) / 100) + monster.level + 10;
+        monster.attack = Math.floor(((sp.stats.attack * 2) * monster.level) / 100) + 5;
+        monster.defense = Math.floor(((sp.stats.defense * 2) * monster.level) / 100) + 5;
+        monster.speed = Math.floor(((sp.stats.speed * 2) * monster.level) / 100) + 5;
+        monster.special = Math.floor(((sp.stats.special * 2) * monster.level) / 100) + 5;
+      }
+
+      return leveledUp;
+    }
+
     function canUseFullHeal(state) {
       const playerMonster = getPlayerMonster(state);
       return Boolean(
@@ -5801,6 +5952,14 @@ select {
 
     function canUseMasterBall(state) {
       return Boolean(state.inventory && state.inventory.masterBallCount > 0);
+    }
+
+    function getMessageAutoAdvanceMs(text) {
+      const baseMs = battleConfig.messageAutoAdvanceMs || 1000;
+      const perCharMs = battleConfig.messageAutoAdvancePerCharMs || 0;
+      const maxExtraMs = battleConfig.messageAutoAdvanceMaxExtraMs || 0;
+      const readableLength = String(text || "").replace(/\s/g, "").length;
+      return baseMs + Math.min(maxExtraMs, readableLength * perCharMs);
     }
 
     function rememberCapturedSpecies(state, speciesId) {
@@ -5847,6 +6006,17 @@ select {
           toHp: effect.toHp,
           elapsedMs: 0,
           durationMs: animationConfig.damage.durationMs,
+        };
+      }
+
+      if (effect.kind === "exp") {
+        return {
+          kind: "exp",
+          fromExp: effect.fromExp || 0,
+          toExp: effect.toExp || 0,
+          requiredExp: effect.requiredExp || 1,
+          elapsedMs: 0,
+          durationMs: expConfig.durationMs || 620,
         };
       }
 
@@ -5979,6 +6149,7 @@ select {
           display: {
             playerHp: playerMonster.currentHp,
             enemyHp: enemyMonster.currentHp,
+            playerExp: playerMonster.exp || 0,
           },
         };
 
@@ -6113,24 +6284,11 @@ select {
       if (state.battle.nextPhase === "field_victory") {
         const playerMonster = getPlayerMonster(state);
         const enemyMonster = state.battle.enemy;
-        const expGained = enemyMonster.level * 15;
-        let leveledUp = false;
-
-        playerMonster.exp = (playerMonster.exp || 0) + expGained;
-        const requiredExp = (level) => level * level * 10;
-
-        while (playerMonster.exp >= requiredExp(playerMonster.level)) {
-          playerMonster.exp -= requiredExp(playerMonster.level);
-          playerMonster.level += 1;
-          leveledUp = true;
-
-          const sp = dataRegistry.getSpecies(playerMonster.speciesId);
-          playerMonster.maxHp = Math.floor(((sp.stats.hp * 2) * playerMonster.level) / 100) + playerMonster.level + 10;
-          playerMonster.attack = Math.floor(((sp.stats.attack * 2) * playerMonster.level) / 100) + 5;
-          playerMonster.defense = Math.floor(((sp.stats.defense * 2) * playerMonster.level) / 100) + 5;
-          playerMonster.speed = Math.floor(((sp.stats.speed * 2) * playerMonster.level) / 100) + 5;
-          playerMonster.special = Math.floor(((sp.stats.special * 2) * playerMonster.level) / 100) + 5;
-        }
+        const expGained =
+          typeof state.battle.pendingExpGain === "number"
+            ? state.battle.pendingExpGain
+            : enemyMonster.level * 15;
+        const leveledUp = applyExpGain(playerMonster, expGained);
 
         let message;
         let gameCleared = false;
@@ -6592,8 +6750,15 @@ select {
 
         if (attack.defeated) {
           const expGained = enemyMonster.level * 15;
+          state.battle.pendingExpGain = expGained;
           steps.push(createStep(`${enemyLabel} は たおれた！`));
-          steps.push(createStep(`${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`));
+          steps.push(
+            createStep(
+              `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
+              createExpGainEffect(playerMonster, expGained),
+              "exp"
+            )
+          );
           startSequence(state, steps, "field_victory");
           return;
         }
@@ -6747,7 +6912,7 @@ select {
         state.battle.messageElapsedMs =
           (state.battle.messageElapsedMs || 0) + deltaMs;
 
-        if (state.battle.messageElapsedMs >= (battleConfig.messageAutoAdvanceMs || 650)) {
+        if (state.battle.messageElapsedMs >= getMessageAutoAdvanceMs(state.battle.currentMessage)) {
           shouldAdvance = true;
         }
       });
@@ -6787,6 +6952,15 @@ select {
         state.battle.display[`${animation.target}Hp`] = currentHp;
         if (progress >= 1) {
           state.battle.display[`${animation.target}Hp`] = animation.toHp;
+          state.battle.animation = null;
+        }
+      } else if (animation.kind === "exp") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        state.battle.display.playerExp =
+          animation.fromExp + (animation.toExp - animation.fromExp) * eased;
+        if (progress >= 1) {
+          state.battle.display.playerExp = animation.toExp;
           state.battle.animation = null;
         }
       } else if (animation.kind === "ball") {
@@ -6880,6 +7054,7 @@ select {
 
       if (state.battle.phase === "message") {
         if (input.consumeAction("confirm")) {
+          audio.playSe("message");
           advanceMessage();
           return;
         }
@@ -7164,6 +7339,7 @@ select {
         return;
       }
 
+      let soundId = "confirm";
       store.update((state) => {
         if (event.kind === "talk") {
           if (event.questId) {
@@ -7177,16 +7353,17 @@ select {
 
         if (event.kind === "pickup") {
           applyPickup(state, event);
+          soundId = "item";
         }
       });
-      audio.playSe("confirm");
+      audio.playSe(soundId);
     }
 
     function closeMessage() {
       store.update((state) => {
         state.field.message = "";
       });
-      audio.playSe("cancel");
+      audio.playSe("message");
     }
 
     function startMove(direction) {
@@ -7649,6 +7826,7 @@ select {
     App.runtime.save = save;
     const input = App.core.createInputController();
     const audio = App.core.createAudioManager(App.config.game.audio);
+    App.runtime.audio = audio;
     audio.bindUserGesture(window);
     const modal = App.core.createModalController(
       {
