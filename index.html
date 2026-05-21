@@ -1370,6 +1370,16 @@ select {
           { freq: 659.25, ms: 70, wave: "triangle", volume: 0.75 },
           { freq: 783.99, ms: 95, wave: "triangle", volume: 0.8 },
         ],
+        ice: [
+          { freq: 1046.5, ms: 42, wave: "triangle", volume: 0.44 },
+          { freq: 880, ms: 48, wave: "triangle", volume: 0.4 },
+          { freq: 659.25, ms: 72, wave: "triangle", volume: 0.36 },
+        ],
+        ice_wall: [
+          { freq: 739.99, ms: 58, wave: "triangle", volume: 0.46 },
+          { freq: 987.77, ms: 74, wave: "triangle", volume: 0.42 },
+          { freq: 1174.66, ms: 92, wave: "triangle", volume: 0.34 },
+        ],
         run: [
           { freq: 440, ms: 50 },
           { freq: 329.63, ms: 90 },
@@ -1437,30 +1447,43 @@ select {
         くさ: 1,
         ほのお: 1,
         みず: 1,
+        こおり: 1,
       },
       くさ: {
         ノーマル: 1,
         くさ: 0.5,
         ほのお: 0.5,
         みず: 2,
+        こおり: 1,
       },
       ほのお: {
         ノーマル: 1,
         くさ: 2,
         ほのお: 0.5,
         みず: 0.5,
+        こおり: 2,
       },
       みず: {
         ノーマル: 1,
         くさ: 0.5,
         ほのお: 2,
         みず: 0.5,
+        こおり: 1,
+      },
+      こおり: {
+        ノーマル: 1,
+        くさ: 2,
+        ほのお: 0.5,
+        みず: 0.5,
+        こおり: 0.5,
+        はがね: 0.5,
       },
       はがね: {
         ノーマル: 1,
         くさ: 1,
         ほのお: 1,
         みず: 1,
+        こおり: 1,
         はがね: 1,
       },
     },
@@ -1584,6 +1607,24 @@ select {
       accuracy: 100,
       pp: 20,
       effect: "damage",
+    },
+    {
+      id: "chilly_attack",
+      name: "ひんやりアタック",
+      type: "こおり",
+      power: 48,
+      accuracy: 100,
+      pp: 15,
+      effect: "damage",
+    },
+    {
+      id: "ice_wall",
+      name: "こおりのかべ",
+      type: "こおり",
+      power: 0,
+      accuracy: 100,
+      pp: 5,
+      effect: "ice_wall",
     },
   ];
 })();
@@ -1747,6 +1788,36 @@ select {
       shape: "drop",
     },
     {
+      id: "tsolf",
+      name: "ツォルフ",
+      types: ["こおり"],
+      stats: {
+        hp: 27,
+        attack: 13,
+        defense: 17,
+        speed: 9,
+        special: 12,
+      },
+      catchRate: 120,
+      defaultMoveIds: ["chilly_attack", "ice_wall"],
+      palette: {
+        primary: "#1e2730",
+        secondary: "#bfe8f8",
+      },
+      imageSprites: {
+        battleFront: "./assets/tsolf-front.png",
+        battleBack: "./assets/tsolf-back.png",
+      },
+      imageSpriteSize: {
+        battleFront: { height: 58 },
+        battleBack: { height: 58 },
+      },
+      battleOffset: {
+        enemy: { x: 0, y: 2 },
+        player: { x: 0, y: 2 },
+      },
+    },
+    {
       id: "king",
       name: "キング",
       types: ["ノーマル", "はがね"],
@@ -1810,6 +1881,11 @@ select {
           speciesId: "aribou",
           level: 5,
           weight: 30,
+        },
+        {
+          speciesId: "tsolf",
+          level: 5,
+          weight: 18,
         },
       ],
     },
@@ -3407,9 +3483,13 @@ select {
       const attackerSpecies = getSpecies(attacker.speciesId);
       const defenderSpecies = getSpecies(defender.speciesId);
       const attackStat =
-        move.type === "ほのお" || move.type === "みず" ? attacker.special : attacker.attack;
+        move.type === "ほのお" || move.type === "みず" || move.type === "こおり"
+          ? attacker.special
+          : attacker.attack;
       const defenseStat =
-        move.type === "ほのお" || move.type === "みず" ? defender.special : defender.defense;
+        move.type === "ほのお" || move.type === "みず" || move.type === "こおり"
+          ? defender.special
+          : defender.defense;
       const stab = attackerSpecies.types.includes(move.type) ? 1.5 : 1;
       const typeMultiplier = getTypeMultiplier(move.type, defenderSpecies.types);
       const randomFactor = 217 + random.integer(0, 38, "damage_roll");
@@ -5157,6 +5237,52 @@ select {
       ctx.fill();
     }
 
+    function drawBattleIceWall(state, layout, target) {
+      const monster =
+        target === "player" ? state.party && state.party[0] : state.battle && state.battle.enemy;
+      const wallActive = monster && monster.iceWallTurns > 0;
+      const animation =
+        state.battle &&
+        state.battle.animation &&
+        state.battle.animation.kind === "ice_wall" &&
+        state.battle.animation.target === target
+          ? state.battle.animation
+          : null;
+
+      if (!wallActive && !animation) {
+        return;
+      }
+
+      const position = layout[target];
+      const progress = animation ? Math.min(1, animation.elapsedMs / animation.durationMs) : 1;
+      const pulse = animation ? Math.sin(progress * Math.PI) : 0.25;
+      const alpha = Math.min(0.56, 0.22 + pulse * 0.34);
+      const radiusX = target === "player" ? 31 : 25;
+      const radiusY = target === "player" ? 29 : 23;
+      const centerY = position.monsterY + (target === "player" ? 2 : 4);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#bfeeff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(position.monsterX, centerY, radiusX, radiusY, -0.12, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.strokeStyle = "#6fb5dc";
+      ctx.lineWidth = 1;
+      for (let index = -1; index <= 1; index += 1) {
+        const shardX = position.monsterX + index * 9;
+        ctx.beginPath();
+        ctx.moveTo(shardX, centerY - radiusY + 6);
+        ctx.lineTo(shardX + 5, centerY - 3);
+        ctx.lineTo(shardX - 3, centerY + radiusY - 8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function drawBattle(state) {
       // 戦闘画面はcanvasに背景とモンスターだけを描き、HP表示はDOMのbattle-overlayへ任せる。
       const layout = getBattleLayout();
@@ -5199,6 +5325,9 @@ select {
           "back"
         );
       }
+
+      drawBattleIceWall(state, layout, "enemy");
+      drawBattleIceWall(state, layout, "player");
 
       drawCaptureBall(state);
     }
@@ -5375,6 +5504,8 @@ select {
           return "次の攻撃の威力を上げる。";
         case "chance_big_damage":
           return "まれに大きなダメージを与える。";
+        case "ice_wall":
+          return "攻撃を軽減し、少しはね返す。";
         default:
           return "";
       }
@@ -5958,6 +6089,13 @@ select {
       return Boolean(state.inventory && state.inventory.masterBallCount > 0);
     }
 
+    function clearBattleVolatile(monster) {
+      if (!monster) {
+        return;
+      }
+      delete monster.iceWallTurns;
+    }
+
     function getMessageAutoAdvanceMs(text) {
       const baseMs = battleConfig.messageAutoAdvanceMs || 1000;
       const perCharMs = battleConfig.messageAutoAdvancePerCharMs || 0;
@@ -6010,6 +6148,15 @@ select {
           toHp: effect.toHp,
           elapsedMs: 0,
           durationMs: animationConfig.damage.durationMs,
+        };
+      }
+
+      if (effect.kind === "ice_wall") {
+        return {
+          kind: "ice_wall",
+          target: effect.target,
+          elapsedMs: 0,
+          durationMs: 420,
         };
       }
 
@@ -6091,6 +6238,7 @@ select {
       }
 
       healParty(state);
+      state.party.forEach(clearBattleVolatile);
       state.scene = "field";
       state.battle = null;
       state.field.message = finalMessage;
@@ -6136,6 +6284,8 @@ select {
       store.update((state) => {
         const playerMonster = getPlayerMonster(state);
         const isTrainer = context && context.kind === "trainer-encounter";
+        clearBattleVolatile(playerMonster);
+        clearBattleVolatile(enemyMonster);
 
         state.scene = "battle";
         state.field.message = "";
@@ -6441,6 +6591,65 @@ select {
       return attackMoveIds[0] || healMoveId || usableMoveIds[0];
     }
 
+    function createIceWallResult(attacker, defender, damage) {
+      if (!defender || !defender.iceWallTurns || damage <= 0) {
+        return {
+          damage,
+          reflectedDamage: 0,
+          expired: false,
+        };
+      }
+
+      const reducedDamage = Math.max(1, Math.floor(damage * 0.65));
+      const reflectedDamage = Math.max(
+        1,
+        Math.min(attacker.currentHp, Math.ceil(damage * 0.25))
+      );
+      defender.iceWallTurns -= 1;
+      const expired = defender.iceWallTurns <= 0;
+      if (expired) {
+        delete defender.iceWallTurns;
+      }
+
+      return {
+        damage: reducedDamage,
+        reflectedDamage,
+        expired,
+      };
+    }
+
+    function appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets) {
+      if (!wallResult.reflectedDamage || attacker.currentHp <= 0) {
+        if (wallResult.expired) {
+          steps.push(createStep("こおりのかべが くだけた！"));
+        }
+        return;
+      }
+
+      const fromHp = attacker.currentHp;
+      attacker.currentHp = Math.max(0, attacker.currentHp - wallResult.reflectedDamage);
+      steps.push(
+        createStep(
+          "こおりのかべが こうげきを はねかえした！",
+          {
+            kind: "damage",
+            target: hpTargets.attacker,
+            fromHp,
+            toHp: attacker.currentHp,
+          },
+          "hit"
+        )
+      );
+
+      if (wallResult.expired) {
+        steps.push(createStep("こおりのかべが くだけた！"));
+      }
+    }
+
+    function getMoveSoundId(move) {
+      return move && move.type === "こおり" ? "ice" : "move";
+    }
+
     function buildAttackSequence(
       attacker,
       defender,
@@ -6466,12 +6675,27 @@ select {
         attacker.charging = null;
       }
 
-      const steps = [createStep(`${attackerLabel}の ${move.name}！`, null, "move")];
+      const steps = [createStep(`${attackerLabel}の ${move.name}！`, null, getMoveSoundId(move))];
 
       if (move.effect === "evasion_up") {
         attacker.evasionUp = true;
         steps.push(createStep(`${attackerLabel}は 身軽になった！`));
         return { steps, defeated: false };
+      }
+
+      if (move.effect === "ice_wall") {
+        attacker.iceWallTurns = 2;
+        steps.push(
+          createStep(
+            `${attackerLabel}は こおりのかべを はった！`,
+            {
+              kind: "ice_wall",
+              target: hpTargets.attacker,
+            },
+            "ice_wall"
+          )
+        );
+        return { steps, defeated: false, attackerDefeated: false };
       }
 
       if (move.effect === "damage_boost") {
@@ -6553,7 +6777,8 @@ select {
           Math.round(outcome.damage * (move.damageMultiplier || 2)),
           Math.round(defender.maxHp * (move.minimumDamageRatio || 0))
         );
-        const appliedDamage = Math.max(1, Math.min(defender.currentHp, scaledDamage));
+        const wallResult = createIceWallResult(attacker, defender, scaledDamage);
+        const appliedDamage = Math.max(1, Math.min(defender.currentHp, wallResult.damage));
         defender.currentHp = Math.max(0, defender.currentHp - appliedDamage);
 
         steps.push(
@@ -6568,6 +6793,7 @@ select {
             "hit"
           )
         );
+        appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
 
         if (outcome.typeMultiplier > 1) {
           steps.push(createStep("効果は 非常に大きい！"));
@@ -6578,6 +6804,7 @@ select {
         return {
           steps,
           defeated: defender.currentHp <= 0,
+          attackerDefeated: attacker.currentHp <= 0,
         };
       }
 
@@ -6624,11 +6851,12 @@ select {
 
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
-      defender.currentHp = Math.max(0, defender.currentHp - outcome.damage);
+      const wallResult = createIceWallResult(attacker, defender, outcome.damage);
+      defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
 
       steps.push(
         createStep(
-          `${defenderLabel} に ${outcome.damage} ダメージ！`,
+          `${defenderLabel} に ${wallResult.damage} ダメージ！`,
           {
             kind: "damage",
             target: hpTargets.defender,
@@ -6638,6 +6866,7 @@ select {
           "hit"
         )
       );
+      appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
 
       if (outcome.typeMultiplier > 1) {
         steps.push(createStep("効果は 非常に大きい！"));
@@ -6648,6 +6877,7 @@ select {
       return {
         steps,
         defeated: defender.currentHp <= 0,
+        attackerDefeated: attacker.currentHp <= 0,
       };
     }
 
@@ -6678,6 +6908,21 @@ select {
         }
       );
       steps.push(...enemyTurn.steps);
+
+      if (enemyTurn.attackerDefeated) {
+        const expGained = enemyMonster.level * 15;
+        state.battle.pendingExpGain = expGained;
+        steps.push(createStep(`やせいの ${enemySpecies.name} は たおれた！`));
+        steps.push(
+          createStep(
+            `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
+            createExpGainEffect(playerMonster, expGained),
+            "exp"
+          )
+        );
+        startSequence(state, steps, "field_victory");
+        return;
+      }
 
       if (enemyTurn.defeated) {
         steps.push(createStep(`${playerSpecies.name} は たおれた！`));
@@ -6764,6 +7009,12 @@ select {
             )
           );
           startSequence(state, steps, "field_victory");
+          return;
+        }
+
+        if (attack.attackerDefeated) {
+          steps.push(createStep(`${playerSpecies.name} は たおれた！`));
+          startSequence(state, steps, "field_defeat");
           return;
         }
 
@@ -6956,6 +7207,11 @@ select {
         state.battle.display[`${animation.target}Hp`] = currentHp;
         if (progress >= 1) {
           state.battle.display[`${animation.target}Hp`] = animation.toHp;
+          state.battle.animation = null;
+        }
+      } else if (animation.kind === "ice_wall") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress >= 1) {
           state.battle.animation = null;
         }
       } else if (animation.kind === "exp") {
