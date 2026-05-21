@@ -275,7 +275,7 @@ select {
 
 .battle-card.is-player {
   left: 6px;
-  bottom: 17%;
+  bottom: 10%;
   width: 44%;
 }
 
@@ -365,12 +365,12 @@ select {
 
 .battle-exp-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6c8c41, #94b566);
+  background: linear-gradient(90deg, #1f6f78, #2f9c85);
 }
 
 .battle-exp-fill.is-gaining {
-  background: linear-gradient(90deg, #728f3e, #c5d66f);
-  box-shadow: 0 0 6px rgba(248, 244, 215, 0.72);
+  background: linear-gradient(90deg, #1c6f86, #2fae9a);
+  box-shadow: 0 0 6px rgba(47, 174, 154, 0.36);
 }
 
 .screen-message {
@@ -1179,9 +1179,9 @@ select {
       blockedFeedbackCooldownMs: 420,
     },
     battle: {
-      messageAutoAdvanceMs: 1000,
-      messageAutoAdvancePerCharMs: 8,
-      messageAutoAdvanceMaxExtraMs: 360,
+      messageAutoAdvanceMs: 1180,
+      messageAutoAdvancePerCharMs: 10,
+      messageAutoAdvanceMaxExtraMs: 450,
     },
     field: {
       startMapId: "camera_route",
@@ -1205,9 +1205,9 @@ select {
       },
       player: {
         monsterX: 118,
-        monsterY: 75,
+        monsterY: 82,
         shadowX: 118,
-        shadowY: 101,
+        shadowY: 108,
         shadowWidth: 37,
         shadowHeight: 10,
       },
@@ -4288,7 +4288,11 @@ select {
 
     function playBgm(id) {
       // desiredBgmIdは未unlock時にも記録する。起動直後にplayBgm("field")しても、初回操作後に再開できる。
-      desiredBgmId = id || "";
+      const nextBgmId = id || "";
+      if (desiredBgmId === nextBgmId && fadeIntervalId) {
+        return;
+      }
+      desiredBgmId = nextBgmId;
       if (!desiredBgmId) {
         transitionBgm("", 200);
         return;
