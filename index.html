@@ -1254,6 +1254,7 @@ select {
         durationMs: 520,
         throwDurationMs: 540,
         shakeDurationMs: 520,
+        lockDurationMs: 420,
         releaseDurationMs: 420,
         startX: 120,
         startY: 96,
@@ -1365,6 +1366,14 @@ select {
           { freq: 659.25, ms: 70 },
           { freq: 783.99, ms: 120 },
         ],
+        capture_lock: [
+          { freq: 783.99, ms: 44, wave: "square", volume: 0.46 },
+          { freq: 1046.5, ms: 72, wave: "triangle", volume: 0.38 },
+        ],
+        faint: [
+          { freq: 196, ms: 70, wave: "triangle", volume: 0.38 },
+          { freq: 164.81, ms: 92, wave: "triangle", volume: 0.32 },
+        ],
         heal: [
           { freq: 523.25, ms: 55, wave: "triangle", volume: 0.7 },
           { freq: 659.25, ms: 70, wave: "triangle", volume: 0.75 },
@@ -1379,6 +1388,11 @@ select {
           { freq: 739.99, ms: 58, wave: "triangle", volume: 0.46 },
           { freq: 987.77, ms: 74, wave: "triangle", volume: 0.42 },
           { freq: 1174.66, ms: 92, wave: "triangle", volume: 0.34 },
+        ],
+        level_up: [
+          { freq: 659.25, ms: 50, wave: "triangle", volume: 0.44 },
+          { freq: 783.99, ms: 56, wave: "triangle", volume: 0.42 },
+          { freq: 987.77, ms: 90, wave: "triangle", volume: 0.36 },
         ],
         run: [
           { freq: 440, ms: 50 },
@@ -1809,8 +1823,8 @@ select {
         battleBack: "./assets/tsolf-back.png",
       },
       imageSpriteSize: {
-        battleFront: { height: 58 },
-        battleBack: { height: 58 },
+        battleFront: { height: 52 },
+        battleBack: { height: 52 },
       },
       battleOffset: {
         enemy: { x: 0, y: 2 },
@@ -5039,6 +5053,19 @@ select {
       return state.battle.animation;
     }
 
+    function getFaintAnimation(state, target) {
+      if (
+        !state.battle ||
+        !state.battle.animation ||
+        state.battle.animation.kind !== "faint" ||
+        state.battle.animation.target !== target
+      ) {
+        return null;
+      }
+
+      return state.battle.animation;
+    }
+
     function getMonsterOffset(state, target) {
       const animation = getBattleAnimation(state, target);
       if (!animation) {
@@ -5055,6 +5082,15 @@ select {
 
     function shouldHideMonster(state, target) {
       if (
+        state.battle &&
+        state.battle.fainted &&
+        state.battle.fainted[target] &&
+        !getFaintAnimation(state, target)
+      ) {
+        return true;
+      }
+
+      if (
         target === "enemy" &&
         state.battle &&
         state.battle.captureBall &&
@@ -5069,6 +5105,16 @@ select {
       }
 
       return Math.floor(animation.elapsedMs / damageAnimation.flashIntervalMs) % 2 === 1;
+    }
+
+    function getMonsterAlpha(state, target) {
+      const faintAnimation = getFaintAnimation(state, target);
+      if (!faintAnimation) {
+        return 1;
+      }
+
+      const progress = Math.min(1, faintAnimation.elapsedMs / faintAnimation.durationMs);
+      return Math.max(0, 1 - progress);
     }
 
     function drawBattleMonster(position, species, view) {
@@ -5170,6 +5216,13 @@ select {
         ctx.fill();
       }
 
+      if (ballState.phase === "lock") {
+        ctx.fillStyle = `rgba(248, 244, 215, ${0.32 + (ballState.flash || 0) * 0.38})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y - 1, 11 + (ballState.flash || 0) * 4, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.fillStyle = palette.white;
       ctx.beginPath();
       ctx.arc(x, y + shellLift, 5, 0, Math.PI * 2);
@@ -5190,6 +5243,12 @@ select {
 
       ctx.fillStyle = palette.captureYellow || "#d8b546";
       ctx.fillRect(x - 1, y - 1, 2, 2);
+
+      if (ballState.phase === "lock") {
+        ctx.fillStyle = palette.white;
+        ctx.fillRect(x + 7, y - 6, 1, 3);
+        ctx.fillRect(x + 6, y - 5, 3, 1);
+      }
     }
 
     function drawCaptureBall(state) {
@@ -5305,6 +5364,8 @@ select {
       const playerOffset = getMonsterOffset(state, "player");
 
       if (!shouldHideMonster(state, "enemy")) {
+        ctx.save();
+        ctx.globalAlpha = getMonsterAlpha(state, "enemy");
         drawBattleMonster(
           {
             x: layout.enemy.monsterX + enemyOffset.x,
@@ -5313,9 +5374,12 @@ select {
           enemySpecies,
           "front"
         );
+        ctx.restore();
       }
 
       if (!shouldHideMonster(state, "player")) {
+        ctx.save();
+        ctx.globalAlpha = getMonsterAlpha(state, "player");
         drawBattleMonster(
           {
             x: layout.player.monsterX + playerOffset.x,
@@ -5324,6 +5388,7 @@ select {
           playerSpecies,
           "back"
         );
+        ctx.restore();
       }
 
       drawBattleIceWall(state, layout, "enemy");
@@ -6176,6 +6241,7 @@ select {
         const phaseDurations = {
           throw: ballConfig.throwDurationMs || ballConfig.durationMs,
           shake: ballConfig.shakeDurationMs || ballConfig.durationMs,
+          lock: ballConfig.lockDurationMs || ballConfig.durationMs,
           release: ballConfig.releaseDurationMs || ballConfig.durationMs,
         };
 
@@ -6188,6 +6254,15 @@ select {
           shakeIndex: effect.shakeIndex || 0,
           totalShakes: effect.totalShakes || 0,
           ballType: effect.ballType || "normal",
+        };
+      }
+
+      if (effect.kind === "faint") {
+        return {
+          kind: "faint",
+          target: effect.target,
+          elapsedMs: 0,
+          durationMs: 360,
         };
       }
 
@@ -6295,6 +6370,10 @@ select {
           steps: [],
           nextPhase: "command",
           animation: null,
+          fainted: {
+            player: false,
+            enemy: false,
+          },
           messageElapsedMs: 0,
           captureBall: null,
           enemy: enemyMonster,
@@ -6458,6 +6537,9 @@ select {
           message = leveledUp
             ? `戦闘に勝利した！\nレベルが ${playerMonster.level} に上がった！`
             : "戦闘が終わり、ひと息つきました。";
+        }
+        if (leveledUp) {
+          audio.playSe("level_up");
         }
 
         const rewardItem =
@@ -6912,7 +6994,16 @@ select {
       if (enemyTurn.attackerDefeated) {
         const expGained = enemyMonster.level * 15;
         state.battle.pendingExpGain = expGained;
-        steps.push(createStep(`やせいの ${enemySpecies.name} は たおれた！`));
+        steps.push(
+          createStep(
+            `やせいの ${enemySpecies.name} は たおれた！`,
+            {
+              kind: "faint",
+              target: "enemy",
+            },
+            "faint"
+          )
+        );
         steps.push(
           createStep(
             `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
@@ -6925,7 +7016,16 @@ select {
       }
 
       if (enemyTurn.defeated) {
-        steps.push(createStep(`${playerSpecies.name} は たおれた！`));
+        steps.push(
+          createStep(
+            `${playerSpecies.name} は たおれた！`,
+            {
+              kind: "faint",
+              target: "player",
+            },
+            "faint"
+          )
+        );
         startSequence(state, steps, "field_defeat");
         return;
       }
@@ -7000,7 +7100,16 @@ select {
         if (attack.defeated) {
           const expGained = enemyMonster.level * 15;
           state.battle.pendingExpGain = expGained;
-          steps.push(createStep(`${enemyLabel} は たおれた！`));
+          steps.push(
+            createStep(
+              `${enemyLabel} は たおれた！`,
+              {
+                kind: "faint",
+                target: "enemy",
+              },
+              "faint"
+            )
+          );
           steps.push(
             createStep(
               `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
@@ -7013,7 +7122,16 @@ select {
         }
 
         if (attack.attackerDefeated) {
-          steps.push(createStep(`${playerSpecies.name} は たおれた！`));
+          steps.push(
+            createStep(
+              `${playerSpecies.name} は たおれた！`,
+              {
+                kind: "faint",
+                target: "player",
+              },
+              "faint"
+            )
+          );
           startSequence(state, steps, "field_defeat");
           return;
         }
@@ -7061,6 +7179,12 @@ select {
         }
 
         if (success) {
+          steps.push(createStep("カチッ！", {
+            kind: "ball",
+            phase: "lock",
+            success: true,
+            ballType: "normal",
+          }, "capture_lock"));
           steps.push(createStep(`${enemySpecies.name} を つかまえた！`, null, "capture"));
           startSequence(state, steps, "field_capture");
           return;
@@ -7118,6 +7242,12 @@ select {
           }, "shake"));
         }
 
+        steps.push(createStep("カチッ！", {
+          kind: "ball",
+          phase: "lock",
+          success: true,
+          ballType: "master",
+        }, "capture_lock"));
         steps.push(createStep(`${enemySpecies.name} を つかまえた！`, null, "capture"));
         startSequence(state, steps, "field_capture");
       });
@@ -7214,6 +7344,13 @@ select {
         if (progress >= 1) {
           state.battle.animation = null;
         }
+      } else if (animation.kind === "faint") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress >= 1) {
+          state.battle.fainted = state.battle.fainted || {};
+          state.battle.fainted[animation.target] = true;
+          state.battle.animation = null;
+        }
       } else if (animation.kind === "exp") {
         const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
         const eased = 1 - Math.pow(1 - progress, 3);
@@ -7252,6 +7389,17 @@ select {
             open: 0,
             ballType: animation.ballType || "normal",
           };
+        } else if (animation.phase === "lock") {
+          const clickOffset = Math.sin(progress * Math.PI) * 1.5;
+          state.battle.captureBall = {
+            phase: "lock",
+            x: ballConfig.endX + clickOffset,
+            y: ballConfig.endY,
+            hideEnemy: true,
+            open: 0,
+            flash: Math.max(0, 1 - progress),
+            ballType: animation.ballType || "normal",
+          };
         } else if (animation.phase === "release") {
           const open = Math.min(1, progress * 1.35);
           state.battle.captureBall =
@@ -7268,7 +7416,7 @@ select {
         }
 
         if (progress >= 1) {
-          if (animation.phase === "throw" || animation.phase === "shake") {
+          if (animation.phase === "throw" || animation.phase === "shake" || animation.phase === "lock") {
             state.battle.captureBall = {
               phase: "hold",
               x: ballConfig.endX,
@@ -8114,31 +8262,33 @@ select {
       }
     }
 
-    function buildMonsterPreviewSection(species, caption) {
+    function buildMonsterPreviewSection(species, caption, options) {
       // メニューと捕獲記録で共通利用するプレビュー定義。画像アセット優先、なければpixel-art canvasへフォールバック。
       if (!species) {
         return [];
       }
+      const settings = options || {};
+      const spriteKey = settings.view === "back" ? "battleBack" : "battleFront";
 
-      if (species.imageSprites && species.imageSprites.battleFront) {
+      if (species.imageSprites && species.imageSprites[spriteKey]) {
         return [
           {
             kind: "monsterPreview",
-            imageSrc: species.imageSprites.battleFront,
+            imageSrc: species.imageSprites[spriteKey],
             caption: caption || species.name,
             backgroundColor: species.palette && species.palette.secondary,
           },
         ];
       }
 
-      if (!species.spriteIds || !species.spriteIds.battleFront) {
+      if (!species.spriteIds || !species.spriteIds[spriteKey]) {
         return [];
       }
 
       return [
         {
           kind: "monsterPreview",
-          spriteId: species.spriteIds.battleFront,
+          spriteId: species.spriteIds[spriteKey],
           caption: caption || species.name,
           backgroundColor: species.palette && species.palette.secondary,
         },
@@ -8321,7 +8471,8 @@ select {
         title: "手持ち",
         sections: buildMonsterPreviewSection(
           playerSpecies,
-          `${playerSpecies.name} Lv${playerMonster.level}`
+          `${playerSpecies.name} Lv${playerMonster.level}`,
+          { view: "back" }
         ),
         lines: [
           `HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
