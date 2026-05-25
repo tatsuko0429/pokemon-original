@@ -658,6 +658,82 @@ select {
   border-radius: 14px;
 }
 
+.control-button.battle-command-button {
+  --command-hi: #f4f2df;
+  --command-lo: #c6cfb5;
+  --command-edge: rgba(32, 34, 27, 0.72);
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  overflow: hidden;
+  border-color: var(--command-edge);
+  background:
+    radial-gradient(circle at 24% 16%, rgba(255, 255, 255, 0.36), transparent 28%),
+    linear-gradient(180deg, var(--command-hi), var(--command-lo));
+  font-size: clamp(0.86rem, 3.2vw, 1rem);
+  line-height: 1.05;
+}
+
+.control-button.battle-command-button::before {
+  content: "";
+  position: absolute;
+  inset: 5px 7px auto 7px;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.control-button.battle-command-button::after {
+  content: attr(data-command-hint);
+  display: block;
+  min-width: 44px;
+  padding: 2px 6px;
+  border: 2px solid rgba(32, 34, 27, 0.62);
+  border-radius: 999px;
+  background: rgba(248, 244, 215, 0.68);
+  color: rgba(32, 34, 27, 0.72);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.control-button.battle-command-button.is-fight {
+  --command-hi: #f7f1cf;
+  --command-lo: #d8b546;
+  --command-edge: #6a5120;
+}
+
+.control-button.battle-command-button.is-ball {
+  --command-hi: #f4d7c9;
+  --command-lo: #c75f45;
+  --command-edge: #6f2e22;
+}
+
+.control-button.battle-command-button.is-item {
+  --command-hi: #dceecb;
+  --command-lo: #89b86b;
+  --command-edge: #4f733c;
+}
+
+.control-button.battle-command-button.is-run {
+  --command-hi: #e3e6db;
+  --command-lo: #aab3a0;
+  --command-edge: #5e675d;
+}
+
+.control-button.battle-command-button.is-master {
+  --command-hi: #e8c9f2;
+  --command-lo: #8d5af2;
+  --command-edge: #4a2467;
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(34, 12, 55, 0.6);
+}
+
+.control-button.battle-command-button.is-master::after {
+  color: #3c174d;
+}
+
 .control-button {
   min-height: 68px;
   padding: 12px 10px;
@@ -792,15 +868,23 @@ select {
 }
 
 .control-button.move-button {
+  --move-accent: #cfc394;
+  --move-soft: rgba(248, 244, 215, 0.72);
   min-height: 74px;
   display: grid;
   align-content: center;
   gap: 5px;
   padding: 9px 10px;
+  border-color: rgba(32, 34, 27, 0.8);
+  background:
+    linear-gradient(90deg, var(--move-accent) 0 6px, transparent 6px),
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.32), transparent 32%),
+    linear-gradient(180deg, #f4f1dd, #cbd3bd);
 }
 
 .move-name,
-.move-meta {
+.move-meta,
+.move-detail {
   display: block;
 }
 
@@ -820,13 +904,62 @@ select {
   color: var(--muted);
 }
 
+.move-detail {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 0.62rem;
+  line-height: 1.1;
+}
+
 .move-type,
-.move-pp {
+.move-pp,
+.move-power,
+.move-accuracy {
   min-width: 50px;
   padding: 3px 7px;
   border: 2px solid rgba(32, 34, 27, 0.7);
   border-radius: 999px;
-  background: rgba(248, 244, 215, 0.7);
+  background: var(--move-soft);
+}
+
+.move-power,
+.move-accuracy {
+  min-width: 44px;
+  padding-block: 2px;
+  border-color: rgba(32, 34, 27, 0.42);
+  color: rgba(32, 34, 27, 0.72);
+}
+
+.control-button.move-button.is-type-grass {
+  --move-accent: #78a85a;
+  --move-soft: rgba(222, 239, 203, 0.78);
+}
+
+.control-button.move-button.is-type-water {
+  --move-accent: #5f9dc0;
+  --move-soft: rgba(213, 237, 247, 0.8);
+}
+
+.control-button.move-button.is-type-ice {
+  --move-accent: #8ac6dc;
+  --move-soft: rgba(219, 244, 252, 0.82);
+}
+
+.control-button.move-button.is-type-steel {
+  --move-accent: #9a9d9a;
+  --move-soft: rgba(230, 230, 223, 0.78);
+}
+
+.control-button.move-button.is-low-pp .move-pp {
+  border-color: #8a342b;
+  background: rgba(244, 212, 201, 0.82);
+  color: #6b241d;
+}
+
+.control-button.move-button.is-empty {
+  filter: saturate(0.72);
 }
 
 .control-button[disabled] {
@@ -6156,6 +6289,21 @@ select {
       return button;
     }
 
+    function getMoveTypeClass(type) {
+      switch (type) {
+        case "くさ":
+          return "is-type-grass";
+        case "みず":
+          return "is-type-water";
+        case "こおり":
+          return "is-type-ice";
+        case "はがね":
+          return "is-type-steel";
+        default:
+          return "is-type-normal";
+      }
+    }
+
     function getMoveEffectText(move) {
       // 技選択中の補足表示用。moves.jsへ新しいeffectを追加したら、ここにもユーザー向け短文を追加する。
       if (!move) return "";
@@ -6178,12 +6326,21 @@ select {
     }
 
     function createMoveButton(move, currentPp, onHover) {
-      const button = createButton("", "move-button", null, currentPp <= 0);
+      const ppRatio = currentPp / Math.max(1, move.pp);
+      const classNames = [
+        "move-button",
+        getMoveTypeClass(move.type),
+        currentPp <= 0 ? "is-empty" : "",
+        currentPp > 0 && ppRatio <= 0.25 ? "is-low-pp" : "",
+      ].filter(Boolean).join(" ");
+      const button = createButton("", classNames, null, currentPp <= 0);
       button.setAttribute("aria-label", `${move.name} ${move.type} PP ${currentPp}/${move.pp}`);
 
       if (onHover) {
         button.addEventListener("mouseenter", () => onHover(move.id));
         button.addEventListener("mouseleave", () => onHover(null));
+        button.addEventListener("focus", () => onHover(move.id));
+        button.addEventListener("blur", () => onHover(null));
       }
 
       const name = document.createElement("span");
@@ -6201,10 +6358,22 @@ select {
       pp.className = "move-pp";
       pp.textContent = `PP ${currentPp}/${move.pp}`;
 
+      const detail = document.createElement("span");
+      detail.className = "move-detail";
+      const power = document.createElement("span");
+      power.className = "move-power";
+      power.textContent = move.power > 0 ? `威力 ${move.power}` : "補助";
+      const accuracy = document.createElement("span");
+      accuracy.className = "move-accuracy";
+      accuracy.textContent = `命中 ${move.accuracy}`;
+
       meta.appendChild(type);
       meta.appendChild(pp);
+      detail.appendChild(power);
+      detail.appendChild(accuracy);
       button.appendChild(name);
       button.appendChild(meta);
+      button.appendChild(detail);
       return button;
     }
 
@@ -6462,15 +6631,19 @@ select {
         wrapper.classList.add("has-master-ball");
       }
 
-      const fight = createButton("たたかう", "", null, settings.disabledAll);
-      const ball = createButton("ボール", "", null, settings.disabledAll);
-      const run = createButton("にげる", "is-subtle", null, settings.disabledAll);
+      const fight = createButton("たたかう", "battle-command-button is-fight", null, settings.disabledAll);
+      fight.dataset.commandHint = "技";
+      const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
+      ball.dataset.commandHint = "捕獲";
+      const run = createButton("にげる", "battle-command-button is-run", null, settings.disabledAll);
+      run.dataset.commandHint = "撤退";
       const item = createButton(
         "アイテム",
-        settings.itemDisabled && !settings.disabledAll ? "is-subtle" : "",
+        `battle-command-button is-item ${settings.itemDisabled && !settings.disabledAll ? "is-subtle" : ""}`,
         null,
         settings.disabledAll || settings.itemDisabled
       );
+      item.dataset.commandHint = "回復";
 
       if (!settings.disabledAll) {
         input.attachActionButton(fight, "battle_open_move_menu");
@@ -6487,7 +6660,8 @@ select {
       wrapper.appendChild(item);
 
       if (settings.hasMasterBall) {
-        const masterBall = createButton("Pボール", "is-primary", null, settings.disabledAll);
+        const masterBall = createButton("Pボール", "battle-command-button is-master", null, settings.disabledAll);
+        masterBall.dataset.commandHint = "確定";
         if (!settings.disabledAll) {
           input.attachActionButton(masterBall, "battle_throw_master_ball");
         }
@@ -6647,8 +6821,11 @@ select {
         battlePhase: state.battle ? state.battle.phase : null,
         battleMessage: state.battle ? state.battle.currentMessage : null,
         battleAnimation: state.battle ? state.battle.animation && state.battle.animation.kind : null,
+        battleHoveredMove: state.battle ? state.battle.hoveredMoveId : null,
         fullHealCount: state.inventory.fullHealCount,
+        masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,
+        playerPp: state.party[0] ? state.party[0].currentPp : [],
       });
 
       if (panelKey === lastPanelKey) {
