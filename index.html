@@ -468,7 +468,7 @@ select {
 
 .status-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr) minmax(112px, 1.45fr);
   gap: 5px;
 }
 
@@ -481,7 +481,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 5px 7px;
+  padding: 5px 8px;
   border: 2px solid #121417;
   border-radius: 12px;
   background:
@@ -492,6 +492,23 @@ select {
   line-height: 1.15;
   text-align: center;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.status-pill.is-monster,
+.status-pill.is-hp {
+  white-space: nowrap;
+}
+
+.status-pill.is-monster {
+  font-size: clamp(0.58rem, 2.25vw, 0.7rem);
+}
+
+.status-pill.is-objective {
+  justify-content: flex-start;
+  padding-inline: 8px;
+  font-size: clamp(0.58rem, 2.25vw, 0.7rem);
+  line-height: 1.18;
+  text-align: left;
 }
 
 .action-card {
@@ -544,12 +561,22 @@ select {
 }
 
 .direction-spacer:nth-child(5) {
+  position: relative;
   border-radius: 11px;
   background:
     linear-gradient(180deg, #34373d, #101113);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.11),
     inset 0 -3px 0 rgba(0, 0, 0, 0.48);
+}
+
+.direction-spacer:nth-child(5)::after {
+  content: "";
+  position: absolute;
+  inset: 32%;
+  border-radius: 50%;
+  background: rgba(238, 241, 220, 0.12);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.12);
 }
 
 .action-buttons {
@@ -665,10 +692,12 @@ select {
   border-radius: 11px;
   touch-action: none;
   background:
+    radial-gradient(circle at 38% 24%, rgba(255, 255, 255, 0.12), transparent 34%),
     linear-gradient(180deg, #3b3e45, #111214);
-  color: rgba(255, 255, 255, 0.58);
-  font-size: clamp(0.68rem, 2.6vw, 0.82rem);
-  letter-spacing: 0.06em;
+  color: rgba(246, 240, 223, 0.72);
+  font-size: clamp(1rem, 4vw, 1.28rem);
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.72);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 -3px 0 rgba(0, 0, 0, 0.48);
@@ -678,6 +707,7 @@ select {
 .control-button.dpad-button.is-active {
   transform: translateY(1px);
   background:
+    radial-gradient(circle at 42% 28%, rgba(255, 255, 255, 0.08), transparent 30%),
     linear-gradient(180deg, #262930, #0b0c0d);
 }
 
@@ -900,44 +930,119 @@ select {
 }
 
 .modal-monster-preview {
+  gap: 7px;
   justify-items: center;
+  padding: 2px 0 4px;
 }
 
 .modal-monster-frame {
-  min-width: 132px;
-  min-height: 132px;
+  --monster-accent: rgba(222, 230, 207, 0.96);
+  position: relative;
+  width: min(100%, 184px);
+  min-height: 140px;
   padding: 12px;
   border: 3px solid var(--line);
-  border-radius: 20px;
+  border-radius: 18px;
   background:
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.78), transparent 44%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(222, 230, 207, 0.96));
+    radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.78), transparent 43%),
+    linear-gradient(180deg, rgba(142, 160, 119, 0.24), rgba(78, 88, 65, 0.2) 67%, transparent 68%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), var(--monster-accent));
   display: grid;
   place-items: center;
+  overflow: hidden;
   box-shadow:
     0 5px 0 rgba(20, 24, 17, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
+.modal-monster-frame::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  width: 76px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(31, 35, 24, 0.18);
+  transform: translateX(-50%);
+}
+
+.modal-monster-frame.is-party {
+  --monster-accent: rgba(218, 228, 203, 0.96);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.78), transparent 42%),
+    linear-gradient(180deg, rgba(168, 195, 123, 0.32), rgba(86, 109, 58, 0.24) 68%, transparent 69%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), var(--monster-accent));
+}
+
+.modal-monster-frame.is-capture {
+  --monster-accent: rgba(232, 218, 174, 0.96);
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.86), transparent 43%),
+    radial-gradient(circle at 50% 44%, rgba(216, 181, 70, 0.34), transparent 56%),
+    linear-gradient(180deg, rgba(216, 181, 70, 0.18), rgba(112, 127, 82, 0.2) 68%, transparent 69%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), var(--monster-accent));
+}
+
 .modal-monster-frame canvas {
+  position: relative;
+  z-index: 1;
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
 .modal-monster-frame img {
+  position: relative;
+  z-index: 1;
   display: block;
   width: min(100%, 210px);
   height: auto;
-  max-height: 180px;
+  max-height: 154px;
   object-fit: contain;
   image-rendering: auto;
 }
 
 .modal-monster-caption {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 900;
   color: var(--muted);
+}
+
+.modal-monster-title {
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.modal-monster-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+
+.modal-monster-badge {
+  min-width: 48px;
+  padding: 4px 8px;
+  border: 2px solid rgba(32, 34, 27, 0.82);
+  border-radius: 999px;
+  background: rgba(248, 244, 215, 0.78);
+  color: #20221b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.modal-monster-note {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(32, 34, 27, 0.12);
+  color: #3f4639;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
 }
 
 .modal-actions {
@@ -1174,14 +1279,14 @@ select {
     },
     timing: {
       moveDurationMs: 140,
-      runMoveDurationMs: 86,
+      runMoveDurationMs: 64,
       encounterCooldownSteps: 2,
       blockedFeedbackCooldownMs: 420,
     },
     battle: {
-      messageAutoAdvanceMs: 1180,
+      messageAutoAdvanceMs: 980,
       messageAutoAdvancePerCharMs: 10,
-      messageAutoAdvanceMaxExtraMs: 450,
+      messageAutoAdvanceMaxExtraMs: 320,
     },
     field: {
       startMapId: "camera_route",
@@ -1247,6 +1352,9 @@ select {
         wiggleDurationMs: 180,
         flashIntervalMs: 40,
       },
+      miss: {
+        durationMs: 90,
+      },
       exp: {
         durationMs: 620,
       },
@@ -1255,6 +1363,7 @@ select {
         throwDurationMs: 540,
         shakeDurationMs: 520,
         lockDurationMs: 420,
+        completeDurationMs: 460,
         releaseDurationMs: 420,
         startX: 120,
         startY: 96,
@@ -1273,6 +1382,7 @@ select {
     },
     audio: {
       masterVolume: 0.07,
+      seVolumeMultiplier: 5,
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -1341,43 +1451,56 @@ select {
           { freq: 783.99, ms: 70 },
         ],
         hit: [
-          { freq: 220, ms: 35, wave: "sawtooth" },
-          { freq: 160, ms: 90, wave: "triangle" },
+          { freq: 196, ms: 38, wave: "sawtooth", volume: 0.7 },
+          { freq: 130.81, ms: 86, wave: "triangle", volume: 0.5 },
+        ],
+        miss: [
+          { freq: 739.99, ms: 34, wave: "triangle", volume: 0.38 },
+          { freq: 587.33, ms: 48, wave: "triangle", volume: 0.28 },
         ],
         exp: [
-          { freq: 587.33, ms: 42, wave: "triangle", volume: 0.5 },
-          { freq: 659.25, ms: 48, wave: "triangle", volume: 0.52 },
-          { freq: 783.99, ms: 66, wave: "triangle", volume: 0.46 },
+          { freq: 523.25, ms: 38, wave: "triangle", volume: 0.48 },
+          { freq: 659.25, ms: 42, wave: "triangle", volume: 0.5 },
+          { freq: 783.99, ms: 48, wave: "triangle", volume: 0.48 },
+          { freq: 1046.5, ms: 70, wave: "triangle", volume: 0.34 },
         ],
         item: [
           { freq: 783.99, ms: 52, wave: "triangle", volume: 0.5 },
           { freq: 1046.5, ms: 82, wave: "triangle", volume: 0.42 },
         ],
         ball: [
-          { freq: 440, ms: 50 },
-          { freq: 659.25, ms: 60 },
+          { freq: 392, ms: 34, wave: "square", volume: 0.46 },
+          { freq: 587.33, ms: 42, wave: "square", volume: 0.42 },
+          { freq: 880, ms: 56, wave: "triangle", volume: 0.32 },
         ],
         shake: [
-          { freq: 196, ms: 45, wave: "triangle" },
-          { freq: 174.61, ms: 55, wave: "triangle" },
+          { freq: 174.61, ms: 34, wave: "triangle", volume: 0.48 },
+          { freq: 130.81, ms: 62, wave: "triangle", volume: 0.34 },
         ],
         capture: [
-          { freq: 523.25, ms: 70 },
-          { freq: 659.25, ms: 70 },
-          { freq: 783.99, ms: 120 },
+          { freq: 523.25, ms: 48, wave: "triangle", volume: 0.54 },
+          { freq: 659.25, ms: 54, wave: "triangle", volume: 0.54 },
+          { freq: 783.99, ms: 64, wave: "triangle", volume: 0.5 },
+          { freq: 1046.5, ms: 110, wave: "triangle", volume: 0.4 },
         ],
         capture_lock: [
-          { freq: 783.99, ms: 44, wave: "square", volume: 0.46 },
-          { freq: 1046.5, ms: 72, wave: "triangle", volume: 0.38 },
+          { freq: 880, ms: 34, wave: "square", volume: 0.52 },
+          { ms: 20 },
+          { freq: 1174.66, ms: 66, wave: "triangle", volume: 0.34 },
+        ],
+        capture_fail: [
+          { freq: 392, ms: 42, wave: "triangle", volume: 0.42 },
+          { freq: 293.66, ms: 58, wave: "triangle", volume: 0.36 },
+          { freq: 220, ms: 82, wave: "triangle", volume: 0.28 },
         ],
         faint: [
           { freq: 196, ms: 70, wave: "triangle", volume: 0.38 },
           { freq: 164.81, ms: 92, wave: "triangle", volume: 0.32 },
         ],
         heal: [
-          { freq: 523.25, ms: 55, wave: "triangle", volume: 0.7 },
-          { freq: 659.25, ms: 70, wave: "triangle", volume: 0.75 },
-          { freq: 783.99, ms: 95, wave: "triangle", volume: 0.8 },
+          { freq: 523.25, ms: 52, wave: "triangle", volume: 0.58 },
+          { freq: 659.25, ms: 66, wave: "triangle", volume: 0.62 },
+          { freq: 783.99, ms: 94, wave: "triangle", volume: 0.64 },
         ],
         ice: [
           { freq: 1046.5, ms: 42, wave: "triangle", volume: 0.44 },
@@ -1399,8 +1522,9 @@ select {
           { freq: 329.63, ms: 90 },
         ],
         error: [
-          { freq: 261.63, ms: 60, wave: "triangle" },
-          { freq: 220, ms: 110, wave: "triangle" },
+          { freq: 246.94, ms: 52, wave: "triangle", volume: 0.5 },
+          { freq: 196, ms: 62, wave: "triangle", volume: 0.46 },
+          { freq: 146.83, ms: 96, wave: "triangle", volume: 0.34 },
         ],
       },
     },
@@ -1826,6 +1950,10 @@ select {
         battleFront: { height: 52 },
         battleBack: { height: 52 },
       },
+      partyPreview: {
+        view: "front",
+        imageMaxHeight: 150,
+      },
       battleOffset: {
         enemy: { x: 0, y: 2 },
         player: { x: 0, y: 2 },
@@ -2212,34 +2340,37 @@ select {
           p: "#6d5131",
           s: "#ead8b2",
           d: "#c1af86",
+          e: "#8b714c",
+          l: "#f8f0c2",
         },
         rows: [
           "..ssss..",
+          ".slllds.",
+          ".sdedds.",
           ".sdddds.",
-          ".sdddds.",
-          "..pppp..",
-          "..pppp..",
           "..pppp..",
           "...pp...",
-          "...pp...",
+          "..p..p..",
+          "..p..p..",
         ],
       },
       pickup: {
         palette: {
           o: "#c28739",
+          r: "#b34431",
           h: "#f8f0c2",
           d: "#6a461b",
           s: "#ead6a4",
         },
         rows: [
           "...ss...",
-          "..soos..",
-          ".soooos.",
-          ".sohhos.",
-          ".soooos.",
+          "..srrs..",
+          ".srhhrs.",
+          ".srhhds.",
+          ".srrdds.",
           "..sdds..",
           "...dd...",
-          "...dd...",
+          "..d..d..",
         ],
       },
     },
@@ -3566,6 +3697,7 @@ select {
     const directionQueue = [];
     const actionQueue = [];
     const activeHolds = new Set();
+    const holdButtonsByName = new Map();
     const directionOrder = ["up", "right", "down", "left"];
     let activePointerDirection = "";
     let lastHapticAt = -Infinity;
@@ -3613,6 +3745,11 @@ select {
 
     function clearHolds() {
       activeHolds.clear();
+      holdButtonsByName.forEach((buttons) => {
+        buttons.forEach((button) => {
+          button.classList.remove("is-active");
+        });
+      });
     }
 
     function setActionLock(locked, options) {
@@ -3913,6 +4050,11 @@ select {
         });
       },
       attachHoldButton(button, holdName) {
+        if (!holdButtonsByName.has(holdName)) {
+          holdButtonsByName.set(holdName, new Set());
+        }
+        holdButtonsByName.get(holdName).add(button);
+
         const activate = (event) => {
           event.preventDefault();
           activeHolds.add(holdName);
@@ -3929,11 +4071,20 @@ select {
           activeHolds.delete(holdName);
           button.classList.remove("is-active");
         };
+        const activateMouseFallback = (event) => {
+          if (event.button !== undefined && event.button !== 0) {
+            return;
+          }
+          activate(event);
+        };
 
         button.addEventListener("pointerdown", activate);
         button.addEventListener("pointerup", release);
         button.addEventListener("pointerleave", release);
         button.addEventListener("pointercancel", release);
+        button.addEventListener("mousedown", activateMouseFallback);
+        button.addEventListener("mouseup", release);
+        button.addEventListener("mouseleave", release);
       },
       clearActions,
       setActionLock,
@@ -3941,7 +4092,26 @@ select {
         return actionsLocked;
       },
       isHoldActive(holdName) {
-        return activeHolds.has(holdName);
+        if (activeHolds.has(holdName)) {
+          return true;
+        }
+
+        const buttons = holdButtonsByName.get(holdName);
+        if (!buttons) {
+          return false;
+        }
+
+        let active = false;
+        buttons.forEach((button) => {
+          if (!button.isConnected) {
+            buttons.delete(button);
+            return;
+          }
+          if (button.classList.contains("is-active")) {
+            active = true;
+          }
+        });
+        return active;
       },
       clearDirections,
     };
@@ -4105,7 +4275,7 @@ select {
         bgmGain.connect(masterGain);
 
         seGain = context.createGain();
-        seGain.gain.value = 1.0;
+        seGain.gain.value = Math.max(1, (config && config.seVolumeMultiplier) || 1);
         seGain.connect(masterGain);
       }
 
@@ -4211,48 +4381,6 @@ select {
       return element;
     }
 
-    function primeFileBgmElements(excludeId) {
-      Object.entries(bgmPatterns).forEach(([id, pattern]) => {
-        if (!pattern || !pattern.src || id === excludeId) {
-          return;
-        }
-
-        const element = getBgmAudioElement(id, pattern);
-        const previousMuted = element.muted;
-        const previousVolume = element.volume;
-        element.muted = true;
-        element.volume = 0;
-        try {
-          const playResult = element.play();
-          if (playResult && typeof playResult.then === "function") {
-            playResult
-              .then(() => {
-                if (activeBgmElement !== element) {
-                  element.pause();
-                  element.currentTime = 0;
-                }
-                element.muted = previousMuted;
-                element.volume = previousVolume;
-              })
-              .catch(() => {
-                element.muted = previousMuted;
-                element.volume = previousVolume;
-              });
-          } else {
-            if (activeBgmElement !== element) {
-              element.pause();
-              element.currentTime = 0;
-            }
-            element.muted = previousMuted;
-            element.volume = previousVolume;
-          }
-        } catch (error) {
-          element.muted = previousMuted;
-          element.volume = previousVolume;
-        }
-      });
-    }
-
     async function playFileBgm(id, pattern) {
       const element = getBgmAudioElement(id, pattern);
       activeBgmElement = element;
@@ -4335,7 +4463,6 @@ select {
         if (desiredBgmId && desiredBgmId !== currentBgmId) {
           playBgm(desiredBgmId);
         }
-        primeFileBgmElements(desiredBgmId);
 
         const contextReady = await resumePromise;
         if (!contextReady) {
@@ -4444,6 +4571,44 @@ select {
 (() => {
   const App = window.MonsterPrototype;
 
+  function buildMonsterPreviewSection(species, caption, options) {
+    // メニューと捕獲記録で共通利用するプレビュー定義。画像アセット優先、なければpixel-art canvasへフォールバック。
+    if (!species) {
+      return [];
+    }
+    const settings = options || {};
+    const spriteKey = settings.view === "back" ? "battleBack" : "battleFront";
+    const preview = {
+      kind: "monsterPreview",
+      caption: caption || "",
+      name: settings.name || species.name,
+      badges: settings.badges || species.types || [],
+      note: settings.note || "",
+      variant: settings.variant || "",
+      placement: settings.placement || "beforeLines",
+      backgroundColor: species.palette && species.palette.secondary,
+    };
+    if (Number.isFinite(settings.level)) {
+      preview.level = settings.level;
+    }
+    if (Number.isFinite(settings.imageMaxHeight) && settings.imageMaxHeight > 0) {
+      preview.imageMaxHeight = settings.imageMaxHeight;
+    }
+
+    if (species.imageSprites && species.imageSprites[spriteKey]) {
+      preview.imageSrc = species.imageSprites[spriteKey];
+      return [preview];
+    }
+
+    if (!species.spriteIds || !species.spriteIds[spriteKey]) {
+      return [];
+    }
+
+    preview.spriteId = species.spriteIds[spriteKey];
+    preview.scaleMultiplier = settings.scaleMultiplier;
+    return [preview];
+  }
+
   function createModalController(elements, store, audio) {
     const root = elements.root;
     const title = elements.title;
@@ -4523,17 +4688,20 @@ select {
         wrapper.className = "modal-section modal-monster-preview";
 
         const frame = document.createElement("div");
-        frame.className = "modal-monster-frame";
+        frame.className = [
+          "modal-monster-frame",
+          section.variant ? `is-${section.variant}` : "",
+        ].filter(Boolean).join(" ");
         if (section.backgroundColor) {
-          frame.style.background = [
-            "radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.78), transparent 44%)",
-            `linear-gradient(180deg, rgba(255, 255, 255, 0.84), ${section.backgroundColor})`,
-          ].join(",");
+          frame.style.setProperty("--monster-accent", section.backgroundColor);
         }
         if (section.imageSrc) {
           const image = document.createElement("img");
           image.src = section.imageSrc;
-          image.alt = section.caption || "モンスター画像";
+          image.alt = section.name || section.caption || "モンスター画像";
+          if (Number.isFinite(section.imageMaxHeight) && section.imageMaxHeight > 0) {
+            image.style.maxHeight = `${section.imageMaxHeight}px`;
+          }
           frame.appendChild(image);
         } else {
           const canvas = createSpriteCanvas(section.spriteId, section.scaleMultiplier);
@@ -4542,6 +4710,34 @@ select {
           }
         }
         wrapper.appendChild(frame);
+
+        if (section.name) {
+          const name = document.createElement("div");
+          name.className = "modal-monster-title";
+          name.textContent = Number.isFinite(section.level)
+            ? `${section.name} Lv${section.level}`
+            : section.name;
+          wrapper.appendChild(name);
+        }
+
+        if (section.badges && section.badges.length > 0) {
+          const badges = document.createElement("div");
+          badges.className = "modal-monster-badges";
+          section.badges.forEach((badgeText) => {
+            const badge = document.createElement("span");
+            badge.className = "modal-monster-badge";
+            badge.textContent = badgeText;
+            badges.appendChild(badge);
+          });
+          wrapper.appendChild(badges);
+        }
+
+        if (section.note) {
+          const note = document.createElement("div");
+          note.className = "modal-monster-note";
+          note.textContent = section.note;
+          wrapper.appendChild(note);
+        }
 
         if (section.caption) {
           const caption = document.createElement("div");
@@ -4607,13 +4803,21 @@ select {
       actionsRoot.innerHTML = "";
       actionsRoot.classList.toggle("is-multiple", getActions(modal).length > 1);
 
+      const sections = modal.sections || [];
+      sections.filter((section) => section.placement === "beforeLines").forEach((section) => {
+        const element = renderSection(section);
+        if (element) {
+          body.appendChild(element);
+        }
+      });
+
       modal.lines.forEach((line) => {
         const paragraph = document.createElement("p");
         paragraph.textContent = line;
         body.appendChild(paragraph);
       });
 
-      (modal.sections || []).forEach((section) => {
+      sections.filter((section) => section.placement !== "beforeLines").forEach((section) => {
         const element = renderSection(section);
         if (element) {
           body.appendChild(element);
@@ -4759,6 +4963,7 @@ select {
     };
   }
 
+  App.core.buildMonsterPreviewSection = buildMonsterPreviewSection;
   App.core.createModalController = createModalController;
 })();
 
@@ -4777,6 +4982,7 @@ select {
     const renderScale = Math.max(1, Math.floor(screen.renderScale || 1));
     const maxRenderScale = 9;
     const damageAnimation = animation.damage;
+    const ballAnimation = animation.ball || {};
     const fieldPixelArt = App.data.pixelArt.field;
     const battlePixelArt = App.data.pixelArt.battle || {};
     const battleImageCache = new Map();
@@ -4839,6 +5045,30 @@ select {
       drawPatternSprite(sprite, centerX - width / 2, centerY - height / 2);
     }
 
+    function getPatternSpriteSize(sprite) {
+      const scale = sprite.scale || 1;
+      return {
+        width: sprite.rows[0].length * scale,
+        height: sprite.rows.length * scale,
+      };
+    }
+
+    function drawFieldSpriteShadow(sprite, x, y, kind) {
+      const size = getPatternSpriteSize(sprite);
+      const centerX = Math.round(x + size.width / 2);
+      const baseY = Math.round(y + size.height - 1);
+      const radiusX = kind === "pickup" ? 3.1 : kind === "sign" ? 3.5 : 4.1;
+      const radiusY = kind === "pickup" ? 1.1 : 1.45;
+
+      ctx.save();
+      ctx.globalAlpha = kind === "pickup" ? 0.14 : 0.2;
+      ctx.fillStyle = palette.deepest;
+      ctx.beginPath();
+      ctx.ellipse(centerX, baseY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
@@ -4856,21 +5086,43 @@ select {
       ctx.fillStyle = tile.color;
       ctx.fillRect(left, top, screen.tileSize, screen.tileSize);
 
-      if (tileCode === "#") {
+      if (tileCode === ".") {
+        ctx.fillStyle = "#d4c99b";
+        ctx.fillRect(left + 1, top + 2, 1, 1);
+        ctx.fillRect(left + 5, top + 5, 1, 1);
+        ctx.fillStyle = "#b9af82";
+        ctx.fillRect(left + 3, top + 7, 2, 1);
+      } else if (["1", "2", "3", "4", "c"].includes(tileCode)) {
+        ctx.fillStyle = "rgba(248, 244, 215, 0.16)";
+        ctx.fillRect(left, top, screen.tileSize, 1);
+        ctx.fillRect(left, top, 1, screen.tileSize);
+        ctx.fillStyle = "rgba(40, 42, 34, 0.14)";
+        ctx.fillRect(left, top + 7, screen.tileSize, 1);
+      } else if (tileCode === "#") {
+        ctx.fillStyle = "#59624a";
+        ctx.fillRect(left + 1, top + 1, 2, 2);
+        ctx.fillRect(left + 5, top + 4, 2, 2);
         ctx.fillStyle = palette.deepest;
         ctx.fillRect(left, top, screen.tileSize, 2);
         ctx.fillRect(left, top + 3, screen.tileSize, 1);
+        ctx.fillStyle = "#2e3328";
+        ctx.fillRect(left + 3, top + 5, 1, 3);
       } else if (tileCode === "~") {
         ctx.fillStyle = "#d8e0cf";
         ctx.fillRect(left, top + 1, screen.tileSize, 1);
-        ctx.fillRect(left + 1, top + 4, screen.tileSize - 2, 1);
+        ctx.fillRect(left + 1, top + 4, 3, 1);
+        ctx.fillRect(left + 5, top + 4, 2, 1);
+        ctx.fillStyle = "#84a1a4";
+        ctx.fillRect(left + 2, top + 2, 4, 1);
         ctx.fillStyle = "#526f75";
         ctx.fillRect(left, top + 6, screen.tileSize, 1);
       } else if (tileCode === "=") {
         ctx.fillStyle = "#c8a75e";
         ctx.fillRect(left, top + 1, screen.tileSize, 1);
+        ctx.fillRect(left + 2, top + 3, 3, 1);
         ctx.fillStyle = "#aa8d4b";
         ctx.fillRect(left, top + 6, screen.tileSize, 1);
+        ctx.fillRect(left + 5, top + 4, 1, 1);
       } else if (tileCode === "g") {
         ctx.fillStyle = "#566d3a";
         ctx.fillRect(left, top + 2, screen.tileSize, 4);
@@ -4878,6 +5130,9 @@ select {
         ctx.fillRect(left + 1, top + 1, 1, 1);
         ctx.fillRect(left + 4, top + 1, 1, 1);
         ctx.fillRect(left + 6, top + 3, 1, 1);
+        ctx.fillStyle = "#a7aa64";
+        ctx.fillRect(left + 2, top + 2, 1, 1);
+        ctx.fillRect(left + 6, top + 5, 1, 1);
         ctx.fillStyle = "#819158";
         ctx.fillRect(left + 1, top + 4, 1, 3);
         ctx.fillRect(left + 3, top + 3, 1, 4);
@@ -5019,10 +5274,17 @@ select {
         const y = event.y * screen.tileSize - camera.offsetY;
         const sprite = fieldPixelArt[event.sprite];
         if (sprite && isVisible(x, y)) {
+          drawFieldSpriteShadow(sprite, x, y, event.sprite);
           drawPatternSprite(sprite, x, y);
         }
       });
 
+      drawFieldSpriteShadow(
+        fieldPixelArt.player,
+        playerPos.x - camera.offsetX,
+        playerPos.y - camera.offsetY,
+        "player"
+      );
       drawPatternSprite(fieldPixelArt.player, playerPos.x - camera.offsetX, playerPos.y - camera.offsetY);
 
       for (let rowIndex = camera.startTileY; rowIndex < camera.endTileY; rowIndex += 1) {
@@ -5198,11 +5460,97 @@ select {
       ctx.fillRect(position.x + 1, position.y - 3, 2, 2);
     }
 
+    function drawCaptureBallMotion(ballState) {
+      const x = Math.round(ballState.x);
+      const y = Math.round(ballState.y);
+      const progress = clamp(ballState.progress || 0, 0, 1);
+
+      ctx.save();
+      if (ballState.phase === "throw" && Number.isFinite(ballState.trailX)) {
+        const trailX = Math.round(ballState.trailX);
+        const trailY = Math.round(ballState.trailY);
+        ctx.globalAlpha = 0.32 + progress * 0.34;
+        ctx.strokeStyle = palette.white;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(trailX, trailY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.55;
+        drawPixelSparkle(trailX - 2, trailY + 1, 1, palette.captureYellow || "#d8b546");
+        if (ballState.hideEnemy) {
+          ctx.globalAlpha = 0.2 + progress * 0.28;
+          ctx.strokeStyle = palette.captureYellow || "#d8b546";
+          ctx.lineWidth = 1;
+          for (let index = 0; index < 5; index += 1) {
+            const angle = -0.9 + index * 0.45;
+            ctx.beginPath();
+            ctx.moveTo(
+              Math.round(x + Math.cos(angle) * 8),
+              Math.round(y + Math.sin(angle) * 7)
+            );
+            ctx.lineTo(
+              Math.round(x + Math.cos(angle) * (14 + progress * 5)),
+              Math.round(y + Math.sin(angle) * (11 + progress * 3))
+            );
+            ctx.stroke();
+          }
+        }
+      } else if (ballState.phase === "shake") {
+        const cycles = ballAnimation.shakeCycles || 4;
+        const tension = Math.abs(Math.sin(progress * Math.PI * cycles));
+        ctx.globalAlpha = 0.12 + tension * 0.32;
+        ctx.fillStyle = palette.deepest;
+        ctx.fillRect(x - 9, y + 8, 5, 1);
+        ctx.fillRect(x + 4, y + 8, 6, 1);
+        if (tension > 0.55) {
+          ctx.globalAlpha = (tension - 0.55) * 1.3;
+          ctx.strokeStyle = palette.captureYellow || "#d8b546";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x - 10, y - 6);
+          ctx.lineTo(x - 14, y - 9);
+          ctx.moveTo(x + 10, y - 5);
+          ctx.lineTo(x + 14, y - 8);
+          ctx.stroke();
+        }
+      } else if (ballState.phase === "release") {
+        const open = ballState.open || 0;
+        ctx.globalAlpha = Math.max(0, 0.42 - progress * 0.22);
+        ctx.strokeStyle = palette.white;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x, y - 2, 12 + open * 8, 8 + open * 5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = Math.max(0, 0.48 - progress * 0.28);
+        drawPixelSparkle(x - 12, y - 8, 1, palette.white);
+        drawPixelSparkle(x + 13, y - 4, 1, palette.captureYellow || "#d8b546");
+      } else if (ballState.phase === "lock" || ballState.phase === "complete") {
+        const pulse = Math.sin(progress * Math.PI);
+        ctx.globalAlpha = 0.18 + pulse * 0.26;
+        ctx.strokeStyle = palette.captureYellow || "#d8b546";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x, y - 1, 11 + pulse * 8, 7 + pulse * 5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        if (ballState.phase === "complete") {
+          ctx.globalAlpha = 0.72 * (1 - progress);
+          drawPixelSparkle(x - 14, y - 9, 2, palette.white);
+          drawPixelSparkle(x + 15, y - 7, 1, palette.captureYellow || "#d8b546");
+          drawPixelSparkle(x + 2, y - 15, 1, palette.white);
+        }
+      }
+      ctx.restore();
+    }
+
     function drawBallSprite(ballState) {
       const x = Math.round(ballState.x);
       const y = Math.round(ballState.y);
       const open = ballState.open || 0;
       const shellLift = ballState.phase === "release" ? Math.floor(open * 4) : 0;
+
+      drawCaptureBallMotion(ballState);
 
       ctx.fillStyle = "rgba(31, 35, 24, 0.22)";
       ctx.beginPath();
@@ -5246,8 +5594,9 @@ select {
 
       if (ballState.phase === "lock") {
         ctx.fillStyle = palette.white;
-        ctx.fillRect(x + 7, y - 6, 1, 3);
-        ctx.fillRect(x + 6, y - 5, 3, 1);
+        drawPixelSparkle(x + 8, y - 6, 1, palette.white);
+        ctx.fillStyle = palette.captureYellow || "#d8b546";
+        drawPixelSparkle(x - 9, y + 3, 1, palette.captureYellow || "#d8b546");
       }
     }
 
@@ -5283,6 +5632,9 @@ select {
     }
 
     function drawBattleShadow(position) {
+      ctx.save();
+      ctx.fillStyle = palette.battleShadow || "#7b7f62";
+      ctx.globalAlpha = 0.54;
       ctx.beginPath();
       ctx.ellipse(
         position.shadowX,
@@ -5294,6 +5646,54 @@ select {
         Math.PI * 2
       );
       ctx.fill();
+
+      ctx.fillStyle = palette.deepest;
+      ctx.globalAlpha = 0.1;
+      ctx.beginPath();
+      ctx.ellipse(
+        position.shadowX,
+        position.shadowY + 1,
+        position.shadowWidth * 0.68,
+        Math.max(1.2, position.shadowHeight * 0.48),
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBattleBackdrop(layout) {
+      const lane = layout.enemyLane || {
+        y: layout.enemy.shadowY - 2,
+        height: 10,
+      };
+      const laneY = lane.y;
+      const laneHeight = lane.height || 8;
+
+      ctx.fillStyle = palette.battleEnemyLane || "#68834d";
+      ctx.fillRect(0, laneY, screen.width, laneHeight);
+      ctx.fillStyle = palette.battleEnemyLaneHighlight || "#a8c37b";
+      ctx.fillRect(0, laneY, screen.width, 1);
+      ctx.fillStyle = palette.battleEnemyLaneEdge || "#4d643a";
+      ctx.fillRect(0, laneY + laneHeight - 1, screen.width, 1);
+
+      ctx.fillStyle = palette.battleGround || "#c3b27a";
+      ctx.fillRect(0, layout.groundY, screen.width, layout.groundHeight);
+      ctx.fillStyle = "rgba(248, 244, 215, 0.22)";
+      ctx.fillRect(0, layout.groundY, screen.width, 2);
+      ctx.fillStyle = "rgba(40, 42, 34, 0.12)";
+      ctx.fillRect(0, layout.groundY + layout.groundHeight - 3, screen.width, 2);
+
+      ctx.fillStyle = "rgba(74, 77, 61, 0.12)";
+      [
+        [18, layout.groundY + 6, 9],
+        [49, layout.groundY + 13, 13],
+        [88, layout.groundY + 7, 11],
+        [127, layout.groundY + 15, 8],
+      ].forEach(([x, y, width]) => {
+        ctx.fillRect(x, y, width, 1);
+      });
     }
 
     function drawBattleIceWall(state, layout, target) {
@@ -5342,17 +5742,217 @@ select {
       ctx.restore();
     }
 
+    function getBattleActionAnimation(state, kind, target) {
+      const animation = state.battle && state.battle.animation;
+      if (!animation || animation.kind !== kind) {
+        return null;
+      }
+
+      if (target && animation.target !== target) {
+        return null;
+      }
+
+      return animation;
+    }
+
+    function getBattleEffectPosition(layout, target) {
+      const slot = layout[target];
+      return {
+        x: slot.monsterX,
+        y: slot.monsterY,
+        shadowY: slot.shadowY,
+      };
+    }
+
+    function drawPixelSparkle(x, y, size, color) {
+      const centerX = Math.round(x);
+      const centerY = Math.round(y);
+      const length = Math.max(1, Math.round(size));
+      ctx.fillStyle = color;
+      ctx.fillRect(centerX, centerY - length, 1, length * 2 + 1);
+      ctx.fillRect(centerX - length, centerY, length * 2 + 1, 1);
+    }
+
+    function drawImpactBurst(animation, position, target) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const burstProgress = progress / 0.72;
+      if (burstProgress >= 1) {
+        return;
+      }
+
+      const alpha = 1 - burstProgress;
+      const radius = 5 + burstProgress * 15;
+      const angleOffset = target === "enemy" ? -0.18 : 0.28;
+      const centerY = position.y + (target === "enemy" ? 0 : -2);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = palette.white;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "square";
+      for (let index = 0; index < 6; index += 1) {
+        const angle = angleOffset + (Math.PI * 2 * index) / 6;
+        const inner = radius * 0.42;
+        const outer = radius;
+        ctx.beginPath();
+        ctx.moveTo(
+          Math.round(position.x + Math.cos(angle) * inner),
+          Math.round(centerY + Math.sin(angle) * inner)
+        );
+        ctx.lineTo(
+          Math.round(position.x + Math.cos(angle) * outer),
+          Math.round(centerY + Math.sin(angle) * outer)
+        );
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = alpha * 0.78;
+      ctx.fillStyle = palette.warning;
+      ctx.fillRect(Math.round(position.x - 4), Math.round(centerY - 3), 8, 6);
+      ctx.restore();
+    }
+
+    function drawMissStreaks(animation, position, target) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const alpha = Math.sin(progress * Math.PI);
+      if (alpha <= 0) {
+        return;
+      }
+
+      const direction = target === "enemy" ? 1 : -1;
+      const drift = progress * 12 * direction;
+      const baseX = position.x + drift;
+      const baseY = position.y - 5 - progress * 5;
+
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.72;
+      ctx.strokeStyle = palette.white;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "square";
+      for (let index = 0; index < 3; index += 1) {
+        const y = baseY + index * 5;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(baseX - 12 * direction), Math.round(y + 4));
+        ctx.lineTo(Math.round(baseX + 7 * direction), Math.round(y - 3));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = alpha * 0.32;
+      ctx.strokeStyle = palette.deepest;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(baseX - 9 * direction), Math.round(baseY + 13));
+      ctx.lineTo(Math.round(baseX + 5 * direction), Math.round(baseY + 7));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHealPulse(animation, position) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const pulse = Math.sin(progress * Math.PI);
+      if (pulse <= 0) {
+        return;
+      }
+
+      const ringRadius = 12 + progress * 16;
+      const sparkles = [
+        { x: -14, y: 2, delay: 0 },
+        { x: 12, y: -5, delay: 0.12 },
+        { x: -4, y: -14, delay: 0.2 },
+        { x: 16, y: 8, delay: 0.32 },
+      ];
+
+      ctx.save();
+      ctx.globalAlpha = 0.32 + pulse * 0.34;
+      ctx.strokeStyle = "#7fbf75";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(position.x, position.y + 1, ringRadius, ringRadius * 0.68, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      sparkles.forEach((sparkle) => {
+        const localProgress = clamp((progress - sparkle.delay) / 0.68, 0, 1);
+        if (localProgress <= 0 || localProgress >= 1) {
+          return;
+        }
+        ctx.globalAlpha = (1 - localProgress) * 0.85;
+        drawPixelSparkle(
+          position.x + sparkle.x,
+          position.y + sparkle.y - localProgress * 13,
+          localProgress < 0.55 ? 2 : 1,
+          localProgress < 0.45 ? palette.white : "#7fbf75"
+        );
+      });
+      ctx.restore();
+    }
+
+    function drawExpSparkles(animation, position) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const pulse = Math.sin(progress * Math.PI);
+      const sparkles = [
+        { x: -24, y: 18, phase: 0, sway: 3 },
+        { x: -12, y: 13, phase: 0.14, sway: -3 },
+        { x: 2, y: 16, phase: 0.28, sway: 2 },
+        { x: 15, y: 12, phase: 0.42, sway: -3 },
+        { x: 25, y: 18, phase: 0.56, sway: 3 },
+      ];
+
+      ctx.save();
+      ctx.globalAlpha = 0.14 + pulse * 0.24;
+      ctx.strokeStyle = palette.captureYellow || "#d8b546";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(position.x, position.y + 7, 31, 21, -0.12, Math.PI * 0.08, Math.PI * 1.28);
+      ctx.stroke();
+
+      sparkles.forEach((sparkle) => {
+        const localProgress = clamp((progress - sparkle.phase * 0.36) / 0.72, 0, 1);
+        if (localProgress <= 0 || localProgress >= 1) {
+          return;
+        }
+        const alpha = Math.sin(localProgress * Math.PI) * 0.96;
+        const x = position.x + sparkle.x + Math.sin(localProgress * Math.PI * 2) * sparkle.sway;
+        const y = position.y + sparkle.y - localProgress * 29;
+        ctx.globalAlpha = alpha;
+        drawPixelSparkle(
+          x,
+          y,
+          localProgress < 0.62 ? 2 : 1,
+          localProgress < 0.36 ? palette.white : palette.captureYellow || "#d8b546"
+        );
+      });
+      ctx.restore();
+    }
+
+    function drawBattleActionEffects(state, layout) {
+      ["enemy", "player"].forEach((target) => {
+        const position = getBattleEffectPosition(layout, target);
+        const damage = getBattleActionAnimation(state, "damage", target);
+        if (damage) {
+          drawImpactBurst(damage, position, target);
+        }
+
+        const miss = getBattleActionAnimation(state, "miss", target);
+        if (miss) {
+          drawMissStreaks(miss, position, target);
+        }
+
+        const heal = getBattleActionAnimation(state, "heal", target);
+        if (heal) {
+          drawHealPulse(heal, position);
+        }
+      });
+
+      const exp = getBattleActionAnimation(state, "exp");
+      if (exp) {
+        drawExpSparkles(exp, getBattleEffectPosition(layout, "player"));
+      }
+    }
+
     function drawBattle(state) {
       // 戦闘画面はcanvasに背景とモンスターだけを描き、HP表示はDOMのbattle-overlayへ任せる。
       const layout = getBattleLayout();
       clear(palette.battleBg || "#ded7bf");
-      
-      ctx.fillStyle = "#859c5e";
-      ctx.fillRect(0, layout.enemy.shadowY - 2, screen.width, 10);
-
-      ctx.fillStyle = palette.battleGround || "#c3b27a";
-      ctx.fillRect(0, layout.groundY, screen.width, layout.groundHeight);
-      ctx.fillStyle = palette.battleShadow || "#7b7f62";
+      drawBattleBackdrop(layout);
       drawBattleShadow(layout.enemy);
       drawBattleShadow(layout.player);
 
@@ -5393,6 +5993,7 @@ select {
 
       drawBattleIceWall(state, layout, "enemy");
       drawBattleIceWall(state, layout, "player");
+      drawBattleActionEffects(state, layout);
 
       drawCaptureBall(state);
     }
@@ -5666,6 +6267,7 @@ select {
         state.scene === "battle" && state.battle
           ? formatShownHp(state.battle.display.playerHp)
           : playerMonster.currentHp;
+      const objectiveText = getStatusObjectiveText(state);
       if (statusCard) {
         statusCard.classList.toggle("is-hidden", hideStatus);
       }
@@ -5674,6 +6276,7 @@ select {
         hidden: hideStatus,
         level: playerMonster.level,
         hp: shownHp,
+        objectiveText,
       });
 
       if (statusKey === lastStatusKey) {
@@ -5688,17 +6291,32 @@ select {
       }
 
       const items = [
-        `${playerSpecies.name} Lv${playerMonster.level}`,
-        `HP ${shownHp}/${playerMonster.maxHp}`,
-        getObjectiveText(state),
+        { text: `${playerSpecies.name} Lv${playerMonster.level}`, className: "is-monster" },
+        { text: `HP ${shownHp}/${playerMonster.maxHp}`, className: "is-hp" },
+        { text: objectiveText, className: "is-objective" },
       ];
 
-      items.forEach((text) => {
+      items.forEach((item) => {
         const pill = document.createElement("div");
-        pill.className = "status-pill";
-        pill.textContent = text;
+        pill.className = `status-pill ${item.className}`;
+        pill.textContent = item.text;
         statusStrip.appendChild(pill);
       });
+    }
+
+    function getStatusObjectiveText(state) {
+      // 常時表示は短く保ち、詳細はメニューの「目的」に残す。
+      if (state.progress && state.progress.storyStage === "preparation") {
+        return state.progress.prepGateUnlocked
+          ? "目的: 左出口から進む"
+          : "目的: 草むらで5分準備";
+      }
+
+      const fullText = getObjectiveText(state) || "";
+      return fullText
+        .replace("左の出口からしずかなひろばへ行き、案内人に話を聞く。", "受付で案内人に話す")
+        .replace("ながめのみちの草むらで、野生の相手を1体つかまえる。", "草むらで1体つかまえる")
+        .replace("しずかなひろばの案内人へ、捕獲の観察結果を報告する。", "案内人へ報告する");
     }
 
     function renderFieldControls(state) {
@@ -5709,10 +6327,14 @@ select {
 
       const dPad = document.createElement("div");
       dPad.className = "direction-pad";
-      const up = createButton("上", "dpad-button is-up");
-      const left = createButton("左", "dpad-button is-left");
-      const right = createButton("右", "dpad-button is-right");
-      const down = createButton("下", "dpad-button is-down");
+      const up = createButton("▲", "dpad-button is-up");
+      const left = createButton("◀", "dpad-button is-left");
+      const right = createButton("▶", "dpad-button is-right");
+      const down = createButton("▼", "dpad-button is-down");
+      up.setAttribute("aria-label", "上へ移動");
+      left.setAttribute("aria-label", "左へ移動");
+      right.setAttribute("aria-label", "右へ移動");
+      down.setAttribute("aria-label", "下へ移動");
 
       input.attachDirectionalPad(dPad, {
         up,
@@ -6086,6 +6708,7 @@ select {
   }) {
     const animationConfig = App.config.game.animation;
     const ballConfig = animationConfig.ball;
+    const missConfig = animationConfig.miss || {};
     const expConfig = animationConfig.exp || {};
     const battleConfig = App.config.game.battle || {};
 
@@ -6225,6 +6848,15 @@ select {
         };
       }
 
+      if (effect.kind === "miss") {
+        return {
+          kind: "miss",
+          target: effect.target,
+          elapsedMs: 0,
+          durationMs: missConfig.durationMs || 300,
+        };
+      }
+
       if (effect.kind === "exp") {
         return {
           kind: "exp",
@@ -6242,6 +6874,7 @@ select {
           throw: ballConfig.throwDurationMs || ballConfig.durationMs,
           shake: ballConfig.shakeDurationMs || ballConfig.durationMs,
           lock: ballConfig.lockDurationMs || ballConfig.durationMs,
+          complete: ballConfig.completeDurationMs || ballConfig.durationMs,
           release: ballConfig.releaseDurationMs || ballConfig.durationMs,
         };
 
@@ -6343,6 +6976,15 @@ select {
 
       modal.openModal({
         title: "捕獲の記録",
+        sections: App.core.buildMonsterPreviewSection(
+          species,
+          result.addedToCollection ? "新規記録" : "記録済み",
+          {
+            variant: "capture",
+            imageMaxHeight: 158,
+            note: "捕獲成功",
+          }
+        ),
         lines: [
           `${species.name} Lv${result.capturedLevel}`,
           `タイプ: ${species.types.join(" / ")}`,
@@ -6788,7 +7430,16 @@ select {
 
       if (!attemptMoveHit(move, defender)) {
         attacker.nextDamageBoost = 1;
-        steps.push(createStep("しかし こうげきは はずれた！"));
+        steps.push(
+          createStep(
+            "しかし こうげきは はずれた！",
+            {
+              kind: "miss",
+              target: hpTargets.defender,
+            },
+            "miss"
+          )
+        );
         return {
           steps,
           defeated: false,
@@ -7185,7 +7836,12 @@ select {
             success: true,
             ballType: "normal",
           }, "capture_lock"));
-          steps.push(createStep(`${enemySpecies.name} を つかまえた！`, null, "capture"));
+          steps.push(createStep(`${enemySpecies.name} を つかまえた！`, {
+            kind: "ball",
+            phase: "complete",
+            success: true,
+            ballType: "normal",
+          }, "capture"));
           startSequence(state, steps, "field_capture");
           return;
         }
@@ -7195,7 +7851,7 @@ select {
           phase: "release",
           success: false,
           ballType: "normal",
-        }, "error"));
+        }, "capture_fail"));
         queueEnemyTurn(state, steps);
       });
     }
@@ -7248,7 +7904,12 @@ select {
           success: true,
           ballType: "master",
         }, "capture_lock"));
-        steps.push(createStep(`${enemySpecies.name} を つかまえた！`, null, "capture"));
+        steps.push(createStep(`${enemySpecies.name} を つかまえた！`, {
+          kind: "ball",
+          phase: "complete",
+          success: true,
+          ballType: "master",
+        }, "capture"));
         startSequence(state, steps, "field_capture");
       });
     }
@@ -7320,6 +7981,17 @@ select {
       });
     }
 
+    function getCaptureBallPoint(progress) {
+      const clamped = Math.min(1, Math.max(0, progress));
+      return {
+        x: ballConfig.startX + (ballConfig.endX - ballConfig.startX) * clamped,
+        y:
+          (1 - clamped) * (1 - clamped) * ballConfig.startY +
+          2 * (1 - clamped) * clamped * ballConfig.curveY +
+          clamped * clamped * ballConfig.endY,
+      };
+    }
+
     function updateAnimation(state, deltaMs) {
       // HP表示は実HPではなくbattle.displayを補間して見せる。UIのHPカードはこのdisplay値を読む。
       if (!state.battle || !state.battle.animation) {
@@ -7344,6 +8016,11 @@ select {
         if (progress >= 1) {
           state.battle.animation = null;
         }
+      } else if (animation.kind === "miss") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress >= 1) {
+          state.battle.animation = null;
+        }
       } else if (animation.kind === "faint") {
         const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
         if (progress >= 1) {
@@ -7364,17 +8041,18 @@ select {
         const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
 
         if (animation.phase === "throw") {
-          const x = ballConfig.startX + (ballConfig.endX - ballConfig.startX) * progress;
-          const y =
-            (1 - progress) * (1 - progress) * ballConfig.startY +
-            2 * (1 - progress) * progress * ballConfig.curveY +
-            progress * progress * ballConfig.endY;
+          const point = getCaptureBallPoint(progress);
+          const trailPoint = progress > 0.08 ? getCaptureBallPoint(progress - 0.11) : null;
           state.battle.captureBall = {
             phase: "throw",
-            x,
-            y,
+            x: point.x,
+            y: point.y,
             hideEnemy: progress >= (ballConfig.absorbAt || 0.62),
             open: 0,
+            progress,
+            success: animation.success,
+            trailX: trailPoint ? trailPoint.x : null,
+            trailY: trailPoint ? trailPoint.y : null,
             ballType: animation.ballType || "normal",
           };
         } else if (animation.phase === "shake") {
@@ -7387,6 +8065,10 @@ select {
             y: ballConfig.endY,
             hideEnemy: true,
             open: 0,
+            progress,
+            success: animation.success,
+            shakeIndex: animation.shakeIndex || 0,
+            totalShakes: animation.totalShakes || 0,
             ballType: animation.ballType || "normal",
           };
         } else if (animation.phase === "lock") {
@@ -7397,7 +8079,22 @@ select {
             y: ballConfig.endY,
             hideEnemy: true,
             open: 0,
+            progress,
             flash: Math.max(0, 1 - progress),
+            success: true,
+            ballType: animation.ballType || "normal",
+          };
+        } else if (animation.phase === "complete") {
+          const pulseOffset = Math.sin(progress * Math.PI) * 1.2;
+          state.battle.captureBall = {
+            phase: "complete",
+            x: ballConfig.endX + pulseOffset,
+            y: ballConfig.endY,
+            hideEnemy: true,
+            open: 0,
+            progress,
+            flash: Math.max(0, 1 - progress),
+            success: true,
             ballType: animation.ballType || "normal",
           };
         } else if (animation.phase === "release") {
@@ -7410,13 +8107,20 @@ select {
                   y: ballConfig.endY,
                   hideEnemy: true,
                   open,
+                  progress,
+                  success: false,
                   ballType: animation.ballType || "normal",
                 }
               : null;
         }
 
         if (progress >= 1) {
-          if (animation.phase === "throw" || animation.phase === "shake" || animation.phase === "lock") {
+          if (
+            animation.phase === "throw" ||
+            animation.phase === "shake" ||
+            animation.phase === "lock" ||
+            animation.phase === "complete"
+          ) {
             state.battle.captureBall = {
               phase: "hold",
               x: ballConfig.endX,
@@ -8262,39 +8966,6 @@ select {
       }
     }
 
-    function buildMonsterPreviewSection(species, caption, options) {
-      // メニューと捕獲記録で共通利用するプレビュー定義。画像アセット優先、なければpixel-art canvasへフォールバック。
-      if (!species) {
-        return [];
-      }
-      const settings = options || {};
-      const spriteKey = settings.view === "back" ? "battleBack" : "battleFront";
-
-      if (species.imageSprites && species.imageSprites[spriteKey]) {
-        return [
-          {
-            kind: "monsterPreview",
-            imageSrc: species.imageSprites[spriteKey],
-            caption: caption || species.name,
-            backgroundColor: species.palette && species.palette.secondary,
-          },
-        ];
-      }
-
-      if (!species.spriteIds || !species.spriteIds[spriteKey]) {
-        return [];
-      }
-
-      return [
-        {
-          kind: "monsterPreview",
-          spriteId: species.spriteIds[spriteKey],
-          caption: caption || species.name,
-          backgroundColor: species.palette && species.palette.secondary,
-        },
-      ];
-    }
-
     function getMoveSummaryLines(monster) {
       return monster.moveIds.map((moveId, index) => {
         const move = dataRegistry.getMove(moveId);
@@ -8465,14 +9136,21 @@ select {
       const state = store.getState();
       const playerMonster = state.party[0];
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
+      const partyPreview = playerSpecies.partyPreview || {};
 
       audio.playSe("confirm");
       modal.openModal({
         title: "手持ち",
-        sections: buildMonsterPreviewSection(
+        sections: App.core.buildMonsterPreviewSection(
           playerSpecies,
-          `${playerSpecies.name} Lv${playerMonster.level}`,
-          { view: "back" }
+          "",
+          {
+            view: partyPreview.view || "back",
+            imageMaxHeight: partyPreview.imageMaxHeight,
+            variant: "party",
+            level: playerMonster.level,
+            note: "先頭メンバー",
+          }
         ),
         lines: [
           `HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
@@ -8545,7 +9223,9 @@ select {
                 audio.playSe("confirm");
                 modal.openModal({
                   title: detailSpecies.name,
-                  sections: buildMonsterPreviewSection(detailSpecies, "図鑑データ"),
+                  sections: App.core.buildMonsterPreviewSection(detailSpecies, "図鑑データ", {
+                    variant: "record",
+                  }),
                   lines: [
                     `タイプ: ${detailSpecies.types.join(" / ")}`,
                     `初期技: ${moveNames}`,

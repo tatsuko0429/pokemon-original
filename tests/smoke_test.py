@@ -35,6 +35,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_START_CAPTION = "ながめのみち"
 EXPECTED_SQUARE_CAPTION = "受付"
 EXPECTED_BATTLE_CAPTION = "やせいとの戦い"
+BATTLE_COMMAND_RETURN_TIMEOUT_MS = 7000
 
 
 def expand_route(*segments):
@@ -957,7 +958,7 @@ async def run_smoke_test(base_url: str) -> None:
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]
               .some((button) => button.textContent === "ボール" && !button.disabled)""",
-            {"timeout": 4000},
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
         )
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "たたかう").click()"""
