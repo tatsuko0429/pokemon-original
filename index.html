@@ -402,6 +402,36 @@ select {
   display: none;
 }
 
+.screen-message[data-kind="talk"] {
+  border-color: #4f6043;
+  background: rgba(242, 248, 224, 0.98);
+  box-shadow: inset 0 -4px rgba(79, 96, 67, 0.12);
+}
+
+.screen-message[data-kind="info"] {
+  border-color: #6d5c35;
+  background: rgba(248, 244, 215, 0.98);
+  box-shadow: inset 0 -4px rgba(109, 92, 53, 0.12);
+}
+
+.screen-message[data-kind="item"] {
+  border-color: #8a5a24;
+  background: rgba(255, 246, 213, 0.98);
+  box-shadow: inset 0 -4px rgba(194, 135, 45, 0.16);
+}
+
+.screen-message[data-kind="alert"] {
+  border-color: #8f3327;
+  background: rgba(250, 232, 214, 0.98);
+  box-shadow: inset 0 -4px rgba(154, 46, 36, 0.14);
+}
+
+.screen-message[data-kind="success"] {
+  border-color: #3f6d4a;
+  background: rgba(236, 247, 220, 0.98);
+  box-shadow: inset 0 -4px rgba(63, 109, 74, 0.14);
+}
+
 .screen-caption {
   position: absolute;
   top: 6px;
@@ -1562,6 +1592,14 @@ select {
           { freq: 622.25, ms: 42, wave: "triangle", volume: 0.48 },
           { freq: 739.99, ms: 48, wave: "triangle", volume: 0.42 },
         ],
+        talk: [
+          { freq: 440, ms: 38, wave: "triangle", volume: 0.34 },
+          { freq: 523.25, ms: 52, wave: "triangle", volume: 0.3 },
+        ],
+        sign: [
+          { freq: 329.63, ms: 42, wave: "triangle", volume: 0.34 },
+          { freq: 261.63, ms: 58, wave: "triangle", volume: 0.28 },
+        ],
         menu: [
           { freq: 587.33, ms: 60 },
           { freq: 739.99, ms: 100 },
@@ -1602,7 +1640,23 @@ select {
         ],
         item: [
           { freq: 783.99, ms: 52, wave: "triangle", volume: 0.5 },
-          { freq: 1046.5, ms: 82, wave: "triangle", volume: 0.42 },
+          { freq: 987.77, ms: 54, wave: "triangle", volume: 0.46 },
+          { freq: 1318.51, ms: 86, wave: "triangle", volume: 0.36 },
+        ],
+        quest: [
+          { freq: 523.25, ms: 48, wave: "triangle", volume: 0.48 },
+          { freq: 783.99, ms: 58, wave: "triangle", volume: 0.46 },
+          { freq: 1046.5, ms: 96, wave: "triangle", volume: 0.36 },
+        ],
+        warp: [
+          { freq: 493.88, ms: 48, wave: "triangle", volume: 0.36 },
+          { freq: 659.25, ms: 62, wave: "triangle", volume: 0.32 },
+          { freq: 987.77, ms: 86, wave: "triangle", volume: 0.26 },
+        ],
+        gate_open: [
+          { freq: 392, ms: 52, wave: "triangle", volume: 0.42 },
+          { freq: 587.33, ms: 66, wave: "triangle", volume: 0.42 },
+          { freq: 783.99, ms: 110, wave: "triangle", volume: 0.34 },
         ],
         ball: [
           { freq: 392, ms: 34, wave: "square", volume: 0.46 },
@@ -2973,6 +3027,7 @@ select {
     nextState.battle = null;
     nextState.field.mapId = savedMapId;
     nextState.field.message = "";
+    nextState.field.messageKind = "";
     nextState.field.stepEffect = null;
     nextState.field.eventEffect = null;
     nextState.field.bumpEffect = null;
@@ -6381,11 +6436,18 @@ select {
       if (state.scene === "field") {
         message = state.field.message || "";
         caption = dataRegistryInstance.getMap(state.field.mapId).name;
+        if (message && state.field.messageKind) {
+          messageElement.dataset.kind = state.field.messageKind;
+        } else {
+          delete messageElement.dataset.kind;
+        }
       } else if (state.scene === "battle" && state.battle) {
         message = "";
         caption = "やせいとの戦い";
+        delete messageElement.dataset.kind;
       } else if (state.transition.active) {
         caption = dataRegistryInstance.getMap(state.field.mapId).name;
+        delete messageElement.dataset.kind;
       }
 
       messageElement.textContent = message.replace(/\\n/g, "\n");
@@ -7291,6 +7353,7 @@ select {
       state.scene = "field";
       state.battle = null;
       state.field.message = finalMessage;
+      state.field.messageKind = finalMessage ? "success" : "";
       state.field.lastEncounterStep = state.field.steps;
       state.transition = {
         active: true,
@@ -7347,6 +7410,7 @@ select {
 
         state.scene = "battle";
         state.field.message = "";
+        state.field.messageKind = "";
         state.battle = {
           phase: "message",
           currentMessage: "",
@@ -8689,6 +8753,11 @@ select {
       }
     }
 
+    function setFieldMessage(state, message, kind = "talk") {
+      state.field.message = message || "";
+      state.field.messageKind = message ? kind : "";
+    }
+
     function applyWarp(state, event) {
       // ワープ時は移動補間情報も移動先へ揃える。x/yだけ変えると次フレームで旧座標から補間される。
       state.field.mapId = event.targetMapId;
@@ -8701,7 +8770,7 @@ select {
       state.field.player.direction = event.target.direction || state.field.player.direction;
       state.field.player.moving = false;
       state.field.player.progress = 0;
-      state.field.message = "";
+      setFieldMessage(state, "", "");
       state.field.lastEncounterStep = state.field.steps;
       setFieldEventEffect(state, {
         kind: "warp_arrive",
@@ -8719,11 +8788,7 @@ select {
         state.inventory.masterBallCount += event.amount;
       }
       rememberResolvedEvent(state, event.id);
-      if (event.message) {
-        state.field.message = event.message;
-      } else {
-        state.field.message = "アイテムを みつけた！";
-      }
+      setFieldMessage(state, event.message || "アイテムを みつけた！", "item");
       setFieldEventEffect(state, {
         kind: "pickup",
         x: event.x,
@@ -8735,11 +8800,15 @@ select {
     function applyQuestEvent(state, event) {
       const quest = dataRegistry.getQuest(event.questId);
       if (!quest) {
-        state.field.message = event.message;
-        return;
+        setFieldMessage(state, event.message, "talk");
+        return {
+          soundId: "talk",
+        };
       }
 
       const questState = dataRegistry.getQuestState(state, event.questId);
+      const requirementMet = dataRegistry.isQuestRequirementMet(state, event.questId);
+      const nextQuestState = requirementMet ? "reported" : "active";
       const message = dataRegistry.getQuestInteractionMessage(
         state,
         event.questId,
@@ -8747,12 +8816,13 @@ select {
       );
 
       if (questState !== "reported") {
-        state.progress[quest.progressKey] = dataRegistry.isQuestRequirementMet(state, event.questId)
-          ? "reported"
-          : "active";
+        state.progress[quest.progressKey] = nextQuestState;
       }
 
-      state.field.message = message;
+      setFieldMessage(state, message, nextQuestState === "reported" ? "success" : "talk");
+      return {
+        soundId: questState !== "reported" && nextQuestState === "reported" ? "quest" : "talk",
+      };
     }
 
     function updateEffect(effect, deltaMs) {
@@ -8801,6 +8871,10 @@ select {
       };
     }
 
+    function getTalkSoundId(event) {
+      return event.sprite === "sign" ? "sign" : "talk";
+    }
+
     function handleInteractEvent(event) {
       // 正面にイベントがない場合は無音・無メッセージで戻る現在仕様。操作説明的な文言を出すと既存テストが変わる。
       if (!event) {
@@ -8816,11 +8890,13 @@ select {
       store.update((state) => {
         if (event.kind === "talk") {
           if (event.questId) {
-            applyQuestEvent(state, event);
+            const feedback = applyQuestEvent(state, event);
+            soundId = feedback.soundId;
             return;
           }
 
-          state.field.message = event.message;
+          setFieldMessage(state, event.message, event.sprite === "sign" ? "info" : "talk");
+          soundId = getTalkSoundId(event);
           return;
         }
 
@@ -8834,7 +8910,7 @@ select {
 
     function closeMessage() {
       store.update((state) => {
-        state.field.message = "";
+        setFieldMessage(state, "", "");
       });
       audio.playSe("message");
     }
@@ -8853,10 +8929,13 @@ select {
           return event.trigger === "step" && isEventLocked(state, event);
         });
         if (lockedGate) {
-          state.field.message =
+          setFieldMessage(
+            state,
             lockedGate.lockedMessage ||
-            (App.config.game.story && App.config.game.story.lockedGateMessage) ||
-            "道が 閉ざされている。";
+              (App.config.game.story && App.config.game.story.lockedGateMessage) ||
+              "道が 閉ざされている。",
+            "alert"
+          );
           if (!state.field.blockedFeedbackCooldownMs) {
             setBumpEffect(state, direction);
             setFieldEventEffect(state, {
@@ -9054,7 +9133,7 @@ select {
           }
         });
         if (pendingResult && pendingResult.kind === "warp") {
-          audio.playSe("confirm");
+          audio.playSe("warp");
         }
         if (pendingResult && pendingResult.kind === "step" && pendingResult.soundId) {
           audio.playSe(pendingResult.soundId);
@@ -9156,6 +9235,7 @@ select {
           progress: 0,
         },
         message: "",
+        messageKind: "",
         steps: 0,
         lastEncounterStep: -10,
         stepEffect: null,
@@ -9363,6 +9443,7 @@ select {
         state.inventory.fullHealCount -= 1;
         playerMonster.currentHp = playerMonster.maxHp;
         state.field.message = "回復薬を つかった！\nHPが ぜんかいふく した！";
+        state.field.messageKind = "success";
         used = true;
       });
 
@@ -9794,6 +9875,7 @@ select {
       }
 
       const durationMs = getPreparationDurationMs();
+      let gateJustUnlocked = false;
       store.update((nextState) => {
         nextState.progress.prepElapsedMs = Math.min(
           durationMs,
@@ -9807,6 +9889,8 @@ select {
             nextState.field.message =
               (App.config.game.story && App.config.game.story.unlockedGateMessage) ||
               "5分が経過しました。次のマップへの道が開きました。";
+            nextState.field.messageKind = "success";
+            gateJustUnlocked = true;
             const currentMap = dataRegistry.getMap(nextState.field.mapId);
             const gateEvent = currentMap && (currentMap.events || []).find((event) => {
               return event.trigger === "step" && event.unlockCondition === "prep_complete";
@@ -9825,6 +9909,9 @@ select {
           }
         }
       });
+      if (gateJustUnlocked) {
+        audio.playSe("gate_open");
+      }
     }
 
     function updateTimeAttackTimer(deltaMs) {
