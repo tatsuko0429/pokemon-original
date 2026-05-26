@@ -2469,7 +2469,7 @@ select {
   const ELITE_4_LEVEL = 40;
   const CHAMPION_LEVEL = 50;
 
-  function createEliteChamber(id, name, tile, level, trainerName, intro, win, lose, clearedKey, nextMapId) {
+  function createEliteChamber(id, name, tile, level, trainerName, monsterSpecies, intro, win, lose, clearedKey, nextMapId) {
     // 四天王部屋は同じ構造を生成する。出口解放はbattleイベントのresolvedEventIdとwarp.unlockConditionでつながる。
     return {
       id,
@@ -2490,8 +2490,9 @@ select {
           x: 10,
           y: 9,
           trainerName,
-          monsterSpecies: "first_caught",
-          // first_caughtはbattle-scene.jsで「図鑑の最初の1匹、なければ手持ち」を相手にする特別指定。
+          monsterSpecies,
+          // 四天王は部屋ごとに相手を固定し、終盤戦が同じ種族に偏らないようにする。
+          // first_caught指定はbattle-scene.js側に残しているため、必要なら別イベントで再利用できる。
           level,
           introMessage: intro,
           winMessage: win,
@@ -2618,10 +2619,10 @@ select {
         },
       ],
     },
-    createEliteChamber("elite_chamber_1", "四天王の部屋 1", "1", ELITE_1_LEVEL, "四天王 カンナ風", "四天王の 1人目だ。 相手に なってもらおう！", "やるな！ 次へ 進むがいい。\\n回復薬を さずけよう。", "修行が 足りないようだな。", "elite_1_cleared", "elite_chamber_2"),
-    createEliteChamber("elite_chamber_2", "四天王の部屋 2", "2", ELITE_2_LEVEL, "四天王 シバ風", "四天王の 2人目だ。 ここを 通れるかな？", "なかなかの 腕前だ。\\nこれを持って いけ。", "まだまだ だな。", "elite_2_cleared", "elite_chamber_3"),
-    createEliteChamber("elite_chamber_3", "四天王の部屋 3", "3", ELITE_3_LEVEL, "四天王 キクコ風", "四天王の 3人目だよ。 驚かせてあげよう。", "ふん、 面白い。\\nほうびに これをやろう。", "ひっこんで おいで。", "elite_3_cleared", "elite_chamber_4"),
-    createEliteChamber("elite_chamber_4", "四天王の部屋 4", "4", ELITE_4_LEVEL, "四天王 ワタル風", "最後の 四天王だ！ 全力で いこう！", "素晴らしい バトルだった！\\n最後の 備えだ、受け取れ。", "ここを 通るには まだ 早い。", "elite_4_cleared", "champion_chamber"),
+    createEliteChamber("elite_chamber_1", "四天王の部屋 1", "1", ELITE_1_LEVEL, "四天王 カンナ風", "tsolf", "四天王の 1人目だ。 相手に なってもらおう！", "やるな！ 次へ 進むがいい。\\n回復薬を さずけよう。", "修行が 足りないようだな。", "elite_1_cleared", "elite_chamber_2"),
+    createEliteChamber("elite_chamber_2", "四天王の部屋 2", "2", ELITE_2_LEVEL, "四天王 シバ風", "aribou", "四天王の 2人目だ。 ここを 通れるかな？", "なかなかの 腕前だ。\\nこれを持って いけ。", "まだまだ だな。", "elite_2_cleared", "elite_chamber_3"),
+    createEliteChamber("elite_chamber_3", "四天王の部屋 3", "3", ELITE_3_LEVEL, "四天王 キクコ風", "nejimakidori", "四天王の 3人目だよ。 驚かせてあげよう。", "ふん、 面白い。\\nほうびに これをやろう。", "ひっこんで おいで。", "elite_3_cleared", "elite_chamber_4"),
+    createEliteChamber("elite_chamber_4", "四天王の部屋 4", "4", ELITE_4_LEVEL, "四天王 ワタル風", "takuma", "最後の 四天王だ！ 全力で いこう！", "素晴らしい バトルだった！\\n最後の 備えだ、受け取れ。", "ここを 通るには まだ 早い。", "elite_4_cleared", "champion_chamber"),
     {
       id: "champion_chamber",
       name: "チャンピオンの間",
@@ -3802,6 +3803,13 @@ select {
           }
           if (!event.sprite) {
             errors.push(`マップ ${mapDef.id} の取得イベント ${event.id} に表示指定がありません。`);
+          }
+        }
+
+        if (event.kind === "battle") {
+          const monsterSpecies = event.monsterSpecies || "aribou";
+          if (monsterSpecies !== "first_caught" && !speciesById.has(monsterSpecies)) {
+            errors.push(`マップ ${mapDef.id} の戦闘イベント ${event.id} が未定義の種族 ${monsterSpecies} を参照しています。`);
           }
         }
 
