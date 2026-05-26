@@ -1447,9 +1447,9 @@ select {
       blockedFeedbackCooldownMs: 420,
     },
     battle: {
-      messageAutoAdvanceMs: 980,
-      messageAutoAdvancePerCharMs: 10,
-      messageAutoAdvanceMaxExtraMs: 320,
+      messageAutoAdvanceMs: 1180,
+      messageAutoAdvancePerCharMs: 12,
+      messageAutoAdvanceMaxExtraMs: 420,
     },
     field: {
       startMapId: "camera_route",
@@ -1518,6 +1518,11 @@ select {
         wiggleDurationMs: 180,
         flashIntervalMs: 40,
       },
+      attack: {
+        durationMs: 180,
+        lungePixels: 5,
+        hopPixels: 2,
+      },
       miss: {
         durationMs: 90,
       },
@@ -1548,12 +1553,12 @@ select {
     },
     audio: {
       masterVolume: 0.07,
-      seVolumeMultiplier: 10,
+      seVolumeMultiplier: 12,
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
           loop: true,
-          volume: 0.09,
+          volume: 0.07,
         },
         field: {
           wave: "square",
@@ -1576,7 +1581,7 @@ select {
         battle: {
           src: "./assets/audio/battle-bgm.mp3",
           loop: true,
-          volume: 0.1,
+          volume: 0.08,
         },
       },
       se: {
@@ -2389,7 +2394,7 @@ select {
         { id: "route_sign_square", kind: "talk", trigger: "interact", sprite: "sign", x: 2, y: 9, message: "特定のモンスターを倒すことで覚えられる特別な技があるみたいだよ" },
         { id: "route_sign_grass", kind: "talk", trigger: "interact", sprite: "sign", x: 8, y: 8, message: "特定のモンスターを持っていないと遭遇できない特別なモンスターもいるみたいだよ" },
         { id: "route_guide", kind: "talk", trigger: "interact", sprite: "npc", x: 17, y: 12, message: "レベルを上げるもよし、強いモンスターを探すもよし！" },
-        { id: "route_ball_pickup", kind: "pickup", trigger: "interact", sprite: "pickup", x: 24, y: 17, itemType: "full_heal", amount: 1, message: "回復薬を みつけた！" },
+        { id: "route_ball_pickup", kind: "pickup", trigger: "interact", sprite: "pickup", x: 24, y: 17, itemType: "master_ball", amount: 1, message: "パーフェクトボールを みつけた！" },
       ],
     },
     {
@@ -5174,6 +5179,7 @@ select {
     const renderScale = Math.max(1, Math.floor(screen.renderScale || 1));
     const maxRenderScale = 9;
     const damageAnimation = animation.damage;
+    const attackAnimation = animation.attack || {};
     const ballAnimation = animation.ball || {};
     const fieldPixelArt = App.data.pixelArt.field;
     const battlePixelArt = App.data.pixelArt.battle || {};
@@ -5680,18 +5686,41 @@ select {
       return state.battle.animation;
     }
 
+    function getAttackAnimation(state, target) {
+      if (
+        !state.battle ||
+        !state.battle.animation ||
+        state.battle.animation.kind !== "attack" ||
+        state.battle.animation.target !== target
+      ) {
+        return null;
+      }
+
+      return state.battle.animation;
+    }
+
     function getMonsterOffset(state, target) {
+      const offset = { x: 0, y: 0 };
+      const attack = getAttackAnimation(state, target);
+      if (attack) {
+        const progress = Math.min(1, attack.elapsedMs / attack.durationMs);
+        const pulse = Math.sin(progress * Math.PI);
+        const lunge = pulse * (attackAnimation.lungePixels || 5);
+        const shake = Math.sin(progress * Math.PI * 5) * (1 - progress) * 1.2;
+        const direction = target === "player" ? -1 : 1;
+        offset.x += direction * (lunge + shake);
+        offset.y -= pulse * (attackAnimation.hopPixels || 2);
+      }
+
       const animation = getBattleAnimation(state, target);
       if (!animation) {
-        return { x: 0, y: 0 };
+        return offset;
       }
 
       const progress = Math.min(1, animation.elapsedMs / damageAnimation.wiggleDurationMs);
       const wiggle = Math.sin(progress * Math.PI * 5) * (1 - progress) * 4;
-      return {
-        x: target === "enemy" ? wiggle : -wiggle,
-        y: 0,
-      };
+      offset.x += target === "enemy" ? wiggle : -wiggle;
+      return offset;
     }
 
     function shouldHideMonster(state, target) {
@@ -7111,6 +7140,7 @@ select {
   }) {
     const animationConfig = App.config.game.animation;
     const ballConfig = animationConfig.ball;
+    const attackConfig = animationConfig.attack || {};
     const missConfig = animationConfig.miss || {};
     const expConfig = animationConfig.exp || {};
     const battleConfig = App.config.game.battle || {};
@@ -7228,6 +7258,15 @@ select {
           toHp: effect.toHp,
           elapsedMs: 0,
           durationMs: animationConfig.damage.durationMs,
+        };
+      }
+
+      if (effect.kind === "attack") {
+        return {
+          kind: "attack",
+          target: effect.target,
+          elapsedMs: 0,
+          durationMs: attackConfig.durationMs || 180,
         };
       }
 
@@ -7804,7 +7843,20 @@ select {
         attacker.charging = null;
       }
 
-      const steps = [createStep(`${attackerLabel}の ${move.name}！`, null, getMoveSoundId(move))];
+      const attackEffect =
+        move.power > 0
+          ? {
+              kind: "attack",
+              target: hpTargets.attacker,
+            }
+          : null;
+      const steps = [
+        createStep(
+          `${attackerLabel}の ${move.name}！`,
+          attackEffect,
+          getMoveSoundId(move)
+        ),
+      ];
 
       if (move.effect === "evasion_up") {
         attacker.evasionUp = true;
@@ -8414,6 +8466,11 @@ select {
         state.battle.display[`${animation.target}Hp`] = currentHp;
         if (progress >= 1) {
           state.battle.display[`${animation.target}Hp`] = animation.toHp;
+          state.battle.animation = null;
+        }
+      } else if (animation.kind === "attack") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress >= 1) {
           state.battle.animation = null;
         }
       } else if (animation.kind === "ice_wall") {

@@ -35,7 +35,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED_START_CAPTION = "ながめのみち"
 EXPECTED_SQUARE_CAPTION = "受付"
 EXPECTED_BATTLE_CAPTION = "やせいとの戦い"
-BATTLE_COMMAND_RETURN_TIMEOUT_MS = 7000
+BATTLE_COMMAND_RETURN_TIMEOUT_MS = 9000
 
 
 def expand_route(*segments):
@@ -206,7 +206,7 @@ async def advance_battle_until_modal(page):
     await page.waitForFunction(
         """() => document.querySelector("#modal-root")?.getAttribute("aria-hidden") === "false"
           && document.querySelector("#modal-title")?.textContent === "捕獲の記録" """,
-        {"timeout": 10000},
+        {"timeout": 14000},
     )
     return await read_field_state(page)
 
@@ -545,6 +545,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.field.steps = 12;
                 state.field.lastEncounterStep = 10;
                 state.inventory.fullHealCount = 2;
+                state.inventory.masterBallCount = 1;
                 state.party = [restoredMonster];
                 state.collection.capturedSpeciesIds = ["dummy_flare"];
                 state.progress.resolvedEventIds = ["route_ball_pickup"];
@@ -585,6 +586,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(restored_state["state"]["field"]["player"]["y"] == 4, "保存した縦位置が復元されていません。")
         expect(restored_state["state"]["field"]["player"]["direction"] == "down", "保存した向きが復元されていません。")
         expect(restored_state["state"]["inventory"]["fullHealCount"] == 2, "保存した回復薬数が復元されていません。")
+        expect(restored_state["state"]["inventory"]["masterBallCount"] == 1, "保存したパーフェクトボール数が復元されていません。")
         expect(
             restored_state["state"]["party"][0]["speciesId"] == "dummy_flare",
             "保存した手持ちモンスターが復元されていません。",
@@ -640,6 +642,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(new_game_state["state"]["field"]["player"]["x"] == 10, "はじめから選択後の横位置が初期値ではありません。")
         expect(new_game_state["state"]["field"]["player"]["y"] == 10, "はじめから選択後の縦位置が初期値ではありません。")
         expect(new_game_state["state"]["inventory"]["fullHealCount"] == 0, "はじめから選択後に回復薬数が初期化されていません。")
+        expect(new_game_state["state"]["inventory"]["masterBallCount"] == 0, "はじめから選択後にパーフェクトボール数が初期化されていません。")
         expect(
             new_game_state["state"]["party"][0]["speciesId"] == "nejimakidori",
             "はじめから選択後に手持ちモンスターが初期化されていません。",
@@ -781,6 +784,7 @@ async def run_smoke_test(base_url: str) -> None:
         inventory_state = await read_field_state(page)
         expect(inventory_state["modalTitle"] == "アイテム", "アイテム画面に切り替わっていません。")
         expect("キャプチャーボール: 使い放題" in inventory_state["modalLines"], "アイテム画面にボール使い放題の説明が表示されていません。")
+        expect("パーフェクトボール: 0 個" in inventory_state["modalLines"], "アイテム画面にパーフェクトボール数が表示されていません。")
         expect("回復薬: 0 個" in inventory_state["modalLines"], "アイテム画面に回復薬数が表示されていません。")
         expect("拾ったもの: 0/1" in inventory_state["modalLines"], "アイテム画面に拾得記録が表示されていません。")
         expect("回復薬を使う" not in inventory_state["modalButtons"], "回復薬がないのに使用ボタンが表示されています。")
@@ -912,6 +916,7 @@ async def run_smoke_test(base_url: str) -> None:
                   }
                 });
                 state.inventory.fullHealCount = 1;
+                state.inventory.masterBallCount = 1;
                 state.party[0].currentHp = Math.max(1, state.party[0].currentHp - 6);
                 state.battle.display.playerHp = state.party[0].currentHp;
                 state.battle.phase = "command";
@@ -960,6 +965,11 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "ボール" && !button.disabled)""",
             {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
         )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "Pボール" && !button.disabled)""",
+            {"timeout": 1200},
+        )
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "たたかう").click()"""
         )
@@ -985,6 +995,10 @@ async def run_smoke_test(base_url: str) -> None:
             """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "ボール")""",
             {"timeout": 4000},
         )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "Pボール")""",
+            {"timeout": 4000},
+        )
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;
@@ -998,7 +1012,7 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         await page.evaluate(
-            """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "ボール").click()"""
+            """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "Pボール").click()"""
         )
         await page.waitForFunction(
             """() => {
@@ -1013,12 +1027,15 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 message: state.battle.currentMessage,
                 enemySpeciesId: state.battle.enemy.speciesId,
-                captureBall: state.battle.captureBall
+                captureBall: state.battle.captureBall,
+                masterBallCount: state.inventory.masterBallCount
               };
             }"""
         )
-        expect("キャプチャーボールを なげた" in capture_state["message"], "捕獲の投球メッセージが表示されていません。")
+        expect("パーフェクトボールを なげた" in capture_state["message"], "確定捕獲ボールの投球メッセージが表示されていません。")
         expect(capture_state["captureBall"]["hideEnemy"], "捕獲演出中に相手が隠れていません。")
+        expect(capture_state["captureBall"]["ballType"] == "master", "確定捕獲ボールの演出種別が使われていません。")
+        expect(capture_state["masterBallCount"] == 0, "確定捕獲ボールが消費されていません。")
         capture_record_state = await advance_battle_until_modal(page)
         expect(capture_record_state["modalOpen"], "捕獲後の記録ポップが開いていません。")
         expect(capture_record_state["modalTitle"] == "捕獲の記録", "捕獲記録ポップの見出しが想定と違います。")
@@ -1139,14 +1156,14 @@ async def run_smoke_test(base_url: str) -> None:
             })"""
         )
 
-        heals_before_pickup = route_state["state"]["inventory"]["fullHealCount"]
+        master_balls_before_pickup = route_state["state"]["inventory"]["masterBallCount"]
         await press(page, "Enter")
         await asyncio.sleep(0.2)
         pickup_state = await read_field_state(page)
-        expect("回復薬を みつけた！" in pickup_state["message"], "拾得物メッセージが表示されていません。")
+        expect("パーフェクトボールを みつけた！" in pickup_state["message"], "確定捕獲ボールの拾得メッセージが表示されていません。")
         expect(
-            pickup_state["state"]["inventory"]["fullHealCount"] == heals_before_pickup + 1,
-            "拾得物で回復薬数が増えていません。",
+            pickup_state["state"]["inventory"]["masterBallCount"] == master_balls_before_pickup + 1,
+            "拾得物でパーフェクトボール数が増えていません。",
         )
         expect(
             "route_ball_pickup" in pickup_state["state"]["progress"]["resolvedEventIds"],
@@ -1163,7 +1180,8 @@ async def run_smoke_test(base_url: str) -> None:
         await click_modal_button(page, "アイテム")
         await asyncio.sleep(0.2)
         pickup_menu_state = await read_field_state(page)
-        expect("回復薬: 1 個" in pickup_menu_state["modalLines"], "アイテム画面の回復薬数が更新されていません。")
+        expect("パーフェクトボール: 1 個" in pickup_menu_state["modalLines"], "アイテム画面のパーフェクトボール数が更新されていません。")
+        expect("回復薬: 0 個" in pickup_menu_state["modalLines"], "拾得物で回復薬数が増えています。")
         expect("拾ったもの: 1/1" in pickup_menu_state["modalLines"], "アイテム画面の拾得記録が更新されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
@@ -1171,6 +1189,7 @@ async def run_smoke_test(base_url: str) -> None:
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.party[0].currentHp = Math.max(1, state.party[0].currentHp - 5);
+              state.inventory.fullHealCount = 1;
             })"""
         )
         await press(page, "m")
@@ -1199,7 +1218,7 @@ async def run_smoke_test(base_url: str) -> None:
         await asyncio.sleep(0.2)
         repeat_state = await read_field_state(page)
         expect(
-            repeat_state["state"]["inventory"]["fullHealCount"] == 0,
+            repeat_state["state"]["inventory"]["masterBallCount"] == master_balls_before_pickup + 1,
             "取得済みの拾得物が再取得されています。",
         )
         expect(not browser_errors, "ブラウザエラーが発生しました: " + " / ".join(browser_errors))
