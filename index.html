@@ -663,14 +663,14 @@ select {
 }
 
 .battle-buttons.has-master-ball {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .battle-buttons.has-master-ball .control-button {
-  min-height: 50px;
-  padding: 8px 4px;
-  font-size: clamp(0.68rem, 2.5vw, 0.8rem);
+  min-height: 52px;
+  padding: 8px 6px;
+  font-size: clamp(0.76rem, 2.7vw, 0.9rem);
 }
 
 .battle-buttons.is-single,
@@ -693,6 +693,7 @@ select {
   --command-lo: #c6cfb5;
   --command-edge: rgba(32, 34, 27, 0.72);
   position: relative;
+  isolation: isolate;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -704,15 +705,20 @@ select {
     linear-gradient(180deg, var(--command-hi), var(--command-lo));
   font-size: clamp(0.86rem, 3.2vw, 1rem);
   line-height: 1.05;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.48);
 }
 
 .control-button.battle-command-button::before {
   content: "";
   position: absolute;
+  z-index: -1;
   inset: 5px 7px auto 7px;
-  height: 3px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.58);
+  height: 19px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 18% 36%, rgba(255, 255, 255, 0.68), transparent 18%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.04));
+  opacity: 0.82;
 }
 
 .control-button.battle-command-button::after {
@@ -726,6 +732,12 @@ select {
   color: rgba(32, 34, 27, 0.72);
   font-size: 0.58rem;
   line-height: 1;
+}
+
+.control-button.battle-command-button:not([disabled]):hover:not(:active):not(.is-active),
+.control-button.battle-command-button:not([disabled]):focus-visible:not(:active):not(.is-active) {
+  transform: translateY(-1px);
+  filter: saturate(1.08) brightness(1.03);
 }
 
 .control-button.battle-command-button.is-fight {
@@ -756,6 +768,8 @@ select {
   --command-hi: #e8c9f2;
   --command-lo: #8d5af2;
   --command-edge: #4a2467;
+  grid-column: 1 / -1;
+  min-height: 48px;
   color: #ffffff;
   text-shadow: 0 1px 0 rgba(34, 12, 55, 0.6);
 }
@@ -781,6 +795,15 @@ select {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
+  transition:
+    transform 120ms ease,
+    filter 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.control-button:not([disabled]):focus-visible {
+  outline: 3px solid rgba(255, 247, 170, 0.86);
+  outline-offset: 2px;
 }
 
 .control-button:active,
@@ -900,11 +923,13 @@ select {
 .control-button.move-button {
   --move-accent: #cfc394;
   --move-soft: rgba(248, 244, 215, 0.72);
-  min-height: 74px;
+  min-height: 78px;
+  position: relative;
   display: grid;
-  align-content: center;
-  gap: 5px;
-  padding: 9px 10px;
+  align-content: stretch;
+  justify-items: stretch;
+  gap: 4px;
+  padding: 8px 9px 9px 12px;
   border-color: rgba(32, 34, 27, 0.8);
   background:
     linear-gradient(90deg, var(--move-accent) 0 6px, transparent 6px),
@@ -912,32 +937,99 @@ select {
     linear-gradient(180deg, #f4f1dd, #cbd3bd);
 }
 
+.control-button.move-button::before {
+  content: "";
+  position: absolute;
+  inset: 6px 5px auto 11px;
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.control-button.move-button:not([disabled]):hover:not(:active):not(.is-active),
+.control-button.move-button.is-previewed:not([disabled]) {
+  transform: translateY(-1px);
+  filter: saturate(1.08) brightness(1.03);
+  box-shadow:
+    0 6px 0 rgba(8, 10, 12, 0.28),
+    0 0 0 3px rgba(255, 247, 170, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
 .move-name,
 .move-meta,
+.move-main,
+.move-pp-row,
 .move-detail {
   display: block;
 }
 
+.move-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
 .move-name {
+  min-width: 0;
   font-size: 0.92rem;
   line-height: 1.15;
   font-weight: 900;
+  text-align: left;
 }
 
 .move-meta {
   display: flex;
-  justify-content: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 4px;
   flex-wrap: wrap;
   font-size: 0.68rem;
   line-height: 1.2;
   color: var(--muted);
 }
 
+.move-pp-row {
+  display: grid;
+  grid-template-columns: auto minmax(32px, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  color: rgba(32, 34, 27, 0.68);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.move-pp-label {
+  font-weight: 900;
+}
+
+.move-pp-track {
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(32, 34, 27, 0.58);
+  border-radius: 99px;
+  background: rgba(32, 34, 27, 0.16);
+}
+
+.move-pp-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--move-accent), rgba(255, 255, 255, 0.72));
+}
+
+.move-pp-value {
+  min-width: 36px;
+  text-align: right;
+  font-weight: 900;
+}
+
 .move-detail {
   display: flex;
-  justify-content: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 4px;
   flex-wrap: wrap;
   font-size: 0.62rem;
   line-height: 1.1;
@@ -947,15 +1039,24 @@ select {
 .move-pp,
 .move-power,
 .move-accuracy {
-  min-width: 50px;
-  padding: 3px 7px;
+  min-width: 46px;
+  padding: 3px 6px;
   border: 2px solid rgba(32, 34, 27, 0.7);
   border-radius: 999px;
   background: var(--move-soft);
 }
 
+.move-type {
+  min-width: 38px;
+}
+
+.move-pp {
+  min-width: 56px;
+}
+
 .move-power,
 .move-accuracy {
+  flex: 1 1 44px;
   min-width: 44px;
   padding-block: 2px;
   border-color: rgba(32, 34, 27, 0.42);
@@ -988,8 +1089,30 @@ select {
   color: #6b241d;
 }
 
+.control-button.move-button.is-low-pp .move-pp-fill {
+  background: linear-gradient(90deg, #b84234, #f1b7a8);
+}
+
 .control-button.move-button.is-empty {
   filter: saturate(0.72);
+}
+
+.control-button.move-button.is-empty .move-pp-fill {
+  background: rgba(87, 91, 88, 0.42);
+}
+
+.control-button.move-button.is-empty .move-name,
+.control-button.move-button.is-empty .move-detail,
+.control-button.move-button.is-empty .move-meta {
+  color: rgba(32, 34, 27, 0.58);
+}
+
+.control-button.move-back-button {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  font-size: 0.86rem;
 }
 
 .control-button[disabled] {
@@ -1321,6 +1444,42 @@ select {
   .battle-buttons .control-button {
     min-height: 50px;
     padding: 7px 7px;
+  }
+
+  .control-button.move-button {
+    gap: 3px;
+    padding: 7px 7px 7px 11px;
+  }
+
+  .move-name {
+    font-size: 0.82rem;
+  }
+
+  .move-meta {
+    gap: 3px;
+    font-size: 0.6rem;
+  }
+
+  .move-pp-row {
+    display: none;
+  }
+
+  .move-detail {
+    gap: 3px;
+    font-size: 0.56rem;
+  }
+
+  .move-type,
+  .move-pp,
+  .move-power,
+  .move-accuracy {
+    min-width: 38px;
+    padding: 2px 5px;
+  }
+
+  .control-button.move-back-button {
+    min-height: 38px;
+    padding: 6px 10px;
   }
 
   .control-button.system-button {
@@ -6790,16 +6949,22 @@ select {
       }
     }
 
-    function createMoveButton(move, currentPp, onHover) {
+    function createMoveButton(move, currentPp, onHover, options) {
+      const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
       const classNames = [
         "move-button",
         getMoveTypeClass(move.type),
+        settings.previewed ? "is-previewed" : "",
         currentPp <= 0 ? "is-empty" : "",
         currentPp > 0 && ppRatio <= 0.25 ? "is-low-pp" : "",
       ].filter(Boolean).join(" ");
       const button = createButton("", classNames, null, currentPp <= 0);
-      button.setAttribute("aria-label", `${move.name} ${move.type} PP ${currentPp}/${move.pp}`);
+      const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
+      button.setAttribute(
+        "aria-label",
+        `${move.name} ${move.type} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
+      );
 
       if (onHover) {
         button.addEventListener("mouseenter", () => onHover(move.id));
@@ -6812,6 +6977,9 @@ select {
       name.className = "move-name";
       name.textContent = move.name;
 
+      const main = document.createElement("span");
+      main.className = "move-main";
+
       const meta = document.createElement("span");
       meta.className = "move-meta";
 
@@ -6823,21 +6991,41 @@ select {
       pp.className = "move-pp";
       pp.textContent = `PP ${currentPp}/${move.pp}`;
 
+      const ppRow = document.createElement("span");
+      ppRow.className = "move-pp-row";
+      const ppLabel = document.createElement("span");
+      ppLabel.className = "move-pp-label";
+      ppLabel.textContent = "PP";
+      const ppTrack = document.createElement("span");
+      ppTrack.className = "move-pp-track";
+      const ppFill = document.createElement("span");
+      ppFill.className = "move-pp-fill";
+      ppFill.style.width = `${Math.max(0, Math.min(100, ppRatio * 100))}%`;
+      const ppValue = document.createElement("span");
+      ppValue.className = "move-pp-value";
+      ppValue.textContent = `${currentPp}/${move.pp}`;
+
       const detail = document.createElement("span");
       detail.className = "move-detail";
       const power = document.createElement("span");
       power.className = "move-power";
-      power.textContent = move.power > 0 ? `威力 ${move.power}` : "補助";
+      power.textContent = powerText;
       const accuracy = document.createElement("span");
       accuracy.className = "move-accuracy";
       accuracy.textContent = `命中 ${move.accuracy}`;
 
       meta.appendChild(type);
       meta.appendChild(pp);
+      main.appendChild(name);
+      main.appendChild(meta);
+      ppTrack.appendChild(ppFill);
+      ppRow.appendChild(ppLabel);
+      ppRow.appendChild(ppTrack);
+      ppRow.appendChild(ppValue);
       detail.appendChild(power);
       detail.appendChild(accuracy);
-      button.appendChild(name);
-      button.appendChild(meta);
+      button.appendChild(main);
+      button.appendChild(ppRow);
       button.appendChild(detail);
       return button;
     }
@@ -7095,20 +7283,30 @@ select {
       if (settings.hasMasterBall) {
         wrapper.classList.add("has-master-ball");
       }
+      const fullHealCount = Number.isInteger(settings.fullHealCount)
+        ? settings.fullHealCount
+        : 0;
+      const masterBallCount = Number.isInteger(settings.masterBallCount)
+        ? settings.masterBallCount
+        : 0;
 
       const fight = createButton("たたかう", "battle-command-button is-fight", null, settings.disabledAll);
       fight.dataset.commandHint = "技";
+      fight.setAttribute("aria-label", "たたかう 技を選ぶ");
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
       ball.dataset.commandHint = "捕獲";
+      ball.setAttribute("aria-label", "ボール 捕獲を試す");
       const run = createButton("にげる", "battle-command-button is-run", null, settings.disabledAll);
       run.dataset.commandHint = "撤退";
+      run.setAttribute("aria-label", "にげる 戦闘から離れる");
       const item = createButton(
         "アイテム",
         `battle-command-button is-item ${settings.itemDisabled && !settings.disabledAll ? "is-subtle" : ""}`,
         null,
         settings.disabledAll || settings.itemDisabled
       );
-      item.dataset.commandHint = "回復";
+      item.dataset.commandHint = settings.itemDisabled ? "在庫0" : `回復 x${fullHealCount}`;
+      item.setAttribute("aria-label", `アイテム 回復薬 ${fullHealCount}個`);
 
       if (!settings.disabledAll) {
         input.attachActionButton(fight, "battle_open_move_menu");
@@ -7126,7 +7324,8 @@ select {
 
       if (settings.hasMasterBall) {
         const masterBall = createButton("Pボール", "battle-command-button is-master", null, settings.disabledAll);
-        masterBall.dataset.commandHint = "確定";
+        masterBall.dataset.commandHint = `確定 x${masterBallCount}`;
+        masterBall.setAttribute("aria-label", `Pボール パーフェクトボール ${masterBallCount}個`);
         if (!settings.disabledAll) {
           input.attachActionButton(masterBall, "battle_throw_master_ball");
         }
@@ -7239,6 +7438,8 @@ select {
           disabledAll: true, 
           itemDisabled: true,
           hasMasterBall: hasMasterBall,
+          fullHealCount: state.inventory.fullHealCount,
+          masterBallCount: state.inventory.masterBallCount,
         }));
         return panel;
       }
@@ -7249,6 +7450,8 @@ select {
             disabledAll: animationActive,
             itemDisabled,
             hasMasterBall: hasMasterBall,
+            fullHealCount: state.inventory.fullHealCount,
+            masterBallCount: state.inventory.masterBallCount,
           })
         );
         return panel;
@@ -7262,11 +7465,14 @@ select {
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
           const currentPp = playerMonster.currentPp[index];
-          const button = createMoveButton(move, currentPp, battleScene.hoverMove);
+          const button = createMoveButton(move, currentPp, battleScene.hoverMove, {
+            previewed: battle.hoveredMoveId === moveId,
+          });
           input.attachActionButton(button, "battle_select_move", { moveId });
           wrapper.appendChild(button);
         });
-        const back = createButton("もどる", "is-subtle");
+        const back = createButton("もどる", "move-back-button is-subtle");
+        back.setAttribute("aria-label", "もどる コマンドへ戻る");
         input.attachActionButton(back, "cancel");
         wrapper.appendChild(back);
         panel.appendChild(wrapper);
