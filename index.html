@@ -1686,7 +1686,7 @@ select {
       ".": {
         label: "土",
         passable: true,
-        color: "#c9c08e",
+        color: "#c6bd8a",
       },
       "1": { label: "四天王1", passable: true, color: "#8da5b3" },
       "2": { label: "四天王2", passable: true, color: "#b3948d" },
@@ -1696,23 +1696,23 @@ select {
       "=": {
         label: "道",
         passable: true,
-        color: "#d8bd73",
+        color: "#d2b463",
       },
       "g": {
         label: "草むら",
         passable: true,
-        color: "#718751",
-        overlay: "#566d3a",
+        color: "#6d824d",
+        overlay: "#4e6335",
       },
       "#": {
         label: "林",
         passable: false,
-        color: "#42493a",
+        color: "#3f4938",
       },
       "~": {
         label: "水辺",
         passable: false,
-        color: "#6f8d91",
+        color: "#6d9299",
       },
     },
     typeChart: {
@@ -2480,14 +2480,14 @@ select {
           l: "#f8f0c2",
         },
         rows: [
-          "..ssss..",
+          "..eeee..",
           ".slllds.",
-          ".sdedds.",
+          ".sledds.",
           ".sdddds.",
           "..pppp..",
           "...pp...",
           "..p..p..",
-          "..p..p..",
+          ".p....p.",
         ],
       },
       pickup: {
@@ -2501,10 +2501,10 @@ select {
         rows: [
           "...ss...",
           "..srrs..",
-          ".srhhrs.",
-          ".srhhds.",
-          ".srrdds.",
-          "..sdds..",
+          ".orhhrs.",
+          "orhhhdo.",
+          "orrrddo.",
+          ".sodds.",
           "...dd...",
           "..d..d..",
         ],
@@ -5194,14 +5194,18 @@ select {
       const size = getPatternSpriteSize(sprite);
       const centerX = Math.round(x + size.width / 2);
       const baseY = Math.round(y + size.height - 1);
-      const radiusX = kind === "pickup" ? 3.1 : kind === "sign" ? 3.5 : 4.1;
-      const radiusY = kind === "pickup" ? 1.1 : 1.45;
+      const shadow = {
+        npc: { radiusX: 3.8, radiusY: 1.35, alpha: 0.2 },
+        pickup: { radiusX: 3.1, radiusY: 1.05, alpha: 0.17 },
+        player: { radiusX: 4.2, radiusY: 1.5, alpha: 0.22 },
+        sign: { radiusX: 3.7, radiusY: 1.2, alpha: 0.18 },
+      }[kind] || { radiusX: 4.1, radiusY: 1.45, alpha: 0.2 };
 
       ctx.save();
-      ctx.globalAlpha = kind === "pickup" ? 0.14 : 0.2;
+      ctx.globalAlpha = shadow.alpha;
       ctx.fillStyle = palette.deepest;
       ctx.beginPath();
-      ctx.ellipse(centerX, baseY, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.ellipse(centerX, baseY, shadow.radiusX, shadow.radiusY, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -5217,74 +5221,142 @@ select {
       return { width, height };
     }
 
-    function drawTileAt(left, top, tileCode) {
+    function getTileVariant(tileX, tileY, salt = 0) {
+      return Math.abs(((tileX || 0) * 37 + (tileY || 0) * 53 + salt * 19) % 11);
+    }
+
+    function isWarpLockedForRender(state, event) {
+      if (!event.unlockCondition) {
+        return false;
+      }
+
+      if (event.unlockCondition === "prep_complete") {
+        return !(state.progress && state.progress.prepGateUnlocked);
+      }
+
+      return !(state.progress && state.progress[event.unlockCondition]);
+    }
+
+    function drawTileAt(left, top, tileCode, tileX, tileY) {
       const tile = fieldTiles[tileCode] || fieldTiles["."];
+      const variant = getTileVariant(tileX, tileY);
 
       ctx.fillStyle = tile.color;
       ctx.fillRect(left, top, screen.tileSize, screen.tileSize);
 
       if (tileCode === ".") {
-        ctx.fillStyle = "#d4c99b";
-        ctx.fillRect(left + 1, top + 2, 1, 1);
-        ctx.fillRect(left + 5, top + 5, 1, 1);
-        ctx.fillStyle = "#b9af82";
-        ctx.fillRect(left + 3, top + 7, 2, 1);
+        ctx.fillStyle = "#d6cca0";
+        ctx.fillRect(left + 1 + (variant % 2), top + 2, 1, 1);
+        ctx.fillRect(left + 5, top + 4 + (variant % 3 === 0 ? 1 : 0), 1, 1);
+        ctx.fillStyle = "#b8ad7e";
+        ctx.fillRect(left + 2 + (variant % 4), top + 7, 2, 1);
+        if (variant % 3 === 0) {
+          ctx.fillStyle = "#e0d5a4";
+          ctx.fillRect(left + 6, top + 1, 1, 1);
+        }
       } else if (["1", "2", "3", "4", "c"].includes(tileCode)) {
         ctx.fillStyle = "rgba(248, 244, 215, 0.16)";
         ctx.fillRect(left, top, screen.tileSize, 1);
         ctx.fillRect(left, top, 1, screen.tileSize);
         ctx.fillStyle = "rgba(40, 42, 34, 0.14)";
         ctx.fillRect(left, top + 7, screen.tileSize, 1);
+        ctx.fillStyle = "rgba(248, 244, 215, 0.12)";
+        if ((tileX + tileY) % 2 === 0) {
+          ctx.fillRect(left + 3, top + 3, 2, 1);
+        } else {
+          ctx.fillRect(left + 5, top + 5, 1, 1);
+        }
       } else if (tileCode === "#") {
-        ctx.fillStyle = "#59624a";
+        ctx.fillStyle = "#617050";
         ctx.fillRect(left + 1, top + 1, 2, 2);
-        ctx.fillRect(left + 5, top + 4, 2, 2);
+        ctx.fillRect(left + 5, top + 2 + (variant % 2), 2, 2);
+        ctx.fillStyle = "#4f6043";
+        ctx.fillRect(left, top + 3, screen.tileSize, 2);
         ctx.fillStyle = palette.deepest;
-        ctx.fillRect(left, top, screen.tileSize, 2);
-        ctx.fillRect(left, top + 3, screen.tileSize, 1);
-        ctx.fillStyle = "#2e3328";
-        ctx.fillRect(left + 3, top + 5, 1, 3);
+        ctx.fillRect(left, top, screen.tileSize, 1);
+        ctx.fillRect(left, top + 6, screen.tileSize, 2);
+        ctx.fillStyle = "#2b3429";
+        ctx.fillRect(left + 2 + (variant % 3), top + 4, 1, 3);
+        ctx.fillRect(left + 6, top + 5, 1, 2);
       } else if (tileCode === "~") {
-        ctx.fillStyle = "#d8e0cf";
-        ctx.fillRect(left, top + 1, screen.tileSize, 1);
+        const waveShift = variant % 3;
+        ctx.fillStyle = "#d8e7dd";
+        ctx.fillRect(left + waveShift, top + 1, 4, 1);
         ctx.fillRect(left + 1, top + 4, 3, 1);
-        ctx.fillRect(left + 5, top + 4, 2, 1);
-        ctx.fillStyle = "#84a1a4";
+        ctx.fillStyle = "#8ab3b8";
         ctx.fillRect(left + 2, top + 2, 4, 1);
-        ctx.fillStyle = "#526f75";
+        ctx.fillRect(left + (variant % 2), top + 5, 3, 1);
+        ctx.fillStyle = "#4d7278";
         ctx.fillRect(left, top + 6, screen.tileSize, 1);
+        ctx.fillStyle = "rgba(248, 244, 215, 0.16)";
+        ctx.fillRect(left + 6, top + 3, 1, 1);
       } else if (tileCode === "=") {
-        ctx.fillStyle = "#c8a75e";
+        ctx.fillStyle = "#dfc273";
         ctx.fillRect(left, top + 1, screen.tileSize, 1);
-        ctx.fillRect(left + 2, top + 3, 3, 1);
-        ctx.fillStyle = "#aa8d4b";
+        ctx.fillRect(left + 1 + (variant % 2), top + 3, 4, 1);
+        ctx.fillStyle = "#b8954a";
         ctx.fillRect(left, top + 6, screen.tileSize, 1);
-        ctx.fillRect(left + 5, top + 4, 1, 1);
+        ctx.fillRect(left + 5, top + 4 + (variant % 2), 1, 1);
+        ctx.fillStyle = "rgba(80, 62, 31, 0.14)";
+        ctx.fillRect(left, top + 7, screen.tileSize, 1);
       } else if (tileCode === "g") {
-        ctx.fillStyle = "#566d3a";
-        ctx.fillRect(left, top + 2, screen.tileSize, 4);
+        ctx.fillStyle = "#536b3b";
+        ctx.fillRect(left, top + 2, screen.tileSize, 5);
         ctx.fillStyle = "#d6c478";
         ctx.fillRect(left + 1, top + 1, 1, 1);
-        ctx.fillRect(left + 4, top + 1, 1, 1);
+        ctx.fillRect(left + 4 + (variant % 2), top + 1, 1, 1);
         ctx.fillRect(left + 6, top + 3, 1, 1);
         ctx.fillStyle = "#a7aa64";
         ctx.fillRect(left + 2, top + 2, 1, 1);
         ctx.fillRect(left + 6, top + 5, 1, 1);
-        ctx.fillStyle = "#819158";
+        ctx.fillStyle = "#788b52";
         ctx.fillRect(left + 1, top + 4, 1, 3);
         ctx.fillRect(left + 3, top + 3, 1, 4);
         ctx.fillRect(left + 5, top + 4, 1, 3);
+        ctx.fillStyle = "#3f5430";
+        ctx.fillRect(left + (variant % 4), top + 6, 1, 2);
       }
     }
 
-    function drawGrassOverlayAt(left, top) {
-      ctx.fillStyle = "#455f31";
+    function drawGrassOverlayAt(left, top, tileX, tileY) {
+      const variant = getTileVariant(tileX, tileY, 2);
+      ctx.fillStyle = "#40572f";
       ctx.fillRect(left, top + 4, screen.tileSize, 4);
       ctx.fillStyle = "#d1ba65";
       ctx.fillRect(left + 1, top + 4, 1, 1);
-      ctx.fillRect(left + 3, top + 5, 1, 1);
+      ctx.fillRect(left + 3 + (variant % 2), top + 5, 1, 1);
       ctx.fillRect(left + 5, top + 4, 1, 1);
       ctx.fillRect(left + 6, top + 6, 1, 1);
+      ctx.fillStyle = "#2f4529";
+      ctx.fillRect(left + 2, top + 6, 1, 2);
+      ctx.fillRect(left + 5, top + 5, 1, 3);
+    }
+
+    function drawFieldWarpMarker(state, event, camera) {
+      if (event.kind !== "warp" || event.trigger !== "step") {
+        return;
+      }
+
+      const left = event.x * screen.tileSize - camera.offsetX;
+      const top = event.y * screen.tileSize - camera.offsetY;
+      if (!isVisible(left, top)) {
+        return;
+      }
+
+      const locked = isWarpLockedForRender(state, event);
+      ctx.save();
+      ctx.globalAlpha = locked ? 0.82 : 0.58;
+      ctx.fillStyle = locked ? "#4a2f2a" : palette.captureYellow || "#d8b546";
+      ctx.fillRect(left + 1, top + 6, 6, 1);
+      ctx.fillStyle = locked ? palette.warning || "#9a2e24" : palette.white;
+      ctx.fillRect(left + 2, top + 5, 4, 1);
+      if (locked) {
+        ctx.fillRect(left + 3, top + 2, 1, 3);
+        ctx.fillRect(left + 5, top + 2, 1, 3);
+      } else {
+        ctx.fillRect(left + 3, top + 3, 2, 1);
+      }
+      ctx.restore();
     }
 
     function getBumpOffset(effect) {
@@ -5467,7 +5539,7 @@ select {
     }
 
     function drawField(state) {
-      // 描画順は地形 -> イベント -> プレイヤー -> 草むら前景 -> 歩行エフェクト。
+      // 描画順は地形 -> 出口目印 -> イベント -> プレイヤー -> 草むら前景 -> 歩行エフェクト。
       // 草むらの前景を後描きすることで、プレイヤーの足元が隠れる見た目を作っている。
       clear(palette.light);
       const mapDef = dataRegistry.getMap(state.field.mapId);
@@ -5480,10 +5552,16 @@ select {
           drawTileAt(
             columnIndex * screen.tileSize - camera.offsetX,
             rowIndex * screen.tileSize - camera.offsetY,
-            row[columnIndex]
+            row[columnIndex],
+            columnIndex,
+            rowIndex
           );
         }
       }
+
+      (mapDef.events || []).forEach((event) => {
+        drawFieldWarpMarker(state, event, camera);
+      });
 
       getVisibleFieldEvents(state, mapDef).forEach((event) => {
         const x = event.x * screen.tileSize - camera.offsetX;
@@ -5509,7 +5587,9 @@ select {
           if (row[columnIndex] === "g") {
             drawGrassOverlayAt(
               columnIndex * screen.tileSize - camera.offsetX,
-              rowIndex * screen.tileSize - camera.offsetY
+              rowIndex * screen.tileSize - camera.offsetY,
+              columnIndex,
+              rowIndex
             );
           }
         }
