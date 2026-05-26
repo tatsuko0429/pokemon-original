@@ -1629,6 +1629,26 @@ select {
           { freq: 659.25, ms: 45 },
           { freq: 783.99, ms: 70 },
         ],
+        grass_move: [
+          { freq: 587.33, ms: 36, wave: "triangle", volume: 0.42 },
+          { freq: 783.99, ms: 54, wave: "triangle", volume: 0.38 },
+          { freq: 659.25, ms: 62, wave: "triangle", volume: 0.3 },
+        ],
+        water_move: [
+          { freq: 392, ms: 42, wave: "triangle", volume: 0.38 },
+          { freq: 587.33, ms: 62, wave: "triangle", volume: 0.34 },
+          { freq: 739.99, ms: 74, wave: "triangle", volume: 0.26 },
+        ],
+        steel_move: [
+          { freq: 329.63, ms: 34, wave: "square", volume: 0.44 },
+          { freq: 493.88, ms: 42, wave: "square", volume: 0.38 },
+          { freq: 987.77, ms: 44, wave: "triangle", volume: 0.28 },
+        ],
+        fire_move: [
+          { freq: 392, ms: 34, wave: "sawtooth", volume: 0.38 },
+          { freq: 659.25, ms: 46, wave: "triangle", volume: 0.34 },
+          { freq: 880, ms: 62, wave: "triangle", volume: 0.26 },
+        ],
         hit: [
           { freq: 196, ms: 38, wave: "sawtooth", volume: 0.7 },
           { freq: 130.81, ms: 86, wave: "triangle", volume: 0.5 },
@@ -6154,6 +6174,186 @@ select {
       ctx.fillRect(centerX - length, centerY, length * 2 + 1, 1);
     }
 
+    function getMoveEffectPalette(moveType) {
+      const palettes = {
+        "くさ": {
+          main: "#7fbf75",
+          accent: "#d6c478",
+          dark: "#40572f",
+          soft: "rgba(127, 191, 117, 0.18)",
+        },
+        "みず": {
+          main: "#6fb5dc",
+          accent: "#d8e7dd",
+          dark: "#426f76",
+          soft: "rgba(111, 181, 220, 0.18)",
+        },
+        "こおり": {
+          main: "#bfeeff",
+          accent: "#f8f4d7",
+          dark: "#6fb5dc",
+          soft: "rgba(191, 238, 255, 0.2)",
+        },
+        "はがね": {
+          main: "#b8c0b2",
+          accent: "#f8f4d7",
+          dark: "#59624a",
+          soft: "rgba(184, 192, 178, 0.18)",
+        },
+        "ほのお": {
+          main: "#cf7143",
+          accent: "#d8b546",
+          dark: "#9a3b2c",
+          soft: "rgba(207, 113, 67, 0.18)",
+        },
+      };
+      return palettes[moveType] || {
+        main: palette.warning || "#b14933",
+        accent: palette.white,
+        dark: palette.deepest,
+        soft: "rgba(248, 244, 215, 0.18)",
+      };
+    }
+
+    function drawMoveTypeAccents(animation, position, target, centerY, progress, alpha) {
+      const colors = getMoveEffectPalette(animation.moveType);
+      const direction = target === "enemy" ? 1 : -1;
+      const spread = 7 + progress * 8;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      if (animation.moveType === "くさ") {
+        ctx.fillStyle = colors.main;
+        [-1, 0, 1].forEach((index) => {
+          const x = position.x + index * spread * 0.7;
+          const y = centerY - 8 - Math.sin(progress * Math.PI + index) * 3;
+          ctx.fillRect(Math.round(x), Math.round(y), 2, 1);
+          ctx.fillRect(Math.round(x + direction), Math.round(y + 1), 1, 2);
+        });
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(Math.round(position.x - 1), Math.round(centerY - 12), 2, 1);
+      } else if (animation.moveType === "みず") {
+        ctx.strokeStyle = colors.main;
+        ctx.lineWidth = 1;
+        for (let index = 0; index < 3; index += 1) {
+          const radius = 4 + progress * 9 + index * 2;
+          ctx.beginPath();
+          ctx.ellipse(
+            Math.round(position.x - direction * index * 3),
+            Math.round(centerY + index - 1),
+            radius,
+            Math.max(2, radius * 0.35),
+            -0.18 * direction,
+            Math.PI * 0.08,
+            Math.PI * 1.15
+          );
+          ctx.stroke();
+        }
+      } else if (animation.moveType === "こおり") {
+        ctx.strokeStyle = colors.main;
+        ctx.lineWidth = 1;
+        [-1, 0, 1].forEach((index) => {
+          const x = position.x + index * 6;
+          ctx.beginPath();
+          ctx.moveTo(Math.round(x), Math.round(centerY - 12));
+          ctx.lineTo(Math.round(x + direction * (4 + progress * 3)), Math.round(centerY - 1));
+          ctx.lineTo(Math.round(x - direction * 3), Math.round(centerY + 8));
+          ctx.stroke();
+        });
+      } else if (animation.moveType === "はがね") {
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(position.x - direction * 12), Math.round(centerY - 8));
+        ctx.lineTo(Math.round(position.x + direction * 10), Math.round(centerY + 6));
+        ctx.stroke();
+        drawPixelSparkle(position.x + direction * 10, centerY + 4, 1, colors.accent);
+      } else if (animation.moveType === "ほのお") {
+        ctx.fillStyle = colors.main;
+        ctx.fillRect(Math.round(position.x - 4), Math.round(centerY - 8), 3, 8);
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(Math.round(position.x), Math.round(centerY - 11), 3, 10);
+        ctx.fillStyle = colors.dark;
+        ctx.fillRect(Math.round(position.x + 4), Math.round(centerY - 6), 2, 6);
+      }
+
+      ctx.restore();
+    }
+
+    function drawEffectivenessAccent(animation, position, centerY, progress, alpha) {
+      if (!animation.typeMultiplier || animation.typeMultiplier === 1) {
+        return;
+      }
+
+      const strong = animation.typeMultiplier > 1;
+      const colors = getMoveEffectPalette(animation.moveType);
+      const pulse = Math.sin(progress * Math.PI);
+
+      ctx.save();
+      ctx.globalAlpha = alpha * (strong ? 0.88 : 0.48);
+      ctx.strokeStyle = strong ? colors.accent : "#6d6f63";
+      ctx.lineWidth = strong ? 2 : 1;
+      ctx.beginPath();
+      ctx.ellipse(
+        position.x,
+        centerY,
+        14 + pulse * (strong ? 8 : 3),
+        8 + pulse * (strong ? 5 : 2),
+        -0.08,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+
+      if (strong) {
+        drawPixelSparkle(position.x - 13, centerY - 8, 1, palette.white);
+        drawPixelSparkle(position.x + 14, centerY - 5, 1, colors.accent);
+      } else {
+        ctx.fillStyle = "rgba(32, 34, 27, 0.22)";
+        ctx.fillRect(Math.round(position.x - 8), Math.round(centerY + 7), 16, 2);
+      }
+      ctx.restore();
+    }
+
+    function drawAttackTypeTrail(animation, position, target) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const pulse = Math.sin(progress * Math.PI);
+      if (pulse <= 0) {
+        return;
+      }
+
+      const colors = getMoveEffectPalette(animation.moveType);
+      const direction = target === "player" ? -1 : 1;
+      const centerY = position.y + (target === "enemy" ? 1 : -2);
+
+      ctx.save();
+      ctx.globalAlpha = pulse * 0.82;
+      ctx.fillStyle = colors.soft;
+      ctx.fillRect(
+        Math.round(position.x - 12 + direction * progress * 9),
+        Math.round(centerY - 12),
+        24,
+        19
+      );
+      ctx.strokeStyle = colors.accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(position.x - direction * 10), Math.round(centerY + 6));
+      ctx.lineTo(Math.round(position.x + direction * 12), Math.round(centerY - 5));
+      ctx.stroke();
+      ctx.globalAlpha = pulse * 0.64;
+      ctx.strokeStyle = colors.main;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(position.x - direction * 13), Math.round(centerY + 2));
+      ctx.lineTo(Math.round(position.x + direction * 15), Math.round(centerY - 9));
+      ctx.stroke();
+      drawPixelSparkle(position.x + direction * 14, centerY - 6, 1, colors.accent);
+      drawMoveTypeAccents(animation, position, target, centerY, progress, pulse * 0.7);
+      ctx.restore();
+    }
+
     function drawImpactBurst(animation, position, target) {
       const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
       const burstProgress = progress / 0.72;
@@ -6161,6 +6361,7 @@ select {
         return;
       }
 
+      const colors = getMoveEffectPalette(animation.moveType);
       const alpha = 1 - burstProgress;
       const radius = 5 + burstProgress * 15;
       const angleOffset = target === "enemy" ? -0.18 : 0.28;
@@ -6168,7 +6369,7 @@ select {
 
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = palette.white;
+      ctx.strokeStyle = colors.accent || palette.white;
       ctx.lineWidth = 2;
       ctx.lineCap = "square";
       for (let index = 0; index < 6; index += 1) {
@@ -6187,8 +6388,11 @@ select {
         ctx.stroke();
       }
 
+      drawMoveTypeAccents(animation, position, target, centerY, burstProgress, alpha * 0.86);
+      drawEffectivenessAccent(animation, position, centerY, burstProgress, alpha);
+
       ctx.globalAlpha = alpha * 0.78;
-      ctx.fillStyle = palette.warning;
+      ctx.fillStyle = colors.main || palette.warning;
       ctx.fillRect(Math.round(position.x - 4), Math.round(centerY - 3), 8, 6);
       ctx.restore();
     }
@@ -6204,10 +6408,11 @@ select {
       const drift = progress * 12 * direction;
       const baseX = position.x + drift;
       const baseY = position.y - 5 - progress * 5;
+      const colors = getMoveEffectPalette(animation.moveType);
 
       ctx.save();
       ctx.globalAlpha = alpha * 0.72;
-      ctx.strokeStyle = palette.white;
+      ctx.strokeStyle = colors.accent || palette.white;
       ctx.lineWidth = 2;
       ctx.lineCap = "square";
       for (let index = 0; index < 3; index += 1) {
@@ -6218,7 +6423,7 @@ select {
         ctx.stroke();
       }
       ctx.globalAlpha = alpha * 0.32;
-      ctx.strokeStyle = palette.deepest;
+      ctx.strokeStyle = colors.dark || palette.deepest;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(Math.round(baseX - 9 * direction), Math.round(baseY + 13));
@@ -6307,6 +6512,11 @@ select {
     function drawBattleActionEffects(state, layout) {
       ["enemy", "player"].forEach((target) => {
         const position = getBattleEffectPosition(layout, target);
+        const attack = getBattleActionAnimation(state, "attack", target);
+        if (attack) {
+          drawAttackTypeTrail(attack, position, target);
+        }
+
         const damage = getBattleActionAnimation(state, "damage", target);
         if (damage) {
           drawImpactBurst(damage, position, target);
@@ -7256,6 +7466,9 @@ select {
           target: effect.target,
           fromHp: effect.fromHp,
           toHp: effect.toHp,
+          moveType: effect.moveType || "ノーマル",
+          typeMultiplier:
+            typeof effect.typeMultiplier === "number" ? effect.typeMultiplier : 1,
           elapsedMs: 0,
           durationMs: animationConfig.damage.durationMs,
         };
@@ -7265,6 +7478,7 @@ select {
         return {
           kind: "attack",
           target: effect.target,
+          moveType: effect.moveType || "ノーマル",
           elapsedMs: 0,
           durationMs: attackConfig.durationMs || 180,
         };
@@ -7294,6 +7508,7 @@ select {
         return {
           kind: "miss",
           target: effect.target,
+          moveType: effect.moveType || "ノーマル",
           elapsedMs: 0,
           durationMs: missConfig.durationMs || 300,
         };
@@ -7693,6 +7908,9 @@ select {
           applyBattleClose(state, closeResult);
         });
         input.setActionLock(false, { clearQueue: true });
+        if (closeResult.rewardItem) {
+          audio.playSe("item");
+        }
         openCaptureRecordModal(closeResult);
       }
     }
@@ -7815,7 +8033,14 @@ select {
     }
 
     function getMoveSoundId(move) {
-      return move && move.type === "こおり" ? "ice" : "move";
+      const typeSoundIds = {
+        "くさ": "grass_move",
+        "みず": "water_move",
+        "こおり": "ice",
+        "はがね": "steel_move",
+        "ほのお": "fire_move",
+      };
+      return (move && typeSoundIds[move.type]) || "move";
     }
 
     function buildAttackSequence(
@@ -7848,6 +8073,7 @@ select {
           ? {
               kind: "attack",
               target: hpTargets.attacker,
+              moveType: move.type,
             }
           : null;
       const steps = [
@@ -7893,6 +8119,7 @@ select {
             {
               kind: "miss",
               target: hpTargets.defender,
+              moveType: move.type,
             },
             "miss"
           )
@@ -7979,6 +8206,8 @@ select {
               target: hpTargets.defender,
               fromHp,
               toHp: defender.currentHp,
+              moveType: move.type,
+              typeMultiplier: outcome.typeMultiplier,
             },
             "hit"
           )
@@ -8052,6 +8281,8 @@ select {
             target: hpTargets.defender,
             fromHp,
             toHp: defender.currentHp,
+            moveType: move.type,
+            typeMultiplier: outcome.typeMultiplier,
           },
           "hit"
         )
