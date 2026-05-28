@@ -1712,16 +1712,18 @@ select {
     },
     audio: {
       masterVolume: 0.07,
-      seVolumeMultiplier: 12,
+      seVolumeMultiplier: 24,
+      maxActiveSeTones: 18,
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
           loop: true,
-          volume: 0.07,
+          volume: 0.035,
         },
         field: {
           wave: "square",
           beatMs: 230,
+          volume: 0.035,
           notes: [
             { freq: 392, beats: 1 },
             { freq: 494, beats: 1 },
@@ -1740,7 +1742,7 @@ select {
         battle: {
           src: "./assets/audio/battle-bgm.mp3",
           loop: true,
-          volume: 0.08,
+          volume: 0.04,
         },
       },
       se: {
@@ -4518,6 +4520,14 @@ select {
     const bgmPatterns = (config && config.bgm) || {};
     const sePatterns = (config && config.se) || {};
     const masterVolume = config && config.masterVolume ? config.masterVolume : 0.07;
+    const seVolumeMultiplier = Math.max(
+      1,
+      Math.min(32, (config && config.seVolumeMultiplier) || 1)
+    );
+    const maxActiveSeTones = Math.max(
+      4,
+      Math.min(64, Math.floor((config && config.maxActiveSeTones) || 18))
+    );
     let context = null;
     let masterGain = null;
     let bgmGain = null;
@@ -4529,14 +4539,59 @@ select {
     let bgmTimeoutId = null;
     let activeBgmElement = null;
     let unlockPromise = null;
+    let recoverPromise = null;
     let fadeIntervalId = null;
+    let bgmRetryBlockedUntil = 0;
+    let lifecycleRecoveryBound = false;
     const activeBgmNodes = new Set();
+    const activeSeNodes = new Set();
     const bgmAudioElements = new Map();
 
     function getPatternVolume(pattern) {
       return Math.max(
         0,
         Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume)
+      );
+    }
+
+    function getSynthBgmGain(pattern) {
+      if (!masterVolume) {
+        return 1;
+      }
+      return Math.max(0, Math.min(1, getPatternVolume(pattern) / masterVolume));
+    }
+
+    function isBgmRetryBlocked() {
+      return bgmRetryBlockedUntil > 0 && performance.now() < bgmRetryBlockedUntil;
+    }
+
+    function isDesiredBgmInterrupted() {
+      if (!desiredBgmId) {
+        return false;
+      }
+
+      const pattern = bgmPatterns[desiredBgmId];
+      if (!pattern) {
+        return false;
+      }
+
+      if (currentBgmId !== desiredBgmId) {
+        return true;
+      }
+
+      if (pattern.src) {
+        const element = bgmAudioElements.get(desiredBgmId);
+        return !element || element.paused || element.ended;
+      }
+
+      return Boolean(context && context.state === "running" && activeBgmNodes.size === 0 && !bgmTimeoutId);
+    }
+
+    function hasRecoverableAudioIssue() {
+      return (
+        !unlocked ||
+        Boolean(context && context.state !== "running") ||
+        isDesiredBgmInterrupted()
       );
     }
 
@@ -4565,7 +4620,7 @@ select {
               if (activeBgmElement) {
                 activeBgmElement.volume = getPatternVolume(pattern);
               }
-              if (bgmGain) bgmGain.gain.value = 1.0;
+              if (bgmGain) bgmGain.gain.value = getSynthBgmGain(pattern);
             }
           });
         }
@@ -4614,6 +4669,7 @@ select {
       clearFadeInterval();
       const pattern = bgmPatterns[id];
       const targetVol = getPatternVolume(pattern);
+      const targetSynthGain = getSynthBgmGain(pattern);
       const steps = 10;
       const stepMs = durationMs / steps;
       let currentStep = 0;
@@ -4634,7 +4690,7 @@ select {
           activeBgmElement.volume = Math.min(targetVol, targetVol * ratio);
         }
         if (bgmGain) {
-          bgmGain.gain.value = Math.min(1.0, 1.0 * ratio);
+          bgmGain.gain.value = Math.min(targetSynthGain, targetSynthGain * ratio);
         }
 
         if (currentStep >= steps) {
@@ -4648,6 +4704,15 @@ select {
         return null;
       }
 
+      if (context && context.state === "closed") {
+        activeBgmNodes.clear();
+        activeSeNodes.clear();
+        context = null;
+        masterGain = null;
+        bgmGain = null;
+        seGain = null;
+      }
+
       if (!context) {
         context = new AudioContextCtor();
         masterGain = context.createGain();
@@ -4659,15 +4724,53 @@ select {
         bgmGain.connect(masterGain);
 
         seGain = context.createGain();
-        seGain.gain.value = Math.max(1, (config && config.seVolumeMultiplier) || 1);
+        seGain.gain.value = seVolumeMultiplier;
         seGain.connect(masterGain);
       }
 
       return context;
     }
 
+    async function resumeContext() {
+      const audioContext = ensureContext();
+      if (!audioContext) {
+        return true;
+      }
+
+      if (audioContext.state === "running") {
+        return true;
+      }
+
+      if (audioContext.state === "closed") {
+        return false;
+      }
+
+      try {
+        await audioContext.resume();
+      } catch (error) {
+        return false;
+      }
+
+      return audioContext.state === "running";
+    }
+
     function forgetNode(collection, oscillator) {
       collection.delete(oscillator);
+    }
+
+    function limitCollection(collection, maxCount) {
+      while (collection.size >= maxCount) {
+        const oldest = collection.values().next().value;
+        if (!oldest) {
+          return;
+        }
+        try {
+          oldest.stop();
+        } catch (error) {
+          // stop 済みまたは開始前に停止できないノードは参照だけ外す。
+        }
+        collection.delete(oldest);
+      }
     }
 
     function stopCollection(collection) {
@@ -4707,6 +4810,10 @@ select {
         forgetNode(collection, oscillator);
         gain.disconnect();
       };
+
+      if (collection === activeSeNodes) {
+        limitCollection(collection, maxActiveSeTones);
+      }
 
       collection.add(oscillator);
       oscillator.start(startTime);
@@ -4774,6 +4881,7 @@ select {
 
       try {
         await element.play();
+        bgmRetryBlockedUntil = 0;
         if (desiredBgmId !== id) {
           element.pause();
           element.currentTime = 0;
@@ -4785,7 +4893,7 @@ select {
         if (desiredBgmId === id) {
           currentBgmId = "";
           activeBgmElement = null;
-          unlocked = false;
+          bgmRetryBlockedUntil = performance.now() + 1000;
         }
         return false;
       }
@@ -4808,6 +4916,9 @@ select {
       }
 
       currentBgmId = id;
+      if (bgmGain) {
+        bgmGain.gain.value = getSynthBgmGain(pattern);
+      }
       scheduleBgmLoop(id, bgmLoopToken);
       return true;
     }
@@ -4830,6 +4941,51 @@ select {
       }, Math.max(120, Math.round(durationSeconds * 1000) - 30));
     }
 
+    async function recoverAudioPlayback() {
+      if (!unlocked) {
+        return unlock();
+      }
+
+      if (recoverPromise) {
+        return recoverPromise;
+      }
+
+      recoverPromise = (async () => {
+        bgmRetryBlockedUntil = 0;
+        const contextReady = await resumeContext();
+        if (contextReady) {
+          unlocked = true;
+        }
+
+        if (!contextReady && context) {
+          return false;
+        }
+
+        if (desiredBgmId && isDesiredBgmInterrupted()) {
+          currentBgmId = "";
+          transitionBgm(desiredBgmId, 0);
+        } else if (desiredBgmId) {
+          const pattern = bgmPatterns[desiredBgmId];
+          if (pattern) {
+            if (activeBgmElement) {
+              activeBgmElement.volume = getPatternVolume(pattern);
+            }
+            if (bgmGain) {
+              bgmGain.gain.value = getSynthBgmGain(pattern);
+            }
+          }
+        }
+
+        return true;
+      })();
+
+      try {
+        return await recoverPromise;
+      } finally {
+        recoverPromise = null;
+      }
+    }
+
     async function unlock() {
       if (unlockPromise) {
         return unlockPromise;
@@ -4837,13 +4993,9 @@ select {
 
       unlockPromise = (async () => {
         // iOS/Chromeの自動再生制限対策。ユーザー操作中にHTMLAudioElementのplayも開始しておく。
-        const audioContext = ensureContext();
-        const resumePromise =
-          audioContext && audioContext.state === "suspended"
-            ? audioContext.resume().then(() => true).catch(() => false)
-            : Promise.resolve(true);
-
+        const resumePromise = resumeContext();
         unlocked = true;
+        bgmRetryBlockedUntil = 0;
         if (desiredBgmId && desiredBgmId !== currentBgmId) {
           playBgm(desiredBgmId);
         }
@@ -4870,17 +5022,13 @@ select {
     function bindUserGesture(target) {
       const root = target || window;
       const handler = () => {
-        unlock().then((success) => {
-          if (!success) {
-            return;
-          }
-          root.removeEventListener("pointerdown", handler);
-          root.removeEventListener("pointerup", handler);
-          root.removeEventListener("click", handler);
-          root.removeEventListener("keydown", handler);
-          root.removeEventListener("touchstart", handler);
-          root.removeEventListener("touchend", handler);
-        });
+        if (!unlocked) {
+          unlock();
+          return;
+        }
+        if (hasRecoverableAudioIssue()) {
+          recoverAudioPlayback();
+        }
       };
 
       root.addEventListener("pointerdown", handler, { passive: true });
@@ -4889,6 +5037,25 @@ select {
       root.addEventListener("keydown", handler);
       root.addEventListener("touchstart", handler, { passive: true });
       root.addEventListener("touchend", handler, { passive: true });
+
+      if (!lifecycleRecoveryBound) {
+        lifecycleRecoveryBound = true;
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") {
+            stopCollection(activeSeNodes);
+            return;
+          }
+          recoverAudioPlayback();
+        });
+        window.addEventListener("pageshow", () => {
+          recoverAudioPlayback();
+        });
+        window.addEventListener("focus", () => {
+          if (hasRecoverableAudioIssue()) {
+            recoverAudioPlayback();
+          }
+        });
+      }
     }
 
     function playBgm(id) {
@@ -4907,7 +5074,14 @@ select {
         return;
       }
 
+      if (isBgmRetryBlocked() && currentBgmId !== desiredBgmId) {
+        return;
+      }
+
       if (currentBgmId === desiredBgmId) {
+        if (isDesiredBgmInterrupted()) {
+          recoverAudioPlayback();
+        }
         return;
       }
 
@@ -4927,12 +5101,35 @@ select {
         return;
       }
 
+      if (audioContext.state !== "running") {
+        recoverAudioPlayback().then((success) => {
+          if (success) {
+            playSe(id);
+          }
+        });
+        return;
+      }
+
       let cursor = audioContext.currentTime + 0.01;
       pattern.forEach((note) => {
         const durationSeconds = (note.ms || 70) / 1000;
-        playTone(note, cursor, durationSeconds, note.wave || "square", new Set());
+        playTone(note, cursor, durationSeconds, note.wave || "square", activeSeNodes);
         cursor += durationSeconds * 0.85;
       });
+    }
+
+    function getDebugState() {
+      return {
+        unlocked,
+        contextState: context ? context.state : "",
+        desiredBgmId,
+        currentBgmId,
+        bgmRetryBlocked: isBgmRetryBlocked(),
+        activeBgmElementPaused: activeBgmElement ? activeBgmElement.paused : null,
+        activeSeToneCount: activeSeNodes.size,
+        seVolumeMultiplier,
+        maxActiveSeTones,
+      };
     }
 
     return {
@@ -4940,6 +5137,7 @@ select {
       unlock,
       playBgm,
       playSe,
+      getDebugState,
     };
   }
 
