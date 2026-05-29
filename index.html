@@ -834,10 +834,13 @@ select {
 
 .control-button.dpad-button:active,
 .control-button.dpad-button.is-active {
-  transform: translateY(1px);
+  transform: none;
   background:
     radial-gradient(circle at 42% 28%, rgba(255, 255, 255, 0.08), transparent 30%),
-    linear-gradient(180deg, #262930, #0b0c0d);
+    linear-gradient(180deg, #202227, #08090a);
+  box-shadow:
+    inset 0 4px 6px rgba(0, 0, 0, 0.8),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .control-button.face-button {
@@ -870,6 +873,14 @@ select {
 
 .control-button.face-button[disabled] {
   opacity: 0.42;
+}
+
+.control-button.face-button:active,
+.control-button.face-button.is-active {
+  transform: translateY(4px);
+  box-shadow:
+    0 3px 0 var(--button-shadow),
+    inset 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
 .control-button.system-button {
@@ -2291,13 +2302,9 @@ select {
         primary: "#5c8fa9",
         secondary: "#d5edf7",
       },
-      imageSprites: {
-        battleFront: "./assets/nejimakidori-front.png",
-        battleBack: "./assets/nejimakidori-back.png",
-      },
-      imageSpriteSize: {
-        battleFront: { width: 54, height: 54 },
-        battleBack: { width: 54, height: 54 },
+      spriteIds: {
+        battleFront: "dummy_drop_front",
+        battleBack: "dummy_drop_back",
       },
       shape: "drop",
     },
@@ -2352,13 +2359,9 @@ select {
         primary: "#b36d6d",
         secondary: "#cfc3c3",
       },
-      imageSprites: {
-        battleFront: "./assets/nejimakidori-front.png",
-        battleBack: "./assets/nejimakidori-back.png",
-      },
-      imageSpriteSize: {
-        battleFront: { width: 54, height: 54 },
-        battleBack: { width: 54, height: 54 },
+      spriteIds: {
+        battleFront: "king_front",
+        battleBack: "king_back",
       },
     }
   ];
@@ -2862,6 +2865,112 @@ select {
           "...ccaaaaacc....",
           "...ca....ac.....",
           "..cc......cc....",
+          "................",
+        ],
+      },
+      dummy_drop_front: {
+        scale: 2,
+        palette: {
+          o: "#20221b",
+          w: "#5c8fa9",
+          b: "#d5edf7",
+        },
+        rows: [
+          ".......o........",
+          "......obo.......",
+          "......obo.......",
+          ".....obbbo......",
+          ".....obbbo......",
+          "....obbbbo......",
+          "....owwbbo......",
+          "...owwwbbo......",
+          "...owwwbbbo.....",
+          "..owwwwbbbo.....",
+          "..owwwwbbbo.....",
+          "..owwwwbbbo.....",
+          "...owwwbbo......",
+          "....owwbo.......",
+          ".....ooo........",
+          "................",
+        ],
+      },
+      dummy_drop_back: {
+        scale: 2,
+        palette: {
+          o: "#20221b",
+          w: "#5c8fa9",
+          b: "#d5edf7",
+        },
+        rows: [
+          ".......o........",
+          "......obo.......",
+          "......obo.......",
+          ".....obbbo......",
+          ".....obbbo......",
+          "....obbbbo......",
+          "....owwbbo......",
+          "...owwwbbo......",
+          "...owwwbbo......",
+          "..owwwwbbo......",
+          "..owwwwbbo......",
+          "..owwwwbbo......",
+          "...owwwbbo......",
+          "....owwbo.......",
+          ".....ooo........",
+          "................",
+        ],
+      },
+      king_front: {
+        scale: 2,
+        palette: {
+          o: "#20221b",
+          m: "#b36d6d",
+          g: "#cfc3c3",
+          y: "#d8b546",
+        },
+        rows: [
+          "....y..y..y.....",
+          "....yyyyyyy.....",
+          "....yoyoyoy.....",
+          "....ygggggy.....",
+          "...ogggggggo....",
+          "..ogomooomogo...",
+          "..ogomooomogo...",
+          "..ogommmomogo...",
+          "..oggggggggo...",
+          "...ommmmmmo.....",
+          "....oggggg......",
+          "...ommmmmmo.....",
+          "..omggggggmo....",
+          ".omg......gmo...",
+          ".oo........oo...",
+          "................",
+        ],
+      },
+      king_back: {
+        scale: 2,
+        palette: {
+          o: "#20221b",
+          m: "#b36d6d",
+          g: "#cfc3c3",
+          y: "#d8b546",
+        },
+        rows: [
+          "....y..y..y.....",
+          "....yyyyyyy.....",
+          "....yoyoyoy.....",
+          "....ygggggy.....",
+          "...ogggggggo....",
+          "..ogggggggggo...",
+          "..ogggggggggo...",
+          "..ogggggggggo...",
+          "..oggggggggo...",
+          "...ommmmmmo.....",
+          "....oggggg......",
+          "...ommmmmmo.....",
+          "..omggggggmo....",
+          ".omg......gmo...",
+          ".oo........oo...",
           "................",
         ],
       },
@@ -6301,10 +6410,21 @@ select {
         ctx.ellipse(x, y - 1, 11 + pulse * 8, 7 + pulse * 5, 0, 0, Math.PI * 2);
         ctx.stroke();
         if (ballState.phase === "complete") {
-          ctx.globalAlpha = 0.72 * (1 - progress);
+          ctx.globalAlpha = 0.85 * (1 - progress);
           drawPixelSparkle(x - 14, y - 9, 2, palette.white);
           drawPixelSparkle(x + 15, y - 7, 1, palette.captureYellow || "#d8b546");
           drawPixelSparkle(x + 2, y - 15, 1, palette.white);
+
+          const sparkleCount = 8;
+          const radius = 6 + progress * 24;
+          for (let i = 0; i < sparkleCount; i++) {
+            const angle = (i * Math.PI * 2) / sparkleCount + (progress * 1.5);
+            const sx = x + Math.cos(angle) * radius;
+            const sy = y - 1 + Math.sin(angle) * (radius * 0.7);
+            const color = i % 2 === 0 ? palette.white : (palette.captureYellow || "#d8b546");
+            const size = i % 3 === 0 ? 2 : 1;
+            drawPixelSparkle(sx, sy, size, color);
+          }
         }
       }
       ctx.restore();
@@ -6907,7 +7027,27 @@ select {
     function drawBattle(state) {
       // 戦闘画面はcanvasに背景とモンスターだけを描き、HP表示はDOMのbattle-overlayへ任せる。
       const layout = getBattleLayout();
+      
+      let shakeX = 0;
+      let shakeY = 0;
+      const animation = state.battle && state.battle.animation;
+      if (animation && animation.kind === "damage") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress < 0.6) {
+          const dmg = Math.max(1, animation.fromHp - animation.toHp);
+          const intensity = Math.min(6, 1.5 + (dmg * 0.15)) * (1 - progress);
+          shakeX = Math.sin(animation.elapsedMs * 0.05) * intensity;
+          shakeY = Math.cos(animation.elapsedMs * 0.06) * intensity;
+        }
+      }
+
       clear(palette.battleBg || "#ded7bf");
+
+      ctx.save();
+      if (shakeX !== 0 || shakeY !== 0) {
+        ctx.translate(shakeX, shakeY);
+      }
+
       drawBattleBackdrop(layout);
       drawBattleShadow(layout.enemy);
       drawBattleShadow(layout.player);
@@ -6952,6 +7092,8 @@ select {
       drawBattleActionEffects(state, layout);
 
       drawCaptureBall(state);
+
+      ctx.restore();
     }
 
     function drawTransitionOverlay(state) {
