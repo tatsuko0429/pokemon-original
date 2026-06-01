@@ -1699,6 +1699,9 @@ select {
       exp: {
         durationMs: 620,
       },
+      result: {
+        durationMs: 560,
+      },
       ball: {
         durationMs: 520,
         throwDurationMs: 540,
@@ -1835,6 +1838,12 @@ select {
           { freq: 783.99, ms: 48, wave: "triangle", volume: 0.48 },
           { freq: 1046.5, ms: 70, wave: "triangle", volume: 0.34 },
         ],
+        victory: [
+          { freq: 523.25, ms: 46, wave: "triangle", volume: 0.48 },
+          { freq: 659.25, ms: 52, wave: "triangle", volume: 0.48 },
+          { freq: 783.99, ms: 58, wave: "triangle", volume: 0.44 },
+          { freq: 1046.5, ms: 110, wave: "triangle", volume: 0.38 },
+        ],
         item: [
           { freq: 783.99, ms: 52, wave: "triangle", volume: 0.5 },
           { freq: 987.77, ms: 54, wave: "triangle", volume: 0.46 },
@@ -1902,7 +1911,8 @@ select {
         level_up: [
           { freq: 659.25, ms: 50, wave: "triangle", volume: 0.44 },
           { freq: 783.99, ms: 56, wave: "triangle", volume: 0.42 },
-          { freq: 987.77, ms: 90, wave: "triangle", volume: 0.36 },
+          { freq: 987.77, ms: 72, wave: "triangle", volume: 0.4 },
+          { freq: 1318.51, ms: 120, wave: "triangle", volume: 0.32 },
         ],
         run: [
           { freq: 440, ms: 50 },
@@ -6471,6 +6481,15 @@ select {
         ctx.globalAlpha = Math.max(0, 0.48 - progress * 0.28);
         drawPixelSparkle(x - 12, y - 8, 1, palette.white);
         drawPixelSparkle(x + 13, y - 4, 1, palette.captureYellow || "#d8b546");
+        ctx.globalAlpha = Math.max(0, 0.42 - progress * 0.18);
+        ctx.strokeStyle = palette.warning || "#b14933";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x - 15), Math.round(y - 12));
+        ctx.lineTo(Math.round(x - 8), Math.round(y - 6));
+        ctx.moveTo(Math.round(x + 14), Math.round(y - 10));
+        ctx.lineTo(Math.round(x + 7), Math.round(y - 4));
+        ctx.stroke();
       } else if (ballState.phase === "lock" || ballState.phase === "complete") {
         const pulse = Math.sin(progress * Math.PI);
         ctx.globalAlpha = 0.18 + pulse * 0.26;
@@ -7064,6 +7083,96 @@ select {
       ctx.restore();
     }
 
+    function getResultEffectColors(variant) {
+      if (variant === "level") {
+        return {
+          main: "#f8f4d7",
+          accent: palette.captureYellow || "#d8b546",
+          shadow: "#7fbf75",
+        };
+      }
+
+      if (variant === "reward") {
+        return {
+          main: palette.white,
+          accent: "#9b6de8",
+          shadow: palette.captureYellow || "#d8b546",
+        };
+      }
+
+      if (variant === "capture") {
+        return {
+          main: palette.white,
+          accent: palette.captureYellow || "#d8b546",
+          shadow: "#7fbf75",
+        };
+      }
+
+      return {
+        main: palette.white,
+        accent: palette.captureYellow || "#d8b546",
+        shadow: "#6fb5dc",
+      };
+    }
+
+    function drawResultBurst(animation, layout) {
+      const progress = clamp(animation.elapsedMs / animation.durationMs, 0, 1);
+      const pulse = Math.sin(progress * Math.PI);
+      if (pulse <= 0) {
+        return;
+      }
+
+      const colors = getResultEffectColors(animation.variant);
+      const target = animation.target || "player";
+      const slot = target === "center"
+        ? { monsterX: screen.width / 2, monsterY: 58, shadowY: 91 }
+        : layout[target] || layout.player;
+      const centerX = slot.monsterX;
+      const centerY = slot.monsterY + (target === "enemy" ? 4 : -2);
+      const radius = 8 + progress * 25;
+      const sparkleCount = animation.variant === "reward" ? 7 : 9;
+
+      ctx.save();
+      ctx.globalAlpha = 0.16 + pulse * 0.24;
+      ctx.fillStyle = colors.shadow;
+      ctx.beginPath();
+      ctx.ellipse(centerX, slot.shadowY || centerY + 22, 26 + pulse * 7, 7 + pulse * 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = pulse * 0.72;
+      ctx.strokeStyle = colors.accent;
+      ctx.lineWidth = animation.variant === "reward" ? 2 : 1;
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, radius, radius * 0.62, -0.1, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (let index = 0; index < sparkleCount; index += 1) {
+        const angle = (Math.PI * 2 * index) / sparkleCount + progress * 1.4;
+        const localRadius = radius + (index % 2) * 5;
+        const x = centerX + Math.cos(angle) * localRadius;
+        const y = centerY + Math.sin(angle) * localRadius * 0.72;
+        const size = index % 3 === 0 ? 2 : 1;
+        ctx.globalAlpha = pulse * (index % 2 === 0 ? 0.94 : 0.7);
+        drawPixelSparkle(x, y, size, index % 2 === 0 ? colors.main : colors.accent);
+      }
+
+      if (animation.variant === "reward") {
+        ctx.globalAlpha = pulse * 0.9;
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(Math.round(centerX - 4), Math.round(centerY - 13), 8, 7);
+        ctx.fillStyle = colors.main;
+        ctx.fillRect(Math.round(centerX - 2), Math.round(centerY - 15), 4, 11);
+        ctx.fillRect(Math.round(centerX - 6), Math.round(centerY - 11), 12, 2);
+      } else if (animation.variant === "level") {
+        ctx.globalAlpha = pulse * 0.86;
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(Math.round(centerX - 1), Math.round(centerY - 19 - progress * 4), 2, 14);
+        ctx.fillRect(Math.round(centerX - 6), Math.round(centerY - 14 - progress * 4), 12, 2);
+      }
+
+      ctx.restore();
+    }
+
     function drawBattleActionEffects(state, layout) {
       ["enemy", "player"].forEach((target) => {
         const position = getBattleEffectPosition(layout, target);
@@ -7091,6 +7200,11 @@ select {
       const exp = getBattleActionAnimation(state, "exp");
       if (exp) {
         drawExpSparkles(exp, getBattleEffectPosition(layout, "player"));
+      }
+
+      const result = getBattleActionAnimation(state, "result");
+      if (result) {
+        drawResultBurst(result, layout);
       }
     }
 
@@ -7981,6 +8095,7 @@ select {
     const attackConfig = animationConfig.attack || {};
     const missConfig = animationConfig.miss || {};
     const expConfig = animationConfig.exp || {};
+    const resultConfig = animationConfig.result || {};
     const battleConfig = App.config.game.battle || {};
 
     function getPlayerMonster(state) {
@@ -8013,6 +8128,26 @@ select {
         toExp: Math.min(needed, fromExp + expGained),
         requiredExp: needed,
       };
+    }
+
+    function createResultEffect(variant, target) {
+      return {
+        kind: "result",
+        variant,
+        target: target || "player",
+      };
+    }
+
+    function getLevelAfterExp(monster, expGained) {
+      let nextLevel = monster.level;
+      let nextExp = (monster.exp || 0) + expGained;
+
+      while (nextExp >= requiredExp(nextLevel)) {
+        nextExp -= requiredExp(nextLevel);
+        nextLevel += 1;
+      }
+
+      return nextLevel;
     }
 
     function applyExpGain(monster, expGained) {
@@ -8153,6 +8288,16 @@ select {
           requiredExp: effect.requiredExp || 1,
           elapsedMs: 0,
           durationMs: expConfig.durationMs || 620,
+        };
+      }
+
+      if (effect.kind === "result") {
+        return {
+          kind: "result",
+          variant: effect.variant || "victory",
+          target: effect.target || "player",
+          elapsedMs: 0,
+          durationMs: effect.durationMs || resultConfig.durationMs || 560,
         };
       }
 
@@ -8308,6 +8453,7 @@ select {
           },
           messageElapsedMs: 0,
           captureBall: null,
+          pendingCloseResult: null,
           enemy: enemyMonster,
           isTrainerBattle: isTrainer,
           trainerInfo: isTrainer ? context : null,
@@ -8446,14 +8592,23 @@ select {
         return null;
       }
 
+      if (state.battle.nextPhase === "field_close") {
+        const closeResult = state.battle.pendingCloseResult || { message: "" };
+        state.battle.pendingCloseResult = null;
+        return closeResult;
+      }
+
       if (state.battle.nextPhase === "field_victory") {
         const playerMonster = getPlayerMonster(state);
         const enemyMonster = state.battle.enemy;
+        const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
         const expGained =
           typeof state.battle.pendingExpGain === "number"
             ? state.battle.pendingExpGain
             : enemyMonster.level * 15;
+        const nextLevel = getLevelAfterExp(playerMonster, expGained);
         const leveledUp = applyExpGain(playerMonster, expGained);
+        state.battle.display.playerExp = playerMonster.exp || 0;
 
         let message;
         let gameCleared = false;
@@ -8467,31 +8622,67 @@ select {
           }
         } else {
           message = leveledUp
-            ? `戦闘に勝利した！\nレベルが ${playerMonster.level} に上がった！`
-            : "戦闘が終わり、ひと息つきました。";
-        }
-        if (leveledUp) {
-          audio.playSe("level_up");
+            ? `戦闘に勝利した！\n${playerSpecies.name} は Lv${playerMonster.level} に上がった！`
+            : "戦闘に勝利した！";
         }
 
         const rewardItem =
           (state.battle.isTrainerBattle && state.battle.trainerInfo && state.battle.trainerInfo.rewardItem) ||
           (state.timeAttack.active ? "full_heal" : null);
 
-        return { 
+        if (leveledUp && state.battle.isTrainerBattle) {
+          message += `\n${playerSpecies.name} は Lv${playerMonster.level} に上がった！`;
+        }
+
+        const closeResult = {
           message,
           rewardItem,
           gameCleared,
+          rewardFeedbackPlayed: Boolean(rewardItem),
         };
+        const resultSteps = [
+          createStep("戦闘に勝利した！", createResultEffect("victory", "player"), "victory"),
+        ];
+
+        if (leveledUp) {
+          resultSteps.push(
+            createStep(
+              `${playerSpecies.name} は Lv${nextLevel} に上がった！`,
+              createResultEffect("level", "player"),
+              "level_up"
+            )
+          );
+        }
+
+        if (rewardItem) {
+          resultSteps.push(
+            createStep(
+              "報酬を 受け取った！",
+              createResultEffect("reward", "player"),
+              "item"
+            )
+          );
+        }
+
+        state.battle.pendingCloseResult = closeResult;
+        startSequence(state, resultSteps, "field_close");
+        return null;
       }
 
       if (state.battle.nextPhase === "field_capture") {
-        return {
+        const closeResult = {
           message: "つかまえた相手と 手持ちを入れ替えた！",
           capturedSpeciesId: state.battle.enemy.speciesId,
           capturedLevel: state.battle.enemy.level,
           capturedMonster: state.battle.enemy,
         };
+        state.battle.pendingCloseResult = closeResult;
+        startSequence(
+          state,
+          [createStep("手持ちに迎えた！", createResultEffect("capture", "player"), "capture")],
+          "field_close"
+        );
+        return null;
       }
 
       if (state.battle.nextPhase === "field_run") {
@@ -8539,7 +8730,7 @@ select {
           applyBattleClose(state, closeResult);
         });
         input.setActionLock(false, { clearQueue: true });
-        if (closeResult.rewardItem) {
+        if (closeResult.rewardItem && !closeResult.rewardFeedbackPlayed) {
           audio.playSe("item");
         }
         openCaptureRecordModal(closeResult);
@@ -9485,6 +9676,11 @@ select {
           animation.fromExp + (animation.toExp - animation.fromExp) * eased;
         if (progress >= 1) {
           state.battle.display.playerExp = animation.toExp;
+          state.battle.animation = null;
+        }
+      } else if (animation.kind === "result") {
+        const progress = Math.min(1, animation.elapsedMs / animation.durationMs);
+        if (progress >= 1) {
           state.battle.animation = null;
         }
       } else if (animation.kind === "ball") {
