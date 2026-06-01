@@ -2098,6 +2098,35 @@ select {
       effect: "damage",
     },
     {
+      id: "water_breath_forms",
+      name: "みずのこきゅ○",
+      type: "みず",
+      power: 42,
+      accuracy: 100,
+      pp: 15,
+      effect: "water_forms",
+      forms: [
+        { label: "壱ノ型(いちのかた)", power: 28, weight: 28 },
+        { label: "弐ノ型(にのかた)", power: 36, weight: 24 },
+        { label: "参ノ型(さんのかた)", power: 44, weight: 20 },
+        { label: "肆ノ型(しのかた)", power: 52, weight: 14 },
+        { label: "伍ノ型(ごのかた)", power: 62, weight: 8 },
+        { label: "陸ノ型(ろくのかた)", power: 74, weight: 4 },
+        { label: "漆ノ型(しちのかた)", power: 90, weight: 2 },
+      ],
+    },
+    {
+      id: "swimming",
+      name: "スイミング",
+      type: "みず",
+      power: 0,
+      accuracy: 100,
+      pp: 5,
+      effect: "swimming_regen",
+      healTurns: 4,
+      healRatio: 0.12,
+    },
+    {
       id: "gear_change",
       name: "ギアチェンジ",
       type: "はがね",
@@ -2343,6 +2372,40 @@ select {
       },
     },
     {
+      id: "frostl",
+      name: "フロストル",
+      types: ["みず"],
+      stats: {
+        hp: 26,
+        attack: 12,
+        defense: 13,
+        speed: 15,
+        special: 16,
+      },
+      catchRate: 135,
+      defaultMoveIds: ["water_breath_forms", "swimming"],
+      palette: {
+        primary: "#4d83b8",
+        secondary: "#d8f4ff",
+      },
+      imageSprites: {
+        battleFront: "./assets/frostl-front.svg",
+        battleBack: "./assets/frostl-back.svg",
+      },
+      imageSpriteSize: {
+        battleFront: { height: 54 },
+        battleBack: { height: 54 },
+      },
+      partyPreview: {
+        view: "front",
+        imageMaxHeight: 150,
+      },
+      battleOffset: {
+        enemy: { x: 0, y: 1 },
+        player: { x: 0, y: 2 },
+      },
+    },
+    {
       id: "king",
       name: "キング",
       types: ["ノーマル", "はがね"],
@@ -2405,6 +2468,11 @@ select {
         },
         {
           speciesId: "tsolf",
+          level: 5,
+          weight: 18,
+        },
+        {
+          speciesId: "frostl",
           level: 5,
           weight: 18,
         },
@@ -4134,10 +4202,12 @@ select {
       const typeMultiplier = getTypeMultiplier(move.type, defenderSpecies.types);
       const randomFactor = 217 + random.integer(0, 38, "damage_roll");
       const multiplier = settings.damageMultiplier || 1;
+      const movePower =
+        typeof settings.powerOverride === "number" ? settings.powerOverride : move.power;
       
       const base =
         Math.floor(
-          (((2 * attacker.level) / 5 + 2) * move.power * attackStat * multiplier) / Math.max(1, defenseStat)
+          (((2 * attacker.level) / 5 + 2) * movePower * attackStat * multiplier) / Math.max(1, defenseStat)
         ) /
           50 +
         2;
@@ -7292,6 +7362,10 @@ select {
           return "まれに大きなダメージを与える。";
         case "ice_wall":
           return "攻撃を軽減し、少しはね返す。";
+        case "water_forms":
+          return "型が変わる水の連続技。";
+        case "swimming_regen":
+          return "数ターン少しずつ回復する。";
         default:
           return "";
       }
@@ -7979,6 +8053,9 @@ select {
         return;
       }
       delete monster.iceWallTurns;
+      delete monster.swimmingTurns;
+      delete monster.swimmingJustStarted;
+      delete monster.swimmingHealRatio;
     }
 
     function getMessageAutoAdvanceMs(text) {
@@ -8510,11 +8587,11 @@ select {
 
       const healMoveId = usableMoveIds.find((moveId) => {
         const move = dataRegistry.getMove(moveId);
-        return move && move.effect === "random_heal";
+        return move && (move.effect === "random_heal" || move.effect === "swimming_regen");
       });
       const attackMoveIds = usableMoveIds.filter((moveId) => {
         const move = dataRegistry.getMove(moveId);
-        return move && move.effect !== "random_heal";
+        return move && move.effect !== "random_heal" && move.effect !== "swimming_regen";
       });
       const hpRatio = enemyMonster.currentHp / Math.max(1, enemyMonster.maxHp);
 
@@ -8529,6 +8606,64 @@ select {
       }
 
       return attackMoveIds[0] || healMoveId || usableMoveIds[0];
+    }
+
+    function chooseWeightedWaterForm(move) {
+      const forms = Array.isArray(move.forms) ? move.forms : [];
+      const totalWeight = forms.reduce((total, form) => total + Math.max(0, form.weight || 0), 0);
+      if (!forms.length || totalWeight <= 0) {
+        return {
+          label: "参ノ型(さんのかた)",
+          power: move.power || 42,
+        };
+      }
+
+      let cursor = random.range(0, totalWeight, `${move.id}_form`);
+      for (const form of forms) {
+        cursor -= Math.max(0, form.weight || 0);
+        if (cursor <= 0) {
+          return form;
+        }
+      }
+      return forms[forms.length - 1];
+    }
+
+    function appendSwimmingRegenStep(steps, monster, label, target) {
+      if (!monster || !monster.swimmingTurns) {
+        return;
+      }
+
+      if (monster.swimmingJustStarted) {
+        delete monster.swimmingJustStarted;
+        return;
+      }
+
+      const fromHp = monster.currentHp;
+      const healRatio = monster.swimmingHealRatio || 0.12;
+      const healAmount = Math.max(1, Math.round(monster.maxHp * healRatio));
+      monster.currentHp = Math.min(monster.maxHp, monster.currentHp + healAmount);
+      monster.swimmingTurns -= 1;
+
+      if (monster.currentHp > fromHp) {
+        steps.push(
+          createStep(
+            `${label} は 水の流れで ${monster.currentHp - fromHp} HP かいふくした！`,
+            {
+              kind: "heal",
+              target,
+              fromHp,
+              toHp: monster.currentHp,
+            },
+            "heal"
+          )
+        );
+      }
+
+      if (monster.swimmingTurns <= 0) {
+        delete monster.swimmingTurns;
+        delete monster.swimmingHealRatio;
+        steps.push(createStep(`${label}の スイミングが おさまった。`));
+      }
     }
 
     function createIceWallResult(attacker, defender, damage) {
@@ -8659,6 +8794,25 @@ select {
         return { steps, defeated: false, attackerDefeated: false };
       }
 
+      if (move.effect === "swimming_regen") {
+        attacker.swimmingTurns = move.healTurns || 4;
+        attacker.swimmingHealRatio = move.healRatio || 0.12;
+        attacker.swimmingJustStarted = true;
+        steps.push(
+          createStep(
+            `${attackerLabel}は 水の流れに のった！`,
+            {
+              kind: "heal",
+              target: hpTargets.attacker,
+              fromHp: attacker.currentHp,
+              toHp: attacker.currentHp,
+            },
+            "water_move"
+          )
+        );
+        return { steps, defeated: false };
+      }
+
       if (move.effect === "damage_boost") {
         attacker.nextDamageBoost = 2;
         steps.push(createStep(`${attackerLabel}は 筋肉を いじめぬいている！`));
@@ -8781,6 +8935,53 @@ select {
         };
       }
 
+      if (move.effect === "water_forms") {
+        const damageMultiplier = attacker.nextDamageBoost || 1;
+        attacker.nextDamageBoost = 1;
+        if (damageMultiplier > 1) {
+          steps.push(createStep("きんとれの せいかが はっきされた！"));
+        }
+
+        const form = chooseWeightedWaterForm(move);
+        steps.push(createStep(`${form.label}！`));
+
+        const fromHp = defender.currentHp;
+        const outcome = dataRegistry.computeDamage(attacker, defender, move.id, {
+          damageMultiplier,
+          powerOverride: form.power || move.power,
+        });
+        const wallResult = createIceWallResult(attacker, defender, outcome.damage);
+        defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
+
+        steps.push(
+          createStep(
+            `${defenderLabel} に ${wallResult.damage} ダメージ！`,
+            {
+              kind: "damage",
+              target: hpTargets.defender,
+              fromHp,
+              toHp: defender.currentHp,
+              moveType: move.type,
+              typeMultiplier: outcome.typeMultiplier,
+            },
+            "hit"
+          )
+        );
+        appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+
+        if (outcome.typeMultiplier > 1) {
+          steps.push(createStep("効果は 非常に大きい！"));
+        } else if (outcome.typeMultiplier < 1) {
+          steps.push(createStep("効果は あまりないようだ。"));
+        }
+
+        return {
+          steps,
+          defeated: defender.currentHp <= 0,
+          attackerDefeated: attacker.currentHp <= 0,
+        };
+      }
+
       if (move.effect === "chance_full_heal") {
         attacker.nextDamageBoost = 1;
         const activated = random.chance(0.6, `${move.id}_trigger`);
@@ -8863,6 +9064,7 @@ select {
       const playerSpecies = dataRegistry.getSpecies(playerMonster.speciesId);
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const enemyMoveId = chooseEnemyMoveId(enemyMonster);
+      appendSwimmingRegenStep(steps, playerMonster, playerSpecies.name, "player");
 
       // 敵の溜め技継続時はPP消費をスキップ
       const isChagingContinuation = enemyMonster.charging === enemyMoveId;
@@ -8923,6 +9125,7 @@ select {
         return;
       }
 
+      appendSwimmingRegenStep(steps, enemyMonster, `やせいの ${enemySpecies.name}`, "enemy");
       startSequence(state, steps, "command");
     }
 
