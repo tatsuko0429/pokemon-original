@@ -819,7 +819,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("キャプチャーボール: 使い放題" in inventory_state["modalLines"], "アイテム画面にボール使い放題の説明が表示されていません。")
         expect("パーフェクトボール: 0 個" in inventory_state["modalLines"], "アイテム画面にパーフェクトボール数が表示されていません。")
         expect("回復薬: 0 個" in inventory_state["modalLines"], "アイテム画面に回復薬数が表示されていません。")
-        expect("拾ったもの: 0/1" in inventory_state["modalLines"], "アイテム画面に拾得記録が表示されていません。")
+        expect("拾ったもの: 0/2" in inventory_state["modalLines"], "アイテム画面に拾得記録が表示されていません。")
         expect("回復薬を使う" not in inventory_state["modalButtons"], "回復薬がないのに使用ボタンが表示されています。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
@@ -968,6 +968,15 @@ async def run_smoke_test(base_url: str) -> None:
               .find((button) => button.textContent === "アイテム").click()"""
         )
         await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "回復薬" && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "回復薬").click()"""
+        )
+        await page.waitForFunction(
             """() => window.MonsterPrototype.runtime.store.snapshot().battle.currentMessage.includes("回復薬を つかった！")""",
             {"timeout": 1200},
         )
@@ -998,10 +1007,13 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "ボール" && !button.disabled)""",
             {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
         )
-        await page.waitForFunction(
+        no_direct_master_button = await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")]
-              .some((button) => button.textContent === "Pボール" && !button.disabled)""",
-            {"timeout": 1200},
+              .every((button) => button.textContent !== "Pボール")"""
+        )
+        expect(
+            no_direct_master_button,
+            "パーフェクトボールがトップレベルの戦闘コマンドとして表示されています。",
         )
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "たたかう").click()"""
@@ -1028,10 +1040,6 @@ async def run_smoke_test(base_url: str) -> None:
             """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "ボール")""",
             {"timeout": 4000},
         )
-        await page.waitForFunction(
-            """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "Pボール")""",
-            {"timeout": 4000},
-        )
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;
@@ -1045,7 +1053,17 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         await page.evaluate(
-            """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "Pボール").click()"""
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "アイテム").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "Pボール" && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "Pボール").click()"""
         )
         await page.waitForFunction(
             """() => {
@@ -1215,8 +1233,54 @@ async def run_smoke_test(base_url: str) -> None:
         pickup_menu_state = await read_field_state(page)
         expect("パーフェクトボール: 1 個" in pickup_menu_state["modalLines"], "アイテム画面のパーフェクトボール数が更新されていません。")
         expect("回復薬: 0 個" in pickup_menu_state["modalLines"], "拾得物で回復薬数が増えています。")
-        expect("拾ったもの: 1/1" in pickup_menu_state["modalLines"], "アイテム画面の拾得記録が更新されていません。")
+        expect("拾ったもの: 1/2" in pickup_menu_state["modalLines"], "アイテム画面の拾得記録が更新されていません。")
         await click_modal_button(page, "メニューへ")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "閉じる")
+        await asyncio.sleep(0.2)
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.field.player.x = 22;
+              state.field.player.y = 16;
+              state.field.player.fromX = 22;
+              state.field.player.fromY = 16;
+              state.field.player.toX = 22;
+              state.field.player.toY = 16;
+              state.field.player.direction = "down";
+              state.field.player.moving = false;
+              state.field.player.progress = 0;
+              state.field.message = "";
+            })"""
+        )
+
+        full_heals_before_pickup = pickup_state["state"]["inventory"]["fullHealCount"]
+        await press(page, "Enter")
+        await asyncio.sleep(0.2)
+        heal_pickup_state = await read_field_state(page)
+        expect("回復薬を みつけた！" in heal_pickup_state["message"], "回復薬の拾得メッセージが表示されていません。")
+        expect(
+            heal_pickup_state["state"]["inventory"]["fullHealCount"] == full_heals_before_pickup + 1,
+            "拾得物で回復薬数が増えていません。",
+        )
+        expect(
+            "route_heal_pickup" in heal_pickup_state["state"]["progress"]["resolvedEventIds"],
+            "回復薬の拾得済みイベントが記録されていません。",
+        )
+
+        await press(page, "Enter")
+        await asyncio.sleep(0.2)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "アイテム")
+        await asyncio.sleep(0.2)
+        both_pickup_menu_state = await read_field_state(page)
+        expect("パーフェクトボール: 1 個" in both_pickup_menu_state["modalLines"], "アイテム画面のパーフェクトボール数が維持されていません。")
+        expect("回復薬: 1 個" in both_pickup_menu_state["modalLines"], "アイテム画面の回復薬数が更新されていません。")
+        expect("拾ったもの: 2/2" in both_pickup_menu_state["modalLines"], "2つの拾得記録が表示されていません。")
+        await click_modal_button(page, "メニューへ")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "閉じる")
         await asyncio.sleep(0.2)
 
         await page.evaluate(
