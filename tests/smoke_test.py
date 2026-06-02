@@ -147,6 +147,18 @@ def expect(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+async def read_recent_se_ids(page):
+    return await page.evaluate(
+        """() => window.MonsterPrototype.runtime.audio.getDebugState().recentSeIds || []"""
+    )
+
+
+async def clear_recent_se_ids(page) -> None:
+    await page.evaluate(
+        """() => window.MonsterPrototype.runtime.audio.clearDebugHistory()"""
+    )
+
+
 async def wait_for_caption(page, expected: str) -> None:
     await page.waitForFunction(
         """(caption) => {
@@ -362,11 +374,12 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(audio_state["config"]["seVolumeMultiplier"] == 24, "SE音量倍率が想定値ではありません。")
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
-        expect(abs(audio_state["config"]["firstGrassVolume"] - 0.035) < 0.0001, "草むらBGM音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["fieldVolume"] - 0.035) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["battleVolume"] - 0.04) < 0.0001, "戦闘BGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["firstGrassVolume"] - 0.0175) < 0.0001, "草むらBGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["fieldVolume"] - 0.0175) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["battleVolume"] - 0.02) < 0.0001, "戦闘BGM音量が想定値ではありません。")
         expect(audio_state["debug"]["unlocked"], "初回操作後に音声アンロック状態へ移行していません。")
         expect(audio_state["debug"]["desiredBgmId"] == "first_grass", "BGMの要求状態が初期マップBGMになっていません。")
+        expect("confirm" in audio_state["debug"]["recentSeIds"], "ボタン決定SEが再生履歴に残っていません。")
         expect(
             audio_state["debug"]["activeSeToneCount"] <= audio_state["config"]["maxActiveSeTones"],
             "SE同時発音上限が効いていません。",
@@ -963,6 +976,7 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "アイテム" && !button.disabled)""",
             {"timeout": 1200},
         )
+        await clear_recent_se_ids(page)
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")]
               .find((button) => button.textContent === "アイテム").click()"""
@@ -994,6 +1008,9 @@ async def run_smoke_test(base_url: str) -> None:
         expect(battle_item_state["itemCount"] == 0, "戦闘中に回復薬数が減っていません。")
         expect(battle_item_state["playerHp"] == battle_item_state["playerMaxHp"], "戦闘中の回復薬でHPが全回復していません。")
         expect("回復薬を つかった！" in battle_item_state["message"], "戦闘中の回復薬メッセージが表示されていません。")
+        heal_audio_ids = await read_recent_se_ids(page)
+        expect("confirm" in heal_audio_ids, "戦闘アイテム操作のボタン決定SEが再生されていません。")
+        expect("heal" in heal_audio_ids, "戦闘中の回復薬SEが再生されていません。")
         await page.evaluate(
             """() => {
               if (typeof window.__battleMessageAutoAdvanceMs === "number") {
@@ -1034,12 +1051,124 @@ async def run_smoke_test(base_url: str) -> None:
         expect(any("PP" in entry["meta"] for entry in move_ui_state), "技ボタン内にPPが表示されていません。")
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
         await page.evaluate(
-            """() => [...document.querySelectorAll("#action-panel button")].find((button) => button.textContent === "もどる").click()"""
+            """() => {
+              window.__battleSoundMessageAutoAdvanceMs = window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 99999;
+            }"""
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll(".move-button")]
+                .find((candidate) => !candidate.disabled);
+              if (!button) {
+                throw new Error("使用可能な技ボタンが見つかりません。");
+              }
+              button.click();
+            }"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.phase === "message" && state.battle.currentMessage.includes("の "));
+            }""",
+            {"timeout": 4000},
+        )
+        move_audio_ids = await read_recent_se_ids(page)
+        expect(
+            any(sound_id in move_audio_ids for sound_id in ("move", "grass_move", "water_move", "ice", "steel_move", "fire_move")),
+            "技を出すSEが再生されていません。",
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              if (typeof window.__battleSoundMessageAutoAdvanceMs === "number") {
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = window.__battleSoundMessageAutoAdvanceMs;
+              }
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+              });
+            }"""
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                state.battle.phase = "message";
+                state.battle.currentMessage = "HPサウンド確認";
+                state.battle.animation = {
+                  kind: "damage",
+                  target: "player",
+                  fromHp: 30,
+                  toHp: 12,
+                  elapsedMs: 0,
+                  durationMs: 220
+                };
+                state.battle.display.playerHp = 30;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && !state.battle.animation);
+            }""",
+            {"timeout": 4000},
+        )
+        hp_audio_ids = await read_recent_se_ids(page)
+        expect("hp_down" in hp_audio_ids, "HPが減るSEが再生されていません。")
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                state.battle.phase = "message";
+                state.battle.currentMessage = "経験値サウンド確認";
+                state.battle.animation = {
+                  kind: "exp",
+                  fromExp: 0,
+                  toExp: 45,
+                  requiredExp: 100,
+                  elapsedMs: 0,
+                  durationMs: 260
+                };
+                state.battle.display.playerExp = 0;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && !state.battle.animation);
+            }""",
+            {"timeout": 4000},
+        )
+        exp_audio_ids = await read_recent_se_ids(page)
+        expect("exp_tick" in exp_audio_ids, "経験値バー増加SEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+              });
+            }"""
         )
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")].some((button) => button.textContent === "ボール")""",
             {"timeout": 4000},
         )
+        await asyncio.sleep(0.2)
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;
@@ -1059,8 +1188,9 @@ async def run_smoke_test(base_url: str) -> None:
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]
               .some((button) => button.textContent === "Pボール" && !button.disabled)""",
-            {"timeout": 1200},
+            {"timeout": 4000},
         )
+        await clear_recent_se_ids(page)
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")]
               .find((button) => button.textContent === "Pボール").click()"""
@@ -1087,6 +1217,9 @@ async def run_smoke_test(base_url: str) -> None:
         expect(capture_state["captureBall"]["hideEnemy"], "捕獲演出中に相手が隠れていません。")
         expect(capture_state["captureBall"]["ballType"] == "master", "確定捕獲ボールの演出種別が使われていません。")
         expect(capture_state["masterBallCount"] == 0, "確定捕獲ボールが消費されていません。")
+        capture_audio_ids = await read_recent_se_ids(page)
+        expect("confirm" in capture_audio_ids, "Pボール操作のボタン決定SEが再生されていません。")
+        expect("ball" in capture_audio_ids, "ボール投球SEが再生されていません。")
         capture_record_state = await advance_battle_until_modal(page)
         expect(capture_record_state["modalOpen"], "捕獲後の記録ポップが開いていません。")
         expect(capture_record_state["modalTitle"] == "捕獲の記録", "捕獲記録ポップの見出しが想定と違います。")
