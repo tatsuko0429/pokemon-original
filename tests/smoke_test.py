@@ -363,6 +363,7 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 config: {
                   seVolumeMultiplier: app.config.game.audio.seVolumeMultiplier,
+                  sePeakBase: app.config.game.audio.sePeakBase,
                   maxActiveSeTones: app.config.game.audio.maxActiveSeTones,
                   firstGrassVolume: app.config.game.audio.bgm.first_grass.volume,
                   fieldVolume: app.config.game.audio.bgm.field.volume,
@@ -372,11 +373,12 @@ async def run_smoke_test(base_url: str) -> None:
               };
             }"""
         )
-        expect(audio_state["config"]["seVolumeMultiplier"] == 24, "SE音量倍率が想定値ではありません。")
+        expect(audio_state["config"]["seVolumeMultiplier"] == 32, "SE音量倍率が想定値ではありません。")
+        expect(abs(audio_state["config"]["sePeakBase"] - 0.42) < 0.0001, "SEピーク音量が想定値ではありません。")
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
-        expect(abs(audio_state["config"]["firstGrassVolume"] - 0.0175) < 0.0001, "草むらBGM音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["fieldVolume"] - 0.0175) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["battleVolume"] - 0.02) < 0.0001, "戦闘BGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["firstGrassVolume"] - 0.00875) < 0.0001, "草むらBGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["fieldVolume"] - 0.00875) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["battleVolume"] - 0.01) < 0.0001, "戦闘BGM音量が想定値ではありません。")
         expect(audio_state["debug"]["unlocked"], "初回操作後に音声アンロック状態へ移行していません。")
         expect(audio_state["debug"]["desiredBgmId"] == "first_grass", "BGMの要求状態が初期マップBGMになっていません。")
         expect("confirm" in audio_state["debug"]["recentSeIds"], "ボタン決定SEが再生履歴に残っていません。")
