@@ -1717,17 +1717,18 @@ select {
       masterVolume: 0.07,
       seVolumeMultiplier: 32,
       sePeakBase: 0.42,
+      seNoteVolumeFloor: 0.85,
       maxActiveSeTones: 18,
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
           loop: true,
-          volume: 0.00875,
+          volume: 0.004375,
         },
         field: {
           wave: "square",
           beatMs: 230,
-          volume: 0.00875,
+          volume: 0.004375,
           notes: [
             { freq: 392, beats: 1 },
             { freq: 494, beats: 1 },
@@ -1746,7 +1747,7 @@ select {
         battle: {
           src: "./assets/audio/battle-bgm.mp3",
           loop: true,
-          volume: 0.01,
+          volume: 0.005,
         },
       },
       se: {
@@ -4716,6 +4717,10 @@ select {
       0.14,
       Math.min(0.42, (config && config.sePeakBase) || 0.42)
     );
+    const seNoteVolumeFloor = Math.max(
+      0,
+      Math.min(1, (config && config.seNoteVolumeFloor) || 0.85)
+    );
     const maxActiveSeTones = Math.max(
       4,
       Math.min(64, Math.floor((config && config.maxActiveSeTones) || 18))
@@ -4739,7 +4744,7 @@ select {
     const activeSeNodes = new Set();
     const bgmAudioElements = new Map();
     const playedSeHistory = [];
-    const settingsStorageKey = "monster_audio_settings_v1";
+    const settingsStorageKey = "monster_audio_settings_v2";
     const storedSettings = loadAudioSettings();
     let bgmEnabled = storedSettings.bgmEnabled !== false;
     let seEnabled = storedSettings.seEnabled !== false;
@@ -5046,7 +5051,11 @@ select {
       const endTime = startTime + durationSeconds;
       const isBgm = collection === activeBgmNodes;
       const basePeak = isBgm ? 0.14 : sePeakBase;
-      const peak = Math.max(0.0001, basePeak * (note.volume || 1));
+      const noteVolume = note.volume || 1;
+      const effectiveNoteVolume = isBgm
+        ? noteVolume
+        : Math.max(seNoteVolumeFloor, noteVolume);
+      const peak = Math.max(0.0001, basePeak * effectiveNoteVolume);
 
       oscillator.type = note.wave || defaultWave || "square";
       oscillator.frequency.setValueAtTime(note.freq, startTime);
@@ -5412,7 +5421,10 @@ select {
         activeSeToneCount: activeSeNodes.size,
         seVolumeMultiplier,
         sePeakBase,
+        seNoteVolumeFloor,
         effectiveDefaultSePeak: masterVolume * seVolumeMultiplier * sePeakBase,
+        effectiveMinimumSePeak:
+          masterVolume * seVolumeMultiplier * sePeakBase * seNoteVolumeFloor,
         maxActiveSeTones,
         recentSeIds: playedSeHistory.map((entry) => entry.id),
       };
@@ -8602,7 +8614,7 @@ select {
       if (!species) {
         return;
       }
-      const capturePreview = species.capturePreview || species.partyPreview || {};
+      const capturePreview = species.capturePreview || {};
 
       modal.openModal({
         title: "捕獲の記録",
