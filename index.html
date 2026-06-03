@@ -4739,6 +4739,33 @@ select {
     const activeSeNodes = new Set();
     const bgmAudioElements = new Map();
     const playedSeHistory = [];
+    const settingsStorageKey = "monster_audio_settings_v1";
+    const storedSettings = loadAudioSettings();
+    let bgmEnabled = storedSettings.bgmEnabled !== false;
+    let seEnabled = storedSettings.seEnabled !== false;
+
+    function loadAudioSettings() {
+      try {
+        const raw = window.localStorage.getItem(settingsStorageKey);
+        return raw ? JSON.parse(raw) || {} : {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function saveAudioSettings() {
+      try {
+        window.localStorage.setItem(
+          settingsStorageKey,
+          JSON.stringify({
+            bgmEnabled,
+            seEnabled,
+          })
+        );
+      } catch (error) {
+        // 音設定の保存に失敗しても、現在のプレイ中の切替は維持する。
+      }
+    }
 
     function recordSe(id) {
       if (!id) {
@@ -4765,6 +4792,24 @@ select {
         return 1;
       }
       return Math.max(0, Math.min(1, getPatternVolume(pattern) / masterVolume));
+    }
+
+    function getEffectivePatternVolume(pattern) {
+      return bgmEnabled ? getPatternVolume(pattern) : 0;
+    }
+
+    function getEffectiveSynthBgmGain(pattern) {
+      return bgmEnabled ? getSynthBgmGain(pattern) : 0;
+    }
+
+    function applyCurrentBgmVolume() {
+      const pattern = bgmPatterns[currentBgmId] || bgmPatterns[desiredBgmId];
+      if (activeBgmElement) {
+        activeBgmElement.volume = getEffectivePatternVolume(pattern);
+      }
+      if (bgmGain) {
+        bgmGain.gain.value = getEffectiveSynthBgmGain(pattern);
+      }
     }
 
     function isBgmRetryBlocked() {
@@ -4824,9 +4869,9 @@ select {
             if (started) {
               const pattern = bgmPatterns[newId];
               if (activeBgmElement) {
-                activeBgmElement.volume = getPatternVolume(pattern);
+                activeBgmElement.volume = getEffectivePatternVolume(pattern);
               }
-              if (bgmGain) bgmGain.gain.value = getSynthBgmGain(pattern);
+              if (bgmGain) bgmGain.gain.value = getEffectiveSynthBgmGain(pattern);
             }
           });
         }
@@ -4874,8 +4919,8 @@ select {
     function fadeInBgm(id, durationMs) {
       clearFadeInterval();
       const pattern = bgmPatterns[id];
-      const targetVol = getPatternVolume(pattern);
-      const targetSynthGain = getSynthBgmGain(pattern);
+      const targetVol = getEffectivePatternVolume(pattern);
+      const targetSynthGain = getEffectiveSynthBgmGain(pattern);
       const steps = 10;
       const stepMs = durationMs / steps;
       let currentStep = 0;
@@ -5075,7 +5120,7 @@ select {
       }
 
       element.loop = pattern.loop !== false;
-      element.volume = getPatternVolume(pattern);
+      element.volume = getEffectivePatternVolume(pattern);
       return element;
     }
 
@@ -5084,7 +5129,7 @@ select {
       activeBgmElement = element;
       currentBgmId = id;
       element.muted = false;
-      element.volume = getPatternVolume(pattern);
+      element.volume = getEffectivePatternVolume(pattern);
 
       try {
         await element.play();
@@ -5124,7 +5169,7 @@ select {
 
       currentBgmId = id;
       if (bgmGain) {
-        bgmGain.gain.value = getSynthBgmGain(pattern);
+        bgmGain.gain.value = getEffectiveSynthBgmGain(pattern);
       }
       scheduleBgmLoop(id, bgmLoopToken);
       return true;
@@ -5175,10 +5220,10 @@ select {
           const pattern = bgmPatterns[desiredBgmId];
           if (pattern) {
             if (activeBgmElement) {
-              activeBgmElement.volume = getPatternVolume(pattern);
+              activeBgmElement.volume = getEffectivePatternVolume(pattern);
             }
             if (bgmGain) {
-              bgmGain.gain.value = getSynthBgmGain(pattern);
+              bgmGain.gain.value = getEffectiveSynthBgmGain(pattern);
             }
           }
         }
@@ -5304,7 +5349,7 @@ select {
     function playSe(id) {
       const pattern = sePatterns[id];
       const audioContext = ensureContext();
-      if (!pattern || !audioContext) {
+      if (!pattern || !audioContext || !seEnabled) {
         return;
       }
 
@@ -5335,12 +5380,31 @@ select {
       });
     }
 
+    function setBgmEnabled(enabled) {
+      bgmEnabled = Boolean(enabled);
+      saveAudioSettings();
+      applyCurrentBgmVolume();
+      if (bgmEnabled && desiredBgmId && isDesiredBgmInterrupted()) {
+        recoverAudioPlayback();
+      }
+    }
+
+    function setSeEnabled(enabled) {
+      seEnabled = Boolean(enabled);
+      saveAudioSettings();
+      if (!seEnabled) {
+        stopCollection(activeSeNodes);
+      }
+    }
+
     function getDebugState() {
       return {
         unlocked,
         contextState: context ? context.state : "",
         desiredBgmId,
         currentBgmId,
+        bgmEnabled,
+        seEnabled,
         bgmRetryBlocked: isBgmRetryBlocked(),
         activeBgmElementPaused: activeBgmElement ? activeBgmElement.paused : null,
         activeBgmElementVolume: activeBgmElement ? activeBgmElement.volume : null,
@@ -5363,6 +5427,8 @@ select {
       unlock,
       playBgm,
       playSe,
+      setBgmEnabled,
+      setSeEnabled,
       getDebugState,
       clearDebugHistory,
     };
@@ -10997,10 +11063,77 @@ select {
             onSelect: openObjectiveMenu,
           },
           {
+            id: "audio",
+            label: "音設定",
+            onSelect: openAudioMenu,
+          },
+          {
             id: "restart",
             label: "やり直す",
             variant: "is-danger",
             onSelect: openRestartMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
+      });
+    }
+
+    function openAudioMenu(options) {
+      if (!(options && options.silent)) {
+        audio.playSe("confirm");
+      }
+
+      const debug = audio.getDebugState();
+      const bgmEnabled = debug.bgmEnabled !== false;
+      const seEnabled = debug.seEnabled !== false;
+      modal.openModal({
+        title: "音設定",
+        lines: [
+          `BGM: ${bgmEnabled ? "ON" : "OFF"}`,
+          `効果音: ${seEnabled ? "ON" : "OFF"}`,
+          "BGMは控えめ、効果音は聞き取りやすい音量です。",
+        ],
+        actions: [
+          {
+            id: "toggle_bgm",
+            label: bgmEnabled ? "BGMを切る" : "BGMを入れる",
+            onSelect: () => {
+              audio.setBgmEnabled(!bgmEnabled);
+              audio.playSe("confirm");
+              openAudioMenu({ silent: true });
+            },
+          },
+          {
+            id: "toggle_se",
+            label: seEnabled ? "SEを切る" : "SEを入れる",
+            onSelect: () => {
+              if (seEnabled) {
+                audio.playSe("cancel");
+                audio.setSeEnabled(false);
+              } else {
+                audio.setSeEnabled(true);
+                audio.playSe("confirm");
+              }
+              openAudioMenu({ silent: true });
+            },
+          },
+          {
+            id: "test_se",
+            label: "SEを試す",
+            onSelect: () => {
+              audio.playSe("item");
+              openAudioMenu({ silent: true });
+            },
+          },
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
           },
           {
             id: "close",
