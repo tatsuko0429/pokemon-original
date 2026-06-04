@@ -933,6 +933,7 @@ async def run_smoke_test(base_url: str) -> None:
               captionDisplay: getComputedStyle(document.querySelector("#screen-caption")).display,
               message: document.querySelector("#screen-message")?.textContent || "",
               battlePanelMessage: document.querySelector(".battle-message-panel")?.textContent || "",
+              battleMessageTag: document.querySelector(".battle-message-tag")?.textContent || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -964,6 +965,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(battle_state["captionDisplay"] == "none", "バトル中の画面タイトルがHP表示と重なる状態です。")
         expect(not battle_state["message"], "バトルメッセージがゲーム画面内に残っています。")
         expect(battle_state["battlePanelMessage"], "バトルメッセージ枠が操作パネル側に出ていません。")
+        expect(battle_state["battleMessageTag"] in ("EVENT", "WAIT", "COMMAND"), "バトルメッセージ枠に状態タグが表示されていません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
@@ -1031,6 +1033,10 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "回復薬" && !button.disabled)""",
             {"timeout": 1200},
         )
+        item_tag = await page.evaluate(
+            """() => document.querySelector(".battle-message-tag")?.textContent || "" """
+        )
+        expect(item_tag == "ITEM", "戦闘アイテム選択中のメッセージタグがITEMになっていません。")
         await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")]
               .find((button) => button.textContent === "回復薬").click()"""
@@ -1100,6 +1106,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(any(entry["name"] for entry in move_ui_state), "技名が技ボタン内に表示されていません。")
         expect(any("PP" in entry["meta"] for entry in move_ui_state), "技ボタン内にPPが表示されていません。")
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
+        move_tag = await page.evaluate(
+            """() => document.querySelector(".battle-message-tag")?.textContent || "" """
+        )
+        expect(move_tag == "MOVE", "技選択中のメッセージタグがMOVEになっていません。")
         await page.evaluate(
             """() => {
               window.__battleSoundMessageAutoAdvanceMs = window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs;
