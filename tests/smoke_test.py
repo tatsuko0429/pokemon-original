@@ -365,6 +365,8 @@ async def run_smoke_test(base_url: str) -> None:
                   seVolumeMultiplier: app.config.game.audio.seVolumeMultiplier,
                   sePeakBase: app.config.game.audio.sePeakBase,
                   seNoteVolumeFloor: app.config.game.audio.seNoteVolumeFloor,
+                  htmlSeVolume: app.config.game.audio.htmlSeVolume,
+                  bgmOutputScale: app.config.game.audio.bgmOutputScale,
                   maxActiveSeTones: app.config.game.audio.maxActiveSeTones,
                   firstGrassVolume: app.config.game.audio.bgm.first_grass.volume,
                   fieldVolume: app.config.game.audio.bgm.field.volume,
@@ -377,12 +379,15 @@ async def run_smoke_test(base_url: str) -> None:
         expect(audio_state["config"]["seVolumeMultiplier"] == 32, "SE音量倍率が想定値ではありません。")
         expect(abs(audio_state["config"]["sePeakBase"] - 0.42) < 0.0001, "SEピーク音量が想定値ではありません。")
         expect(abs(audio_state["config"]["seNoteVolumeFloor"] - 0.85) < 0.0001, "SE個別音量下限が想定値ではありません。")
+        expect(abs(audio_state["config"]["htmlSeVolume"] - 1) < 0.0001, "HTML SE音量が最大値ではありません。")
+        expect(abs(audio_state["config"]["bgmOutputScale"] - 0.5) < 0.0001, "BGM最終出力倍率が想定値ではありません。")
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
         expect(abs(audio_state["config"]["firstGrassVolume"] - 0.004375) < 0.0001, "草むらBGM音量が想定値ではありません。")
         expect(abs(audio_state["config"]["fieldVolume"] - 0.004375) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
         expect(abs(audio_state["config"]["battleVolume"] - 0.005) < 0.0001, "戦闘BGM音量が想定値ではありません。")
         expect(audio_state["debug"]["unlocked"], "初回操作後に音声アンロック状態へ移行していません。")
         expect(audio_state["debug"]["desiredBgmId"] == "first_grass", "BGMの要求状態が初期マップBGMになっていません。")
+        expect(abs(audio_state["debug"]["finalBgmVolume"] - 0.0021875) < 0.0001, "草むらBGMの実効音量が最終倍率込みになっていません。")
         expect("confirm" in audio_state["debug"]["recentSeIds"], "ボタン決定SEが再生履歴に残っていません。")
         expect(
             audio_state["debug"]["activeSeToneCount"] <= audio_state["config"]["maxActiveSeTones"],

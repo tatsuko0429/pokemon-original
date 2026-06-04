@@ -1715,9 +1715,13 @@ select {
     },
     audio: {
       masterVolume: 0.07,
+      bgmOutputScale: 0.5,
       seVolumeMultiplier: 32,
       sePeakBase: 0.42,
       seNoteVolumeFloor: 0.85,
+      htmlSeVolume: 1,
+      seDuckBgmRatio: 0.35,
+      seDuckBgmMs: 220,
       maxActiveSeTones: 18,
       bgm: {
         first_grass: {
@@ -4709,6 +4713,10 @@ select {
     const bgmPatterns = (config && config.bgm) || {};
     const sePatterns = (config && config.se) || {};
     const masterVolume = config && config.masterVolume ? config.masterVolume : 0.07;
+    const bgmOutputScale = Math.max(
+      0,
+      Math.min(1, config && config.bgmOutputScale !== undefined ? config.bgmOutputScale : 1)
+    );
     const seVolumeMultiplier = Math.max(
       1,
       Math.min(32, (config && config.seVolumeMultiplier) || 1)
@@ -4721,6 +4729,15 @@ select {
       0,
       Math.min(1, (config && config.seNoteVolumeFloor) || 0.85)
     );
+    const htmlSeVolume = Math.max(
+      0,
+      Math.min(1, config && config.htmlSeVolume !== undefined ? config.htmlSeVolume : 1)
+    );
+    const seDuckBgmRatio = Math.max(
+      0,
+      Math.min(1, config && config.seDuckBgmRatio !== undefined ? config.seDuckBgmRatio : 1)
+    );
+    const seDuckBgmMs = Math.max(0, Math.floor((config && config.seDuckBgmMs) || 0));
     const maxActiveSeTones = Math.max(
       4,
       Math.min(64, Math.floor((config && config.maxActiveSeTones) || 18))
@@ -4738,13 +4755,17 @@ select {
     let unlockPromise = null;
     let recoverPromise = null;
     let fadeIntervalId = null;
+    let bgmDuckTimeoutId = null;
+    let bgmDuckUntil = 0;
     let bgmRetryBlockedUntil = 0;
     let lifecycleRecoveryBound = false;
     const activeBgmNodes = new Set();
     const activeSeNodes = new Set();
     const bgmAudioElements = new Map();
+    const seAudioPools = new Map();
+    const seDataUrlCache = new Map();
     const playedSeHistory = [];
-    const settingsStorageKey = "monster_audio_settings_v2";
+    const settingsStorageKey = "monster_audio_settings_v3";
     const storedSettings = loadAudioSettings();
     let bgmEnabled = storedSettings.bgmEnabled !== false;
     let seEnabled = storedSettings.seEnabled !== false;
@@ -4785,11 +4806,19 @@ select {
       }
     }
 
-    function getPatternVolume(pattern) {
+    function getBasePatternVolume(pattern) {
       return Math.max(
         0,
         Math.min(1, pattern && pattern.volume !== undefined ? pattern.volume : masterVolume)
       );
+    }
+
+    function getPatternVolume(pattern) {
+      return getBasePatternVolume(pattern) * bgmOutputScale;
+    }
+
+    function getBgmDuckScale() {
+      return bgmDuckUntil > performance.now() ? seDuckBgmRatio : 1;
     }
 
     function getSynthBgmGain(pattern) {
@@ -4800,11 +4829,11 @@ select {
     }
 
     function getEffectivePatternVolume(pattern) {
-      return bgmEnabled ? getPatternVolume(pattern) : 0;
+      return bgmEnabled ? getPatternVolume(pattern) * getBgmDuckScale() : 0;
     }
 
     function getEffectiveSynthBgmGain(pattern) {
-      return bgmEnabled ? getSynthBgmGain(pattern) : 0;
+      return bgmEnabled ? getSynthBgmGain(pattern) * getBgmDuckScale() : 0;
     }
 
     function applyCurrentBgmVolume() {
@@ -4815,6 +4844,30 @@ select {
       if (bgmGain) {
         bgmGain.gain.value = getEffectiveSynthBgmGain(pattern);
       }
+    }
+
+    function duckBgmForSe() {
+      if (!seDuckBgmMs || seDuckBgmRatio >= 1) {
+        return;
+      }
+
+      bgmDuckUntil = performance.now() + seDuckBgmMs;
+      if (!fadeIntervalId) {
+        applyCurrentBgmVolume();
+      }
+
+      if (bgmDuckTimeoutId) {
+        window.clearTimeout(bgmDuckTimeoutId);
+      }
+
+      bgmDuckTimeoutId = window.setTimeout(() => {
+        if (performance.now() >= bgmDuckUntil) {
+          bgmDuckUntil = 0;
+          if (!fadeIntervalId) {
+            applyCurrentBgmVolume();
+          }
+        }
+      }, seDuckBgmMs + 20);
     }
 
     function isBgmRetryBlocked() {
@@ -5040,6 +5093,208 @@ select {
       collection.clear();
     }
 
+    function getWaveSample(wave, phase) {
+      const p = phase - Math.floor(phase);
+      if (wave === "triangle") {
+        return 1 - (4 * Math.abs(p - 0.5));
+      }
+      if (wave === "sawtooth") {
+        return (2 * p) - 1;
+      }
+      if (wave === "sine") {
+        return Math.sin(2 * Math.PI * p);
+      }
+      return p < 0.5 ? 1 : -1;
+    }
+
+    function getSeNoteVolume(note) {
+      const noteVolume = note && note.volume !== undefined ? note.volume : 1;
+      return Math.max(seNoteVolumeFloor, noteVolume);
+    }
+
+    function writeAscii(view, offset, value) {
+      for (let index = 0; index < value.length; index += 1) {
+        view.setUint8(offset + index, value.charCodeAt(index));
+      }
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        const chunk = bytes.subarray(index, index + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      return window.btoa(binary);
+    }
+
+    function encodeWavDataUrl(samples, sampleRate) {
+      const bytesPerSample = 2;
+      const buffer = new ArrayBuffer(44 + (samples.length * bytesPerSample));
+      const view = new DataView(buffer);
+      writeAscii(view, 0, "RIFF");
+      view.setUint32(4, 36 + (samples.length * bytesPerSample), true);
+      writeAscii(view, 8, "WAVE");
+      writeAscii(view, 12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * bytesPerSample, true);
+      view.setUint16(32, bytesPerSample, true);
+      view.setUint16(34, 8 * bytesPerSample, true);
+      writeAscii(view, 36, "data");
+      view.setUint32(40, samples.length * bytesPerSample, true);
+
+      for (let index = 0; index < samples.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, samples[index]));
+        view.setInt16(44 + (index * bytesPerSample), Math.round(sample * 32767), true);
+      }
+
+      return `data:audio/wav;base64,${bytesToBase64(new Uint8Array(buffer))}`;
+    }
+
+    function createSeDataUrl(pattern) {
+      if (!pattern || !pattern.length) {
+        return "";
+      }
+
+      const sampleRate = 22050;
+      let cursorSeconds = 0;
+      let totalSeconds = 0.04;
+
+      pattern.forEach((note) => {
+        const durationSeconds = (note.ms || 70) / 1000;
+        if (note.freq) {
+          totalSeconds = Math.max(totalSeconds, cursorSeconds + durationSeconds + 0.025);
+        }
+        cursorSeconds += durationSeconds * 0.85;
+      });
+
+      const samples = new Float32Array(Math.max(1, Math.ceil(totalSeconds * sampleRate)));
+      cursorSeconds = 0;
+
+      pattern.forEach((note) => {
+        const durationSeconds = (note.ms || 70) / 1000;
+        if (!note.freq) {
+          cursorSeconds += durationSeconds * 0.85;
+          return;
+        }
+
+        const startFrame = Math.max(0, Math.floor(cursorSeconds * sampleRate));
+        const frameCount = Math.max(1, Math.floor(durationSeconds * sampleRate));
+        const wave = note.wave || "square";
+        const noteVolume = getSeNoteVolume(note);
+
+        for (let frame = 0; frame < frameCount; frame += 1) {
+          const index = startFrame + frame;
+          if (index >= samples.length) {
+            break;
+          }
+
+          const t = frame / sampleRate;
+          const attack = Math.min(1, t / 0.008);
+          const release = Math.min(1, Math.max(0, (durationSeconds - t) / 0.018));
+          const envelope = Math.min(attack, release);
+          const phase = (t * note.freq) % 1;
+          samples[index] += getWaveSample(wave, phase) * noteVolume * envelope;
+        }
+
+        cursorSeconds += durationSeconds * 0.85;
+      });
+
+      let peak = 0;
+      for (let index = 0; index < samples.length; index += 1) {
+        peak = Math.max(peak, Math.abs(samples[index]));
+      }
+
+      const normalizer = peak > 0 ? 0.95 / peak : 1;
+      for (let index = 0; index < samples.length; index += 1) {
+        samples[index] *= normalizer;
+      }
+
+      return encodeWavDataUrl(samples, sampleRate);
+    }
+
+    function getSeDataUrl(id, pattern) {
+      if (!seDataUrlCache.has(id)) {
+        seDataUrlCache.set(id, createSeDataUrl(pattern));
+      }
+      return seDataUrlCache.get(id);
+    }
+
+    function stopHtmlSePlayback() {
+      seAudioPools.forEach((pool) => {
+        pool.elements.forEach((element) => {
+          try {
+            element.pause();
+            element.currentTime = 0;
+          } catch (error) {}
+        });
+      });
+    }
+
+    function getHtmlSeElement(id, pattern) {
+      if (typeof window.Audio !== "function" || !htmlSeVolume) {
+        return null;
+      }
+
+      const dataUrl = getSeDataUrl(id, pattern);
+      if (!dataUrl) {
+        return null;
+      }
+
+      let pool = seAudioPools.get(id);
+      if (!pool) {
+        pool = {
+          cursor: 0,
+          elements: [],
+        };
+        seAudioPools.set(id, pool);
+      }
+
+      let element = pool.elements.find((candidate) => candidate.paused || candidate.ended);
+      if (!element) {
+        if (pool.elements.length < Math.min(6, maxActiveSeTones)) {
+          element = new Audio(dataUrl);
+          element.preload = "auto";
+          element.playsInline = true;
+          element.setAttribute("playsinline", "");
+          pool.elements.push(element);
+        } else {
+          element = pool.elements[pool.cursor % pool.elements.length];
+          pool.cursor += 1;
+          try {
+            element.pause();
+          } catch (error) {}
+        }
+      }
+
+      element.volume = htmlSeVolume;
+      element.muted = false;
+      return element;
+    }
+
+    function playHtmlSe(id, pattern) {
+      const element = getHtmlSeElement(id, pattern);
+      if (!element) {
+        return false;
+      }
+
+      try {
+        element.currentTime = 0;
+        const playPromise = element.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(() => {
+            playWebAudioSe(id, pattern);
+          });
+        }
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     function playTone(note, startTime, durationSeconds, defaultWave, collection) {
       const audioContext = ensureContext();
       if (!audioContext || !masterGain || !note.freq) {
@@ -5054,7 +5309,7 @@ select {
       const noteVolume = note.volume || 1;
       const effectiveNoteVolume = isBgm
         ? noteVolume
-        : Math.max(seNoteVolumeFloor, noteVolume);
+        : getSeNoteVolume(note);
       const peak = Math.max(0.0001, basePeak * effectiveNoteVolume);
 
       oscillator.type = note.wave || defaultWave || "square";
@@ -5304,6 +5559,7 @@ select {
         document.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "hidden") {
             stopCollection(activeSeNodes);
+            stopHtmlSePlayback();
             return;
           }
           recoverAudioPlayback();
@@ -5355,8 +5611,7 @@ select {
       transitionBgm(desiredBgmId, 200);
     }
 
-    function playSe(id) {
-      const pattern = sePatterns[id];
+    function playWebAudioSe(id, pattern) {
       const audioContext = ensureContext();
       if (!pattern || !audioContext || !seEnabled) {
         return;
@@ -5365,7 +5620,7 @@ select {
       if (!unlocked) {
         unlock().then((success) => {
           if (success) {
-            playSe(id);
+            playWebAudioSe(id, pattern);
           }
         });
         return;
@@ -5374,19 +5629,34 @@ select {
       if (audioContext.state !== "running") {
         recoverAudioPlayback().then((success) => {
           if (success) {
-            playSe(id);
+            playWebAudioSe(id, pattern);
           }
         });
         return;
       }
 
-      recordSe(id);
       let cursor = audioContext.currentTime + 0.01;
       pattern.forEach((note) => {
         const durationSeconds = (note.ms || 70) / 1000;
         playTone(note, cursor, durationSeconds, note.wave || "square", activeSeNodes);
         cursor += durationSeconds * 0.85;
       });
+    }
+
+    function playSe(id) {
+      const pattern = sePatterns[id];
+      if (!pattern || !seEnabled) {
+        return;
+      }
+
+      recordSe(id);
+      duckBgmForSe();
+
+      if (playHtmlSe(id, pattern)) {
+        return;
+      }
+
+      playWebAudioSe(id, pattern);
     }
 
     function setBgmEnabled(enabled) {
@@ -5403,10 +5673,24 @@ select {
       saveAudioSettings();
       if (!seEnabled) {
         stopCollection(activeSeNodes);
+        stopHtmlSePlayback();
       }
     }
 
+    function getActiveHtmlSeCount() {
+      let count = 0;
+      seAudioPools.forEach((pool) => {
+        pool.elements.forEach((element) => {
+          if (!element.paused && !element.ended) {
+            count += 1;
+          }
+        });
+      });
+      return count;
+    }
+
     function getDebugState() {
+      const activePattern = bgmPatterns[currentBgmId] || bgmPatterns[desiredBgmId];
       return {
         unlocked,
         contextState: context ? context.state : "",
@@ -5418,10 +5702,16 @@ select {
         activeBgmElementPaused: activeBgmElement ? activeBgmElement.paused : null,
         activeBgmElementVolume: activeBgmElement ? activeBgmElement.volume : null,
         bgmGainValue: bgmGain ? bgmGain.gain.value : null,
+        bgmOutputScale,
+        bgmDuckScale: getBgmDuckScale(),
+        baseBgmVolume: activePattern ? getBasePatternVolume(activePattern) : null,
+        finalBgmVolume: activePattern ? getPatternVolume(activePattern) : null,
         activeSeToneCount: activeSeNodes.size,
+        activeHtmlSeCount: getActiveHtmlSeCount(),
         seVolumeMultiplier,
         sePeakBase,
         seNoteVolumeFloor,
+        htmlSeVolume,
         effectiveDefaultSePeak: masterVolume * seVolumeMultiplier * sePeakBase,
         effectiveMinimumSePeak:
           masterVolume * seVolumeMultiplier * sePeakBase * seNoteVolumeFloor,
