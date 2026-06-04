@@ -1091,6 +1091,7 @@ select {
 .move-name,
 .move-meta,
 .move-main,
+.move-advice,
 .move-pp-row,
 .move-detail {
   display: block;
@@ -1120,6 +1121,50 @@ select {
   font-size: 0.68rem;
   line-height: 1.2;
   color: var(--muted);
+}
+
+.move-advice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 17px;
+}
+
+.move-advice-chip {
+  min-width: 42px;
+  padding: 2px 6px;
+  border: 2px solid rgba(32, 34, 27, 0.58);
+  border-radius: 999px;
+  background: rgba(248, 244, 215, 0.72);
+  color: rgba(32, 34, 27, 0.76);
+  font-size: 0.54rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.move-advice-chip.is-strong {
+  border-color: rgba(93, 66, 18, 0.72);
+  background: rgba(248, 238, 171, 0.84);
+  color: #5d4212;
+}
+
+.move-advice-chip.is-weak,
+.move-advice-chip.is-risk {
+  border-color: rgba(119, 61, 46, 0.7);
+  background: rgba(244, 212, 201, 0.82);
+  color: #6b2c22;
+}
+
+.move-advice-chip.is-support {
+  border-color: rgba(68, 105, 53, 0.68);
+  background: rgba(222, 239, 203, 0.82);
+  color: #365f28;
+}
+
+.move-advice-chip.is-power {
+  border-color: rgba(51, 87, 94, 0.68);
+  background: rgba(213, 237, 247, 0.82);
+  color: #255464;
 }
 
 .move-pp-row {
@@ -1612,6 +1657,17 @@ select {
   .move-meta {
     gap: 3px;
     font-size: 0.6rem;
+  }
+
+  .move-advice {
+    min-height: 14px;
+    gap: 2px;
+  }
+
+  .move-advice-chip {
+    min-width: 36px;
+    padding: 1px 5px;
+    font-size: 0.48rem;
   }
 
   .move-pp-row {
@@ -8088,9 +8144,51 @@ select {
       }
     }
 
+    function getMoveTypeMultiplier(move, enemySpecies) {
+      if (!move || !enemySpecies || !Array.isArray(enemySpecies.types)) {
+        return 1;
+      }
+
+      const chart = (App.config.game.typeChart && App.config.game.typeChart[move.type]) || {};
+      return enemySpecies.types.reduce((product, type) => product * (chart[type] || 1), 1);
+    }
+
+    function getMoveAdviceChips(move, currentPp, enemySpecies) {
+      const ppRatio = currentPp / Math.max(1, move.pp);
+      const chips = [];
+
+      if (move.power <= 0) {
+        chips.push({ label: "補助", className: "is-support" });
+      } else {
+        const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+        if (typeMultiplier > 1) {
+          chips.push({ label: "有効", className: "is-strong" });
+        } else if (typeMultiplier < 1) {
+          chips.push({ label: "いまひとつ", className: "is-weak" });
+        } else if (move.power >= 80) {
+          chips.push({ label: "高火力", className: "is-power" });
+        } else {
+          chips.push({ label: "標準", className: "" });
+        }
+
+        if (move.power >= 80 && !chips.some((chip) => chip.label === "高火力")) {
+          chips.push({ label: "高火力", className: "is-power" });
+        }
+      }
+
+      if (currentPp > 0 && ppRatio <= 0.25) {
+        chips.push({ label: "PP少", className: "is-risk" });
+      } else if (move.accuracy > 0 && move.accuracy < 90) {
+        chips.push({ label: "命中注意", className: "is-risk" });
+      }
+
+      return chips.slice(0, 2);
+    }
+
     function createMoveButton(move, currentPp, onHover, options) {
       const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
+      const adviceChips = getMoveAdviceChips(move, currentPp, settings.enemySpecies);
       const classNames = [
         "move-button",
         getMoveTypeClass(move.type),
@@ -8102,7 +8200,7 @@ select {
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
       button.setAttribute(
         "aria-label",
-        `${move.name} ${move.type} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
+        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
       );
 
       if (onHover) {
@@ -8129,6 +8227,15 @@ select {
       const pp = document.createElement("span");
       pp.className = "move-pp";
       pp.textContent = `PP ${currentPp}/${move.pp}`;
+
+      const advice = document.createElement("span");
+      advice.className = "move-advice";
+      adviceChips.forEach((chip) => {
+        const chipElement = document.createElement("span");
+        chipElement.className = `move-advice-chip ${chip.className || ""}`.trim();
+        chipElement.textContent = chip.label;
+        advice.appendChild(chipElement);
+      });
 
       const ppRow = document.createElement("span");
       ppRow.className = "move-pp-row";
@@ -8164,6 +8271,7 @@ select {
       detail.appendChild(power);
       detail.appendChild(accuracy);
       button.appendChild(main);
+      button.appendChild(advice);
       button.appendChild(ppRow);
       button.appendChild(detail);
       return button;
@@ -8760,11 +8868,13 @@ select {
         const wrapper = document.createElement("div");
         wrapper.className = "battle-buttons is-move-select";
         const playerMonster = state.party[0];
+        const enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
           const currentPp = playerMonster.currentPp[index];
           const button = createMoveButton(move, currentPp, battleScene.hoverMove, {
             previewed: battle.hoveredMoveId === moveId,
+            enemySpecies,
           });
           input.attachActionButton(button, "battle_select_move", { moveId });
           wrapper.appendChild(button);
@@ -8796,6 +8906,7 @@ select {
         battleMessage: state.battle ? state.battle.currentMessage : null,
         battleAnimation: state.battle ? state.battle.animation && state.battle.animation.kind : null,
         battleHoveredMove: state.battle ? state.battle.hoveredMoveId : null,
+        battleEnemySpecies: state.battle && state.battle.enemy ? state.battle.enemy.speciesId : null,
         fullHealCount: state.inventory.fullHealCount,
         masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,

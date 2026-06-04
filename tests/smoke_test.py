@@ -1093,19 +1093,24 @@ async def run_smoke_test(base_url: str) -> None:
         )
         await page.waitForFunction(
             """() => document.querySelectorAll(".move-button .move-name").length > 0
-              && document.querySelectorAll(".move-button .move-meta").length > 0""",
+              && document.querySelectorAll(".move-button .move-meta").length > 0
+              && document.querySelectorAll(".move-button .move-advice-chip").length > 0""",
             {"timeout": 4000},
         )
         move_ui_state = await page.evaluate(
             """() => [...document.querySelectorAll(".move-button")].map((button) => ({
               name: button.querySelector(".move-name")?.textContent || "",
               meta: button.querySelector(".move-meta")?.textContent || "",
+              advice: [...button.querySelectorAll(".move-advice-chip")].map((chip) => chip.textContent),
               label: button.getAttribute("aria-label") || ""
             }))"""
         )
         expect(any(entry["name"] for entry in move_ui_state), "技名が技ボタン内に表示されていません。")
         expect(any("PP" in entry["meta"] for entry in move_ui_state), "技ボタン内にPPが表示されていません。")
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
+        advice_labels = [label for entry in move_ui_state for label in entry["advice"]]
+        expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
+        expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
         move_tag = await page.evaluate(
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """
         )
