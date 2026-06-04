@@ -11582,6 +11582,61 @@ select {
       });
     }
 
+    function formatAudioPercent(value) {
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        return "--";
+      }
+      const percent = value * 100;
+      return `${percent.toFixed(2).replace(/\.?0+$/, "")}%`;
+    }
+
+    function getLastSeLabel(debug) {
+      const recentSeIds = debug && Array.isArray(debug.recentSeIds) ? debug.recentSeIds : [];
+      return recentSeIds.length ? recentSeIds[recentSeIds.length - 1] : "なし";
+    }
+
+    function getSeRouteLabel(debug, seEnabled) {
+      if (!seEnabled) {
+        return "OFF";
+      }
+      if (debug.activeHtmlSeCount > 0) {
+        return "HTML再生中";
+      }
+      if (debug.activeSeToneCount > 0) {
+        return "WebAudio再生中";
+      }
+      return "待機中";
+    }
+
+    function createAudioStatusLines(debug, bgmEnabled, seEnabled) {
+      const bgmId = debug.currentBgmId || debug.desiredBgmId || "なし";
+      const activeBgmVolume =
+        typeof debug.activeBgmElementVolume === "number"
+          ? debug.activeBgmElementVolume
+          : debug.finalBgmVolume;
+      return [
+        `BGM: ${bgmEnabled ? "ON" : "OFF"}`,
+        `効果音: ${seEnabled ? "ON" : "OFF"}`,
+        `音声状態: ${debug.unlocked ? "再生準備OK" : "未起動"}`,
+        `BGM出力: ${formatAudioPercent(activeBgmVolume)} / ${bgmId}`,
+        `SE経路: ${getSeRouteLabel(debug, seEnabled)}`,
+        `直近SE: ${getLastSeLabel(debug)}`,
+      ];
+    }
+
+    function playAudioTestSequence() {
+      audio.playSe("confirm");
+      window.setTimeout(() => {
+        audio.playSe("hit");
+      }, 90);
+      window.setTimeout(() => {
+        audio.playSe("exp");
+      }, 180);
+      window.setTimeout(() => {
+        openAudioMenu({ silent: true });
+      }, 250);
+    }
+
     function openAudioMenu(options) {
       if (!(options && options.silent)) {
         audio.playSe("confirm");
@@ -11592,11 +11647,7 @@ select {
       const seEnabled = debug.seEnabled !== false;
       modal.openModal({
         title: "音設定",
-        lines: [
-          `BGM: ${bgmEnabled ? "ON" : "OFF"}`,
-          `効果音: ${seEnabled ? "ON" : "OFF"}`,
-          "BGMは控えめ、効果音は聞き取りやすい音量です。",
-        ],
+        lines: createAudioStatusLines(debug, bgmEnabled, seEnabled),
         actions: [
           {
             id: "toggle_bgm",
@@ -11625,8 +11676,7 @@ select {
             id: "test_se",
             label: "SEを試す",
             onSelect: () => {
-              audio.playSe("item");
-              openAudioMenu({ silent: true });
+              playAudioTestSequence();
             },
           },
           {

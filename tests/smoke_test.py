@@ -841,12 +841,19 @@ async def run_smoke_test(base_url: str) -> None:
         expect(audio_menu_state["modalTitle"] == "音設定", "音設定画面に切り替わっていません。")
         expect("BGM: ON" in audio_menu_state["modalLines"], "音設定画面にBGM状態が表示されていません。")
         expect("効果音: ON" in audio_menu_state["modalLines"], "音設定画面に効果音状態が表示されていません。")
+        expect(any(line.startswith("音声状態:") for line in audio_menu_state["modalLines"]), "音設定画面に音声状態が表示されていません。")
+        expect(any(line.startswith("BGM出力:") for line in audio_menu_state["modalLines"]), "音設定画面にBGM出力値が表示されていません。")
+        expect(any(line.startswith("SE経路:") for line in audio_menu_state["modalLines"]), "音設定画面にSE経路が表示されていません。")
+        expect(any(line.startswith("直近SE:") for line in audio_menu_state["modalLines"]), "音設定画面に直近SEが表示されていません。")
         expect("SEを試す" in audio_menu_state["modalButtons"], "音設定画面にSEテストボタンがありません。")
         await clear_recent_se_ids(page)
         await click_modal_button(page, "SEを試す")
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.35)
         audio_test_ids = await read_recent_se_ids(page)
-        expect("item" in audio_test_ids, "音設定のSEテスト音が再生されていません。")
+        expect(
+            all(sound_id in audio_test_ids for sound_id in ("confirm", "hit", "exp")),
+            "音設定のSE診断音が一通り再生されていません。",
+        )
         await click_modal_button(page, "BGMを切る")
         await asyncio.sleep(0.2)
         bgm_off_state = await read_field_state(page)
