@@ -373,6 +373,98 @@ select {
   box-shadow: 0 0 6px rgba(47, 174, 154, 0.36);
 }
 
+.battle-feedback-badge {
+  position: absolute;
+  z-index: 3;
+  min-width: 44px;
+  padding: 3px 7px;
+  border: 2px solid rgba(22, 24, 18, 0.86);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(248, 244, 215, 0.98), rgba(214, 204, 144, 0.98));
+  color: #20221b;
+  text-align: center;
+  box-shadow:
+    0 3px 0 rgba(13, 16, 13, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  animation: battle-feedback-badge 620ms ease-out both;
+}
+
+.battle-card.is-enemy .battle-feedback-badge {
+  left: 7px;
+  bottom: -19px;
+}
+
+.battle-card.is-player .battle-feedback-badge {
+  right: 7px;
+  top: -19px;
+}
+
+.battle-feedback-main,
+.battle-feedback-note {
+  display: block;
+  line-height: 1;
+}
+
+.battle-feedback-main {
+  font-size: clamp(0.62rem, 2.2vw, 0.72rem);
+  font-weight: 900;
+}
+
+.battle-feedback-note {
+  margin-top: 1px;
+  font-size: 0.48rem;
+  font-weight: 900;
+  color: rgba(32, 34, 27, 0.68);
+}
+
+.battle-feedback-badge.is-damage {
+  background: linear-gradient(180deg, #f0c5aa, #c75f45);
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(76, 29, 23, 0.62);
+}
+
+.battle-feedback-badge.is-strong {
+  background: linear-gradient(180deg, #f8f4d7, #d8b546);
+  color: #402f15;
+  text-shadow: none;
+}
+
+.battle-feedback-badge.is-weak {
+  background: linear-gradient(180deg, #e2e4d7, #aeb6a3);
+  color: #32372d;
+  text-shadow: none;
+}
+
+.battle-feedback-badge.is-heal {
+  background: linear-gradient(180deg, #e2f0cf, #7fbf75);
+  color: #1e3f25;
+  text-shadow: none;
+}
+
+.battle-feedback-badge.is-exp {
+  background: linear-gradient(180deg, #d5edf7, #2fae9a);
+  color: #0f3638;
+  text-shadow: none;
+}
+
+.battle-feedback-badge.is-miss {
+  background: linear-gradient(180deg, #f2f0e4, #b8bdae);
+  color: #393d35;
+  text-shadow: none;
+}
+
+.battle-feedback-badge.is-damage .battle-feedback-note {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.battle-feedback-badge.is-strong .battle-feedback-note,
+.battle-feedback-badge.is-weak .battle-feedback-note,
+.battle-feedback-badge.is-heal .battle-feedback-note,
+.battle-feedback-badge.is-exp .battle-feedback-note,
+.battle-feedback-badge.is-miss .battle-feedback-note {
+  color: rgba(32, 34, 27, 0.68);
+}
+
 .screen-message {
   /*
     フィールドメッセージ専用。戦闘中のメッセージは操作パネル側へ出す設計なので、
@@ -1388,6 +1480,28 @@ select {
   100% {
     opacity: 0;
     transform: scale(4.2);
+  }
+}
+
+@keyframes battle-feedback-badge {
+  0% {
+    opacity: 0;
+    transform: translateY(5px) scale(0.88);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
   }
 }
 
@@ -8258,7 +8372,85 @@ select {
         card.appendChild(expRow);
       }
 
+      if (options.feedback) {
+        card.appendChild(createBattleFeedbackBadge(options.feedback));
+      }
+
       return card;
+    }
+
+    function createBattleFeedbackBadge(feedback) {
+      const badge = document.createElement("div");
+      badge.className = `battle-feedback-badge ${feedback.className || ""}`.trim();
+      badge.setAttribute("aria-hidden", "true");
+
+      const main = document.createElement("span");
+      main.className = "battle-feedback-main";
+      main.textContent = feedback.main;
+
+      const note = document.createElement("span");
+      note.className = "battle-feedback-note";
+      note.textContent = feedback.note;
+
+      badge.appendChild(main);
+      badge.appendChild(note);
+      return badge;
+    }
+
+    function getBattleFeedback(state, target) {
+      const animation = state.battle && state.battle.animation;
+      if (!animation) {
+        return null;
+      }
+
+      if (animation.kind === "damage" && animation.target === target) {
+        const damage = Math.max(1, Math.round((animation.fromHp || 0) - (animation.toHp || 0)));
+        const typeMultiplier =
+          typeof animation.typeMultiplier === "number" ? animation.typeMultiplier : 1;
+        const className = [
+          "is-damage",
+          typeMultiplier > 1 ? "is-strong" : "",
+          typeMultiplier < 1 ? "is-weak" : "",
+        ].filter(Boolean).join(" ");
+
+        return {
+          main: `-${damage}`,
+          note: typeMultiplier > 1 ? "WEAK" : typeMultiplier < 1 ? "RESIST" : "HIT",
+          className,
+        };
+      }
+
+      if (animation.kind === "heal" && animation.target === target) {
+        const amount = Math.max(0, Math.round((animation.toHp || 0) - (animation.fromHp || 0)));
+        if (amount <= 0) {
+          return null;
+        }
+
+        return {
+          main: `+${amount}`,
+          note: "HEAL",
+          className: "is-heal",
+        };
+      }
+
+      if (animation.kind === "miss" && animation.target === target) {
+        return {
+          main: "MISS",
+          note: "回避",
+          className: "is-miss",
+        };
+      }
+
+      if (animation.kind === "exp" && target === "player") {
+        const amount = Math.max(1, Math.round((animation.toExp || 0) - (animation.fromExp || 0)));
+        return {
+          main: "EXP",
+          note: `+${amount}`,
+          className: "is-exp",
+        };
+      }
+
+      return null;
     }
 
     function createBattleCommandButtons(options) {
@@ -8382,6 +8574,8 @@ select {
           ? state.battle.display.playerExp
           : playerMonster.exp || 0;
       const expActive = Boolean(state.battle.animation && state.battle.animation.kind === "exp");
+      const enemyFeedback = getBattleFeedback(state, "enemy");
+      const playerFeedback = getBattleFeedback(state, "player");
 
       const requiredExp = playerMonster.level * playerMonster.level * 10;
       const expRatio = shownExp / requiredExp;
@@ -8395,6 +8589,8 @@ select {
         enemyName: enemySpecies.name,
         playerLevel: playerMonster.level,
         playerExp: playerMonster.exp,
+        enemyFeedback,
+        playerFeedback,
       });
 
       battleOverlay.classList.remove("is-hidden");
@@ -8413,6 +8609,7 @@ select {
           type: enemySpecies.types.join(" / "),
           level: enemyMonster.level,
           hpRatio: enemyShownHp / enemyMonster.maxHp,
+          feedback: enemyFeedback,
         })
       );
       battleOverlay.appendChild(
@@ -8425,6 +8622,7 @@ select {
           hpText: `${playerShownHp}/${playerMonster.maxHp}`,
           expRatio: expRatio,
           expActive,
+          feedback: playerFeedback,
         })
       );
     }

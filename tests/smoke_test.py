@@ -1032,6 +1032,11 @@ async def run_smoke_test(base_url: str) -> None:
             """() => window.MonsterPrototype.runtime.store.snapshot().battle.currentMessage.includes("回復薬を つかった！")""",
             {"timeout": 1200},
         )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge")]
+              .some((badge) => badge.textContent.includes("HEAL") && badge.textContent.includes("+"))""",
+            {"timeout": 1200},
+        )
         battle_item_state = await page.evaluate(
             """() => {
               const state = window.MonsterPrototype.runtime.store.snapshot();
@@ -1146,11 +1151,16 @@ async def run_smoke_test(base_url: str) -> None:
                   fromHp: 30,
                   toHp: 12,
                   elapsedMs: 0,
-                  durationMs: 220
+                  durationMs: 520
                 };
                 state.battle.display.playerHp = 30;
               });
             }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge")]
+              .some((badge) => badge.textContent.includes("-18") && badge.textContent.includes("HIT"))""",
+            {"timeout": 1200},
         )
         await page.waitForFunction(
             """() => {
@@ -1174,11 +1184,16 @@ async def run_smoke_test(base_url: str) -> None:
                   toExp: 45,
                   requiredExp: 100,
                   elapsedMs: 0,
-                  durationMs: 260
+                  durationMs: 520
                 };
                 state.battle.display.playerExp = 0;
               });
             }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge")]
+              .some((badge) => badge.textContent.includes("EXP") && badge.textContent.includes("+45"))""",
+            {"timeout": 1200},
         )
         await page.waitForFunction(
             """() => {
