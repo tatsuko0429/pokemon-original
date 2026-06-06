@@ -376,10 +376,10 @@ async def run_smoke_test(base_url: str) -> None:
               };
             }"""
         )
-        expect(audio_state["config"]["seVolumeMultiplier"] == 32, "SE音量倍率が想定値ではありません。")
+        expect(audio_state["config"]["seVolumeMultiplier"] == 28, "SE音量倍率が想定値ではありません。")
         expect(abs(audio_state["config"]["sePeakBase"] - 0.42) < 0.0001, "SEピーク音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["seNoteVolumeFloor"] - 0.85) < 0.0001, "SE個別音量下限が想定値ではありません。")
-        expect(abs(audio_state["config"]["htmlSeVolume"] - 1) < 0.0001, "HTML SE音量が最大値ではありません。")
+        expect(abs(audio_state["config"]["seNoteVolumeFloor"] - 0.75) < 0.0001, "SE個別音量下限が想定値ではありません。")
+        expect(abs(audio_state["config"]["htmlSeVolume"] - 0.88) < 0.0001, "HTML SE音量が想定値ではありません。")
         expect(abs(audio_state["config"]["bgmOutputScale"] - 0.5) < 0.0001, "BGM最終出力倍率が想定値ではありません。")
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
         expect(abs(audio_state["config"]["firstGrassVolume"] - 0.004375) < 0.0001, "草むらBGM音量が想定値ではありません。")

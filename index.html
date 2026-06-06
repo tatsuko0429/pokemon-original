@@ -1926,10 +1926,10 @@ select {
     audio: {
       masterVolume: 0.07,
       bgmOutputScale: 0.5,
-      seVolumeMultiplier: 32,
+      seVolumeMultiplier: 28,
       sePeakBase: 0.42,
-      seNoteVolumeFloor: 0.85,
-      htmlSeVolume: 1,
+      seNoteVolumeFloor: 0.75,
+      htmlSeVolume: 0.88,
       seDuckBgmRatio: 0.35,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
@@ -1966,16 +1966,17 @@ select {
       },
       se: {
         confirm: [
-          { freq: 659.25, ms: 60 },
-          { freq: 783.99, ms: 80 },
+          { freq: 523.25, ms: 42, wave: "sine", volume: 0.64 },
+          { freq: 783.99, ms: 58, wave: "triangle", volume: 0.48 },
+          { freq: 1046.5, ms: 44, wave: "sine", volume: 0.28 },
         ],
         cancel: [
-          { freq: 523.25, ms: 70 },
-          { freq: 392, ms: 90 },
+          { freq: 493.88, ms: 54, wave: "triangle", volume: 0.5 },
+          { freq: 329.63, ms: 76, wave: "sine", volume: 0.34 },
         ],
         message: [
-          { freq: 622.25, ms: 42, wave: "triangle", volume: 0.48 },
-          { freq: 739.99, ms: 48, wave: "triangle", volume: 0.42 },
+          { freq: 659.25, ms: 30, wave: "sine", volume: 0.34 },
+          { freq: 783.99, ms: 34, wave: "triangle", volume: 0.22 },
         ],
         talk: [
           { freq: 440, ms: 38, wave: "triangle", volume: 0.34 },
@@ -1986,8 +1987,8 @@ select {
           { freq: 261.63, ms: 58, wave: "triangle", volume: 0.28 },
         ],
         menu: [
-          { freq: 587.33, ms: 60 },
-          { freq: 739.99, ms: 100 },
+          { freq: 587.33, ms: 46, wave: "sine", volume: 0.52 },
+          { freq: 880, ms: 66, wave: "triangle", volume: 0.36 },
         ],
         encounter: [
           { freq: 196, ms: 70 },
@@ -2005,9 +2006,9 @@ select {
           { freq: 110, ms: 44, wave: "triangle", volume: 0.55 },
         ],
         move: [
-          { freq: 523.25, ms: 45 },
-          { freq: 659.25, ms: 45 },
-          { freq: 783.99, ms: 70 },
+          { freq: 440, ms: 34, wave: "triangle", volume: 0.44 },
+          { freq: 659.25, ms: 42, wave: "sine", volume: 0.38 },
+          { freq: 880, ms: 54, wave: "triangle", volume: 0.24 },
         ],
         grass_move: [
           { freq: 587.33, ms: 36, wave: "triangle", volume: 0.42 },
@@ -2030,8 +2031,8 @@ select {
           { freq: 880, ms: 62, wave: "triangle", volume: 0.26 },
         ],
         hit: [
-          { freq: 196, ms: 38, wave: "sawtooth", volume: 0.7 },
-          { freq: 130.81, ms: 86, wave: "triangle", volume: 0.5 },
+          { freq: 220, ms: 32, wave: "triangle", volume: 0.7 },
+          { freq: 146.83, ms: 74, wave: "sine", volume: 0.46 },
         ],
         hp_down: [
           { freq: 174.61, ms: 24, wave: "square", volume: 0.42 },
@@ -2042,10 +2043,10 @@ select {
           { freq: 587.33, ms: 48, wave: "triangle", volume: 0.28 },
         ],
         exp: [
-          { freq: 523.25, ms: 38, wave: "triangle", volume: 0.48 },
-          { freq: 659.25, ms: 42, wave: "triangle", volume: 0.5 },
-          { freq: 783.99, ms: 48, wave: "triangle", volume: 0.48 },
-          { freq: 1046.5, ms: 70, wave: "triangle", volume: 0.34 },
+          { freq: 523.25, ms: 34, wave: "sine", volume: 0.42 },
+          { freq: 659.25, ms: 40, wave: "triangle", volume: 0.44 },
+          { freq: 880, ms: 48, wave: "sine", volume: 0.36 },
+          { freq: 1174.66, ms: 70, wave: "triangle", volume: 0.24 },
         ],
         exp_tick: [
           { freq: 783.99, ms: 24, wave: "triangle", volume: 0.34 },
@@ -5371,12 +5372,12 @@ select {
 
       const sampleRate = 22050;
       let cursorSeconds = 0;
-      let totalSeconds = 0.04;
+      let totalSeconds = 0.05;
 
       pattern.forEach((note) => {
         const durationSeconds = (note.ms || 70) / 1000;
         if (note.freq) {
-          totalSeconds = Math.max(totalSeconds, cursorSeconds + durationSeconds + 0.025);
+          totalSeconds = Math.max(totalSeconds, cursorSeconds + durationSeconds + 0.055);
         }
         cursorSeconds += durationSeconds * 0.85;
       });
@@ -5393,7 +5394,7 @@ select {
 
         const startFrame = Math.max(0, Math.floor(cursorSeconds * sampleRate));
         const frameCount = Math.max(1, Math.floor(durationSeconds * sampleRate));
-        const wave = note.wave || "square";
+        const wave = note.wave || "triangle";
         const noteVolume = getSeNoteVolume(note);
 
         for (let frame = 0; frame < frameCount; frame += 1) {
@@ -5403,15 +5404,28 @@ select {
           }
 
           const t = frame / sampleRate;
-          const attack = Math.min(1, t / 0.008);
-          const release = Math.min(1, Math.max(0, (durationSeconds - t) / 0.018));
+          const attack = Math.min(1, t / 0.012);
+          const release = Math.min(1, Math.max(0, (durationSeconds - t) / 0.032));
           const envelope = Math.min(attack, release);
           const phase = (t * note.freq) % 1;
-          samples[index] += getWaveSample(wave, phase) * noteVolume * envelope;
+          const body = getWaveSample(wave, phase);
+          const sheen = getWaveSample("sine", (t * note.freq * 2.01) % 1) * 0.05;
+          samples[index] += ((body * 0.95) + sheen) * noteVolume * envelope;
         }
 
         cursorSeconds += durationSeconds * 0.85;
       });
+
+      const tailDelayFrames = Math.max(1, Math.floor(sampleRate * 0.026));
+      for (let index = tailDelayFrames; index < samples.length; index += 1) {
+        samples[index] += samples[index - tailDelayFrames] * 0.12;
+      }
+
+      let smoothed = 0;
+      for (let index = 0; index < samples.length; index += 1) {
+        smoothed += (samples[index] - smoothed) * 0.62;
+        samples[index] = smoothed;
+      }
 
       let peak = 0;
       for (let index = 0; index < samples.length; index += 1) {
@@ -5522,19 +5536,35 @@ select {
         : getSeNoteVolume(note);
       const peak = Math.max(0.0001, basePeak * effectiveNoteVolume);
 
-      oscillator.type = note.wave || defaultWave || "square";
+      oscillator.type = note.wave || defaultWave || "triangle";
       oscillator.frequency.setValueAtTime(note.freq, startTime);
       gain.gain.setValueAtTime(0.0001, startTime);
-      gain.gain.exponentialRampToValueAtTime(peak, startTime + Math.min(0.015, durationSeconds / 4));
-      gain.gain.exponentialRampToValueAtTime(0.0001, Math.max(startTime + 0.02, endTime - 0.015));
+      const attackSeconds = Math.min(isBgm ? 0.015 : 0.012, durationSeconds / 3);
+      const releaseSeconds = Math.min(isBgm ? 0.015 : 0.026, durationSeconds / 2);
+      const releaseStart = Math.max(startTime + attackSeconds + 0.001, endTime - releaseSeconds);
+      gain.gain.exponentialRampToValueAtTime(peak, startTime + attackSeconds);
+      gain.gain.exponentialRampToValueAtTime(0.0001, releaseStart);
 
       const targetGain = isBgm ? bgmGain : seGain;
 
       oscillator.connect(gain);
-      gain.connect(targetGain || masterGain);
+      let filter = null;
+      if (!isBgm) {
+        filter = audioContext.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(note.filterHz || 4200, startTime);
+        filter.Q.value = 0.6;
+        gain.connect(filter);
+        filter.connect(targetGain || masterGain);
+      } else {
+        gain.connect(targetGain || masterGain);
+      }
       oscillator.onended = () => {
         forgetNode(collection, oscillator);
         gain.disconnect();
+        if (filter) {
+          filter.disconnect();
+        }
       };
 
       if (collection === activeSeNodes) {
@@ -5848,7 +5878,7 @@ select {
       let cursor = audioContext.currentTime + 0.01;
       pattern.forEach((note) => {
         const durationSeconds = (note.ms || 70) / 1000;
-        playTone(note, cursor, durationSeconds, note.wave || "square", activeSeNodes);
+        playTone(note, cursor, durationSeconds, note.wave || "triangle", activeSeNodes);
         cursor += durationSeconds * 0.85;
       });
     }
