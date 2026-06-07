@@ -1088,6 +1088,37 @@ select {
     inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
+.move-hold-tip {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 7px;
+  z-index: 2;
+  padding: 7px 8px;
+  border: 2px solid rgba(32, 34, 27, 0.78);
+  border-radius: 10px;
+  background: rgba(248, 244, 215, 0.96);
+  color: #20221b;
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: left;
+  opacity: 0;
+  transform: translateY(5px);
+  pointer-events: none;
+  box-shadow:
+    0 5px 0 rgba(8, 10, 12, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    opacity 80ms ease,
+    transform 80ms ease;
+}
+
+.control-button.move-button.is-hold-preview .move-hold-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .move-name,
 .move-meta,
 .move-main,
@@ -2009,7 +2040,7 @@ select {
     },
     audio: {
       masterVolume: 0.07,
-      bgmOutputScale: 0.5,
+      bgmOutputScale: 0.25,
       seVolumeMultiplier: 28,
       sePeakBase: 0.42,
       seNoteVolumeFloor: 0.75,
@@ -2017,6 +2048,7 @@ select {
       seDuckBgmRatio: 0.35,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
+      preloadSeIds: ["confirm", "cancel", "menu", "message", "hit", "exp", "item"],
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -4927,6 +4959,76 @@ select {
           queueAction(action, payload);
         });
       },
+      attachLongPressActionButton(button, action, payload, options) {
+        const settings = options || {};
+        const holdMs = Math.max(360, Math.min(900, settings.holdMs || 560));
+        let handledByPointer = false;
+        let holdTimerId = null;
+        let longPressed = false;
+
+        const clearHoldTimer = () => {
+          if (holdTimerId) {
+            window.clearTimeout(holdTimerId);
+            holdTimerId = null;
+          }
+        };
+        const finishPreview = () => {
+          button.classList.remove("is-hold-preview");
+          if (longPressed && typeof settings.onLongPressEnd === "function") {
+            settings.onLongPressEnd(payload);
+          }
+          longPressed = false;
+        };
+        const startPreview = () => {
+          holdTimerId = null;
+          longPressed = true;
+          button.classList.add("is-hold-preview");
+          triggerHaptic();
+          if (typeof settings.onLongPress === "function") {
+            settings.onLongPress(payload);
+          }
+        };
+        const activate = (event) => {
+          event.preventDefault();
+          clearHoldTimer();
+          finishPreview();
+          button.classList.add("is-active");
+          triggerHaptic();
+          holdTimerId = window.setTimeout(startPreview, holdMs);
+          if (button.setPointerCapture && event.pointerId !== undefined) {
+            button.setPointerCapture(event.pointerId);
+          }
+        };
+        const release = (event) => {
+          event.preventDefault();
+          const wasLongPressed = longPressed;
+          clearHoldTimer();
+          button.classList.remove("is-active");
+          finishPreview();
+          handledByPointer = true;
+          if (!wasLongPressed) {
+            queueAction(action, payload);
+          }
+        };
+        const cancel = () => {
+          clearHoldTimer();
+          button.classList.remove("is-active");
+          finishPreview();
+        };
+
+        button.addEventListener("pointerdown", activate);
+        button.addEventListener("pointerup", release);
+        button.addEventListener("pointerleave", cancel);
+        button.addEventListener("pointercancel", cancel);
+        button.addEventListener("click", (event) => {
+          if (handledByPointer) {
+            handledByPointer = false;
+            event.preventDefault();
+            return;
+          }
+          queueAction(action, payload);
+        });
+      },
       attachHoldButton(button, holdName) {
         if (!holdButtonsByName.has(holdName)) {
           holdButtonsByName.set(holdName, new Set());
@@ -5041,6 +5143,9 @@ select {
       4,
       Math.min(64, Math.floor((config && config.maxActiveSeTones) || 18))
     );
+    const preloadSeIds = Array.isArray(config && config.preloadSeIds)
+      ? config.preloadSeIds.filter((id) => typeof id === "string")
+      : [];
     let context = null;
     let masterGain = null;
     let bgmGain = null;
@@ -5174,6 +5279,9 @@ select {
     }
 
     function isDesiredBgmInterrupted() {
+      if (!bgmEnabled) {
+        return false;
+      }
       if (!desiredBgmId) {
         return false;
       }
@@ -5587,6 +5695,32 @@ select {
       return element;
     }
 
+    function preloadHtmlSePools() {
+      preloadSeIds.forEach((id) => {
+        const pattern = sePatterns[id];
+        if (!pattern) {
+          return;
+        }
+        const element = getHtmlSeElement(id, pattern);
+        if (element && typeof element.load === "function") {
+          try {
+            element.load();
+          } catch (error) {}
+        }
+      });
+    }
+
+    function scheduleSePreload() {
+      const callback = () => {
+        preloadHtmlSePools();
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(callback);
+      } else {
+        window.setTimeout(callback, 80);
+      }
+    }
+
     function playHtmlSe(id, pattern) {
       const element = getHtmlSeElement(id, pattern);
       if (!element) {
@@ -5805,7 +5939,9 @@ select {
           return false;
         }
 
-        if (desiredBgmId && isDesiredBgmInterrupted()) {
+        if (!bgmEnabled) {
+          stopBgmPlayback();
+        } else if (desiredBgmId && isDesiredBgmInterrupted()) {
           currentBgmId = "";
           transitionBgm(desiredBgmId, 0);
         } else if (desiredBgmId) {
@@ -5915,6 +6051,11 @@ select {
         return;
       }
 
+      if (!bgmEnabled) {
+        transitionBgm("", 0);
+        return;
+      }
+
       if (!unlocked) {
         return;
       }
@@ -5963,7 +6104,7 @@ select {
         return;
       }
 
-      let cursor = audioContext.currentTime + 0.01;
+      let cursor = audioContext.currentTime + 0.002;
       pattern.forEach((note) => {
         const durationSeconds = (note.ms || 70) / 1000;
         playTone(note, cursor, durationSeconds, note.wave || "triangle", activeSeNodes);
@@ -5980,6 +6121,11 @@ select {
       recordSe(id);
       duckBgmForSe();
 
+      if (unlocked && context && context.state === "running") {
+        playWebAudioSe(id, pattern);
+        return;
+      }
+
       if (playHtmlSe(id, pattern)) {
         return;
       }
@@ -5990,9 +6136,14 @@ select {
     function setBgmEnabled(enabled) {
       bgmEnabled = Boolean(enabled);
       saveAudioSettings();
-      applyCurrentBgmVolume();
-      if (bgmEnabled && desiredBgmId && isDesiredBgmInterrupted()) {
-        recoverAudioPlayback();
+      if (!bgmEnabled) {
+        transitionBgm("", 0);
+        return;
+      }
+      if (desiredBgmId && unlocked) {
+        transitionBgm(desiredBgmId, 0);
+      } else {
+        applyCurrentBgmVolume();
       }
     }
 
@@ -6034,6 +6185,7 @@ select {
         bgmDuckScale: getBgmDuckScale(),
         baseBgmVolume: activePattern ? getBasePatternVolume(activePattern) : null,
         finalBgmVolume: activePattern ? getPatternVolume(activePattern) : null,
+        effectiveBgmVolume: activePattern ? getEffectivePatternVolume(activePattern) : null,
         activeSeToneCount: activeSeNodes.size,
         activeHtmlSeCount: getActiveHtmlSeCount(),
         seVolumeMultiplier,
@@ -6051,6 +6203,8 @@ select {
     function clearDebugHistory() {
       playedSeHistory.length = 0;
     }
+
+    scheduleSePreload();
 
     return {
       bindUserGesture,
@@ -6600,16 +6754,52 @@ select {
     };
     let backingWidth = 0;
     let backingHeight = 0;
+    let cachedCssWidth = screen.width;
+    let cachedCssHeight = screen.height;
+    let cachedPixelRatio = 0;
+    let resolutionDirty = true;
+    let lastMessageKey = "";
+
+    function markResolutionDirty() {
+      resolutionDirty = true;
+    }
+
+    if (typeof ResizeObserver === "function") {
+      const resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries && entries[0];
+        if (entry && entry.contentRect) {
+          cachedCssWidth = entry.contentRect.width || screen.width;
+          cachedCssHeight = entry.contentRect.height || screen.height;
+        }
+        markResolutionDirty();
+      });
+      resizeObserver.observe(canvas);
+    } else {
+      window.addEventListener("resize", markResolutionDirty);
+      window.addEventListener("orientationchange", markResolutionDirty);
+    }
 
     function syncCanvasResolution() {
       const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
-      const cssWidth = canvas.clientWidth || screen.width;
-      const cssHeight = canvas.clientHeight || screen.height;
+      if (pixelRatio !== cachedPixelRatio) {
+        cachedPixelRatio = pixelRatio;
+        markResolutionDirty();
+      }
+
+      if (!resolutionDirty && backingWidth && backingHeight) {
+        return;
+      }
+
+      if (!backingWidth || !backingHeight) {
+        cachedCssWidth = canvas.clientWidth || screen.width;
+        cachedCssHeight = canvas.clientHeight || screen.height;
+      }
+
       const targetWidth = Math.ceil(
-        Math.min(screen.width * maxRenderScale, Math.max(screen.width * renderScale, cssWidth * pixelRatio))
+        Math.min(screen.width * maxRenderScale, Math.max(screen.width * renderScale, cachedCssWidth * pixelRatio))
       );
       const targetHeight = Math.ceil(
-        Math.min(screen.height * maxRenderScale, Math.max(screen.height * renderScale, cssHeight * pixelRatio))
+        Math.min(screen.height * maxRenderScale, Math.max(screen.height * renderScale, cachedCssHeight * pixelRatio))
       );
 
       if (targetWidth !== backingWidth || targetHeight !== backingHeight) {
@@ -6621,6 +6811,7 @@ select {
 
       ctx.setTransform(backingWidth / screen.width, 0, 0, backingHeight / screen.height, 0, 0);
       ctx.imageSmoothingEnabled = false;
+      resolutionDirty = false;
     }
 
     function clear(color) {
@@ -8257,6 +8448,17 @@ select {
         delete messageElement.dataset.kind;
       }
 
+      const messageKey = JSON.stringify({
+        message,
+        caption,
+        kind: messageElement.dataset.kind || "",
+        battle: state.scene === "battle",
+      });
+      if (messageKey === lastMessageKey) {
+        return;
+      }
+      lastMessageKey = messageKey;
+
       messageElement.textContent = message.replace(/\\n/g, "\n");
       messageElement.classList.toggle("is-hidden", message.length === 0);
       captionElement.textContent = caption;
@@ -8310,6 +8512,7 @@ select {
     let lastPanelKey = "";
     let lastOverlayKey = "";
     let lastTimerKey = "";
+    let lastBodyBattleState = null;
     function createButton(label, className, onClick, disabled) {
       const button = document.createElement("button");
       button.type = "button";
@@ -8357,9 +8560,20 @@ select {
           return "型が変わる水の連続技。";
         case "swimming_regen":
           return "数ターン少しずつ回復する。";
+        case "chance_full_heal":
+          return "成功するとHPを大きく回復する。";
+        case "ai_weakness_attack":
+          return "AIの分析で弱点を探し、相手に合わせて威力が上がる。";
         default:
           return "";
       }
+    }
+
+    function getMoveLongDescription(move, currentPp) {
+      const effectText = getMoveEffectText(move) || "相手にダメージを与える。";
+      const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
+      const accuracyText = move.accuracy > 0 ? `命中 ${move.accuracy}` : "命中 -";
+      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp}`;
     }
 
     function getMoveTypeMultiplier(move, enemySpecies) {
@@ -8492,6 +8706,10 @@ select {
       button.appendChild(advice);
       button.appendChild(ppRow);
       button.appendChild(detail);
+      const holdTip = document.createElement("span");
+      holdTip.className = "move-hold-tip";
+      holdTip.textContent = getMoveLongDescription(move, currentPp);
+      button.appendChild(holdTip);
       return button;
     }
 
@@ -9094,7 +9312,7 @@ select {
             previewed: battle.hoveredMoveId === moveId,
             enemySpecies,
           });
-          input.attachActionButton(button, "battle_select_move", { moveId });
+          input.attachLongPressActionButton(button, "battle_select_move", { moveId });
           wrapper.appendChild(button);
         });
         const back = createButton("もどる", "move-back-button is-subtle");
@@ -9151,7 +9369,11 @@ select {
     function render() {
       // body.is-battle-sceneはCSSの画面比率切替スイッチ。scene変更と同じフレームで更新する。
       const state = store.getState();
-      document.body.classList.toggle("is-battle-scene", state.scene === "battle");
+      const isBattleScene = state.scene === "battle";
+      if (isBattleScene !== lastBodyBattleState) {
+        document.body.classList.toggle("is-battle-scene", isBattleScene);
+        lastBodyBattleState = isBattleScene;
+      }
       renderScreenTimer(state);
       renderStatus(state);
       renderBattleOverlay(state);
@@ -12085,7 +12307,7 @@ select {
       const activeBgmVolume =
         typeof debug.activeBgmElementVolume === "number"
           ? debug.activeBgmElementVolume
-          : debug.finalBgmVolume;
+          : debug.effectiveBgmVolume;
       return [
         `BGM: ${bgmEnabled ? "ON" : "OFF"}`,
         `効果音: ${seEnabled ? "ON" : "OFF"}`,
@@ -12123,7 +12345,7 @@ select {
         actions: [
           {
             id: "toggle_bgm",
-            label: bgmEnabled ? "BGMを切る" : "BGMを入れる",
+            label: bgmEnabled ? "BGM: ON" : "BGM: OFF",
             onSelect: () => {
               audio.setBgmEnabled(!bgmEnabled);
               audio.playSe("confirm");
@@ -12132,7 +12354,7 @@ select {
           },
           {
             id: "toggle_se",
-            label: seEnabled ? "SEを切る" : "SEを入れる",
+            label: seEnabled ? "SE: ON" : "SE: OFF",
             onSelect: () => {
               if (seEnabled) {
                 audio.playSe("cancel");
@@ -12146,7 +12368,7 @@ select {
           },
           {
             id: "test_se",
-            label: "SEを試す",
+            label: "効果音チェック",
             onSelect: () => {
               playAudioTestSequence();
             },
@@ -12179,7 +12401,7 @@ select {
           playerSpecies,
           "",
           {
-            view: partyPreview.view || "back",
+            view: "front",
             imageMaxHeight: partyPreview.imageMaxHeight,
             variant: "party",
             level: playerMonster.level,

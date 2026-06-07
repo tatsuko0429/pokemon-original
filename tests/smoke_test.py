@@ -237,6 +237,8 @@ async def read_field_state(page):
           modalLines: [...document.querySelectorAll("#modal-body p")].map((el) => el.textContent),
           modalBodyText: document.querySelector("#modal-body")?.textContent?.replace(/\\s+/g, " ").trim() || "",
           modalPreviewCount: document.querySelectorAll("#modal-body .modal-monster-frame canvas, #modal-body .modal-monster-frame img").length,
+          modalPreviewImages: [...document.querySelectorAll("#modal-body .modal-monster-frame img")]
+            .map((el) => el.getAttribute("src") || ""),
           dexCards: [...document.querySelectorAll("#modal-body .modal-dex-card")].map((el) => ({
             text: el.textContent.replace(/\\s+/g, " ").trim(),
             unknown: el.classList.contains("is-unknown"),
@@ -410,14 +412,14 @@ async def run_smoke_test(base_url: str) -> None:
         expect(abs(audio_state["config"]["sePeakBase"] - 0.42) < 0.0001, "SEピーク音量が想定値ではありません。")
         expect(abs(audio_state["config"]["seNoteVolumeFloor"] - 0.75) < 0.0001, "SE個別音量下限が想定値ではありません。")
         expect(abs(audio_state["config"]["htmlSeVolume"] - 0.88) < 0.0001, "HTML SE音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["bgmOutputScale"] - 0.5) < 0.0001, "BGM最終出力倍率が想定値ではありません。")
+        expect(abs(audio_state["config"]["bgmOutputScale"] - 0.25) < 0.0001, "BGM最終出力倍率が想定値ではありません。")
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
         expect(abs(audio_state["config"]["firstGrassVolume"] - 0.004375) < 0.0001, "草むらBGM音量が想定値ではありません。")
         expect(abs(audio_state["config"]["fieldVolume"] - 0.004375) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
         expect(abs(audio_state["config"]["battleVolume"] - 0.005) < 0.0001, "戦闘BGM音量が想定値ではありません。")
         expect(audio_state["debug"]["unlocked"], "初回操作後に音声アンロック状態へ移行していません。")
         expect(audio_state["debug"]["desiredBgmId"] == "first_grass", "BGMの要求状態が初期マップBGMになっていません。")
-        expect(abs(audio_state["debug"]["finalBgmVolume"] - 0.0021875) < 0.0001, "草むらBGMの実効音量が最終倍率込みになっていません。")
+        expect(abs(audio_state["debug"]["finalBgmVolume"] - 0.00109375) < 0.0001, "草むらBGMの実効音量が最終倍率込みになっていません。")
         expect("confirm" in audio_state["debug"]["recentSeIds"], "ボタン決定SEが再生履歴に残っていません。")
         expect(
             audio_state["debug"]["activeSeToneCount"] <= audio_state["config"]["maxActiveSeTones"],
@@ -850,6 +852,10 @@ async def run_smoke_test(base_url: str) -> None:
         party_state = await read_field_state(page)
         expect(party_state["modalTitle"] == "手持ち", "手持ち画面に切り替わっていません。")
         expect(party_state["modalPreviewCount"] >= 1, "手持ち画面にモンスター画像が表示されていません。")
+        expect(
+            any("front" in image for image in party_state["modalPreviewImages"]),
+            "手持ち画面のモンスター画像が正面表示になっていません。",
+        )
         expect(any("HP" in line for line in party_state["modalLines"]), "手持ち画面にHPが表示されていません。")
         expect(any("PP" in line for line in party_state["modalLines"]), "手持ち画面に技PPが表示されていません。")
         await click_modal_button(page, "メニューへ")
@@ -875,29 +881,51 @@ async def run_smoke_test(base_url: str) -> None:
         expect(any(line.startswith("BGM出力:") for line in audio_menu_state["modalLines"]), "音設定画面にBGM出力値が表示されていません。")
         expect(any(line.startswith("SE経路:") for line in audio_menu_state["modalLines"]), "音設定画面にSE経路が表示されていません。")
         expect(any(line.startswith("直近SE:") for line in audio_menu_state["modalLines"]), "音設定画面に直近SEが表示されていません。")
-        expect("SEを試す" in audio_menu_state["modalButtons"], "音設定画面にSEテストボタンがありません。")
+        expect("BGM: ON" in audio_menu_state["modalButtons"], "音設定画面のBGM切替がON/OFF表記になっていません。")
+        expect("SE: ON" in audio_menu_state["modalButtons"], "音設定画面のSE切替がON/OFF表記になっていません。")
+        expect("効果音チェック" in audio_menu_state["modalButtons"], "音設定画面に効果音チェックボタンがありません。")
         await clear_recent_se_ids(page)
-        await click_modal_button(page, "SEを試す")
+        await click_modal_button(page, "効果音チェック")
         await asyncio.sleep(0.35)
         audio_test_ids = await read_recent_se_ids(page)
         expect(
             all(sound_id in audio_test_ids for sound_id in ("confirm", "hit", "exp")),
             "音設定のSE診断音が一通り再生されていません。",
         )
-        await click_modal_button(page, "BGMを切る")
+        await click_modal_button(page, "BGM: ON")
         await asyncio.sleep(0.2)
         bgm_off_state = await read_field_state(page)
         bgm_off_debug = await page.evaluate(
             """() => window.MonsterPrototype.runtime.audio.getDebugState()"""
         )
         expect("BGM: OFF" in bgm_off_state["modalLines"], "BGM OFF状態が音設定画面に反映されていません。")
+        expect("BGM: OFF" in bgm_off_state["modalButtons"], "BGM OFF状態がボタンへ反映されていません。")
         expect(bgm_off_debug["bgmEnabled"] is False, "BGM OFF状態が音声マネージャに反映されていません。")
-        await click_modal_button(page, "BGMを入れる")
+        expect(bgm_off_debug["currentBgmId"] == "", "BGM OFFでも現在BGMが再生状態として残っています。")
+        expect(bgm_off_debug["effectiveBgmVolume"] == 0, "BGM OFFでも有効音量が0になっていません。")
+        await click_modal_button(page, "BGM: OFF")
         await asyncio.sleep(0.2)
         bgm_on_debug = await page.evaluate(
             """() => window.MonsterPrototype.runtime.audio.getDebugState()"""
         )
         expect(bgm_on_debug["bgmEnabled"] is True, "BGM ON状態が音声マネージャに戻っていません。")
+        await click_modal_button(page, "SE: ON")
+        await asyncio.sleep(0.2)
+        se_off_state = await read_field_state(page)
+        se_off_debug = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.audio.getDebugState()"""
+        )
+        expect("効果音: OFF" in se_off_state["modalLines"], "SE OFF状態が音設定画面に反映されていません。")
+        expect("SE: OFF" in se_off_state["modalButtons"], "SE OFF状態がボタンへ反映されていません。")
+        expect(se_off_debug["seEnabled"] is False, "SE OFF状態が音声マネージャに反映されていません。")
+        expect(se_off_debug["activeSeToneCount"] == 0, "SE OFFでもWebAudio SEが残っています。")
+        expect(se_off_debug["activeHtmlSeCount"] == 0, "SE OFFでもHTML SEが残っています。")
+        await click_modal_button(page, "SE: OFF")
+        await asyncio.sleep(0.2)
+        se_on_debug = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.audio.getDebugState()"""
+        )
+        expect(se_on_debug["seEnabled"] is True, "SE ON状態が音声マネージャに戻っていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await click_modal_button(page, "アイテム")
@@ -1170,6 +1198,47 @@ async def run_smoke_test(base_url: str) -> None:
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """
         )
         expect(move_tag == "MOVE", "技選択中のメッセージタグがMOVEになっていません。")
+        move_button_center = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll(".move-button")]
+                .find((candidate) => !candidate.disabled);
+              if (!button) {
+                throw new Error("使用可能な技ボタンが見つかりません。");
+              }
+              const rect = button.getBoundingClientRect();
+              return {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+              };
+            }"""
+        )
+        await page.mouse.move(move_button_center["x"], move_button_center["y"])
+        await page.mouse.down()
+        await asyncio.sleep(0.68)
+        move_hold_state = await page.evaluate(
+            """() => {
+              const button = document.querySelector(".move-button.is-hold-preview");
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                previewed: Boolean(button),
+                tipText: button?.querySelector(".move-hold-tip")?.textContent || "",
+                phase: state.battle?.phase || ""
+              };
+            }"""
+        )
+        expect(move_hold_state["previewed"], "技長押しで説明チップが表示されていません。")
+        expect("PP" in move_hold_state["tipText"], "技長押し説明にPP情報が表示されていません。")
+        expect(
+            "威力" in move_hold_state["tipText"] or "補助" in move_hold_state["tipText"],
+            "技長押し説明に効果情報が表示されていません。",
+        )
+        expect(move_hold_state["phase"] == "moveSelect", "技長押し中に技選択フェーズから外れています。")
+        await page.mouse.up()
+        await asyncio.sleep(0.2)
+        move_hold_release_phase = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.snapshot().battle?.phase || "" """
+        )
+        expect(move_hold_release_phase == "moveSelect", "技長押しを離しただけで技が発動しています。")
         await page.evaluate(
             """() => {
               window.__battleSoundMessageAutoAdvanceMs = window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs;
