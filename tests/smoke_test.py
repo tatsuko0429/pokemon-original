@@ -237,6 +237,13 @@ async def read_field_state(page):
           modalLines: [...document.querySelectorAll("#modal-body p")].map((el) => el.textContent),
           modalBodyText: document.querySelector("#modal-body")?.textContent?.replace(/\\s+/g, " ").trim() || "",
           modalPreviewCount: document.querySelectorAll("#modal-body .modal-monster-frame canvas, #modal-body .modal-monster-frame img").length,
+          dexCards: [...document.querySelectorAll("#modal-body .modal-dex-card")].map((el) => ({
+            text: el.textContent.replace(/\\s+/g, " ").trim(),
+            unknown: el.classList.contains("is-unknown"),
+            captured: el.classList.contains("is-captured"),
+            thumbCount: el.querySelectorAll("img, canvas").length
+          })),
+          silhouetteCount: document.querySelectorAll("#modal-body .is-silhouette, #modal-body .modal-dex-card.is-unknown").length,
           modalButtons: [...document.querySelectorAll("#modal-actions button")].map((el) => el.textContent),
           tapRippleCount: document.querySelectorAll(".tap-ripple").length,
           bodyText: document.body.textContent?.replace(/\\s+/g, " ").trim() || "",
@@ -254,6 +261,29 @@ async def click_modal_button(page, label: str) -> None:
             throw new Error(`${label} ボタンが見つかりません。`);
           }
           const rect = button.getBoundingClientRect();
+          return {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          };
+        }""",
+        label,
+    )
+    await page.mouse.move(position["x"], position["y"])
+    await page.mouse.down()
+    await asyncio.sleep(0.06)
+    await page.mouse.up()
+    await asyncio.sleep(0.04)
+
+
+async def click_dex_card(page, label: str) -> None:
+    position = await page.evaluate(
+        """(label) => {
+          const card = [...document.querySelectorAll(".modal-dex-card")]
+            .find((entry) => entry.textContent.includes(label));
+          if (!card) {
+            throw new Error(`${label} 図鑑カードが見つかりません。`);
+          }
+          const rect = card.getBoundingClientRect();
           return {
             x: rect.left + rect.width / 2,
             y: rect.top + rect.height / 2
@@ -811,6 +841,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("手持ち" in menu_state["modalButtons"], "メニューに手持ちボタンがありません。")
         expect("アイテム" in menu_state["modalButtons"], "メニューにアイテムボタンがありません。")
         expect("図鑑" in menu_state["modalButtons"], "メニューに図鑑ボタンがありません。")
+        expect("冒険レポート" in menu_state["modalButtons"], "メニューに冒険レポートボタンがありません。")
         expect("やり直す" in menu_state["modalButtons"], "メニューにやり直すボタンがありません。")
         expect("目的" in menu_state["modalButtons"], "メニューに目的ボタンがありません。")
         expect("音設定" in menu_state["modalButtons"], "メニューに音設定ボタンがありません。")
@@ -829,7 +860,7 @@ async def run_smoke_test(base_url: str) -> None:
         objective_state = await read_field_state(page)
         expect(objective_state["modalTitle"] == "目的", "目的画面に切り替わっていません。")
         expect(
-            any("草むらで5分間準備" in line for line in objective_state["modalLines"]),
+            any("草むらで5分準備" in line for line in objective_state["modalLines"]),
             "目的画面に現在の目的が表示されていません。",
         )
         expect("現在地: ながめのみち" in objective_state["modalLines"], "目的画面に現在地が表示されていません。")
@@ -885,10 +916,25 @@ async def run_smoke_test(base_url: str) -> None:
         await asyncio.sleep(0.2)
         observation_state = await read_field_state(page)
         expect(observation_state["modalTitle"] == "図鑑", "図鑑画面に切り替わっていません。")
+        expect("記録 0/8" in observation_state["modalLines"], "図鑑の記録数が表示されていません。")
+        expect(len(observation_state["dexCards"]) == 8, "未捕獲でも全モンスターが図鑑に並んでいません。")
         expect(
-            any("まだ図鑑には記録がありません" in line for line in observation_state["modalLines"]),
-            "空の図鑑メッセージが表示されていません。",
+            all(card["unknown"] and card["thumbCount"] >= 1 for card in observation_state["dexCards"]),
+            "未捕獲モンスターがシルエット付きカードになっていません。",
         )
+        expect("ダンゴマル" not in observation_state["modalBodyText"], "未捕獲の正式名が図鑑一覧に表示されています。")
+        await click_dex_card(page, "No.04")
+        await asyncio.sleep(0.2)
+        unknown_detail_state = await read_field_state(page)
+        expect(unknown_detail_state["modalTitle"] == "No.04 ？？？", "未捕獲詳細が未知表示になっていません。")
+        expect(unknown_detail_state["modalPreviewCount"] >= 1, "未捕獲詳細にシルエット画像が表示されていません。")
+        expect(unknown_detail_state["silhouetteCount"] >= 1, "未捕獲詳細にシルエット指定がありません。")
+        expect(
+            not any("タイプ:" in line or "初期技:" in line for line in unknown_detail_state["modalLines"]),
+            "未捕獲詳細にタイプや技が表示されています。",
+        )
+        await click_modal_button(page, "図鑑へ戻る")
+        await asyncio.sleep(0.2)
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await page.evaluate(
@@ -899,12 +945,22 @@ async def run_smoke_test(base_url: str) -> None:
         await click_modal_button(page, "図鑑")
         await asyncio.sleep(0.2)
         recorded_observation_state = await read_field_state(page)
-        expect("ダンゴマル" in recorded_observation_state["modalButtons"], "図鑑一覧に種族ボタンが表示されていません。")
-        await click_modal_button(page, "ダンゴマル")
+        expect("記録 1/8" in recorded_observation_state["modalLines"], "捕獲済み図鑑の記録数が更新されていません。")
+        expect(len(recorded_observation_state["dexCards"]) == 8, "捕獲後も全モンスターが図鑑に並んでいません。")
+        expect(
+            any(card["captured"] and "ダンゴマル" in card["text"] for card in recorded_observation_state["dexCards"]),
+            "捕獲済みモンスターが通常カードとして表示されていません。",
+        )
+        expect(
+            any(card["unknown"] for card in recorded_observation_state["dexCards"]),
+            "未捕獲モンスターのシルエットカードが残っていません。",
+        )
+        await click_dex_card(page, "ダンゴマル")
         await asyncio.sleep(0.2)
         observation_detail_state = await read_field_state(page)
         expect(observation_detail_state["modalTitle"] == "ダンゴマル", "図鑑詳細画面が開いていません。")
         expect(observation_detail_state["modalPreviewCount"] >= 1, "図鑑詳細にモンスター画像が表示されていません。")
+        expect(observation_detail_state["silhouetteCount"] == 0, "捕獲済み図鑑詳細がシルエットのままです。")
         expect(any("タイプ:" in line for line in observation_detail_state["modalLines"]), "図鑑詳細にタイプが表示されていません。")
         await click_modal_button(page, "図鑑へ戻る")
         await asyncio.sleep(0.2)
@@ -1526,9 +1582,121 @@ async def run_smoke_test(base_url: str) -> None:
             repeat_state["state"]["inventory"]["masterBallCount"] == master_balls_before_pickup + 1,
             "取得済みの拾得物が再取得されています。",
         )
+
+        await load_fresh(page, base_url)
+        await page.evaluate(
+            """() => {
+              const reportKey = window.MonsterPrototype.config.game.save.reportStorageKey;
+              window.localStorage.removeItem(reportKey);
+            }"""
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                const monster = runtime.dataRegistry.createMonsterInstance("dummy_flare", 9);
+                monster.currentHp = monster.maxHp;
+                state.party = [monster];
+                state.collection.capturedSpeciesIds = ["dummy_flare", "tsolf"];
+                state.inventory.fullHealCount = 1;
+                state.inventory.masterBallCount = 1;
+                state.progress.storyIntroAccepted = true;
+                state.progress.battleCount = 7;
+                state.progress.defeatCount = 1;
+                state.progress.acquiredFullHealCount = 3;
+                state.progress.acquiredMasterBallCount = 1;
+                state.timeAttack.active = true;
+                state.timeAttack.elapsedMs = 421000;
+                state.progress.gameCleared = true;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "殿堂入り" """,
+            {"timeout": 2000},
+        )
+        clear_modal_state = await read_field_state(page)
+        expect("冒険レポートを保存しました。" in clear_modal_state["modalLines"], "クリア時に冒険レポート保存結果が表示されていません。")
+        expect("使用: ダンゴマル" in clear_modal_state["modalLines"], "クリアモーダルに使用モンスターが表示されていません。")
+        expect("捕獲: 2 / 戦闘: 7" in clear_modal_state["modalLines"], "クリアモーダルに捕獲数と戦闘回数が表示されていません。")
+        first_report = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.adventureReports.list()[0]"""
+        )
+        expect(first_report["capturedCount"] == 2, "冒険レポートに捕獲数が保存されていません。")
+        expect(first_report["battleCount"] == 7, "冒険レポートに戦闘回数が保存されていません。")
+        expect(first_report["defeatCount"] == 1, "冒険レポートに敗北回数が保存されていません。")
+        expect(first_report["items"]["fullHeal"] == 3, "冒険レポートに取得回復薬数が保存されていません。")
+        expect(first_report["items"]["masterBall"] == 1, "冒険レポートに取得パーフェクトボール数が保存されていません。")
+        await click_modal_button(page, "タイトルへ")
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "ルール" """,
+            {"timeout": 1200},
+        )
+        await click_modal_button(page, "はじめる")
+        await asyncio.sleep(0.2)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "冒険レポート")
+        await asyncio.sleep(0.2)
+        report_menu_state = await read_field_state(page)
+        expect(report_menu_state["modalTitle"] == "冒険レポート", "冒険レポート画面が開いていません。")
+        expect("保存 1件" in report_menu_state["modalLines"], "冒険レポート一覧に保存件数が表示されていません。")
+        expect(any(line.startswith("最新パーティ: ダンゴマル Lv9") for line in report_menu_state["modalLines"]), "冒険レポート一覧に最新パーティが表示されていません。")
+        first_report_button = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll("#modal-actions button")]
+                .find((entry) => entry.textContent.includes("R:"));
+              return button ? button.textContent : "";
+            }"""
+        )
+        expect(first_report_button, "冒険レポート一覧に履歴ボタンがありません。")
+        await click_modal_button(page, first_report_button)
+        await asyncio.sleep(0.2)
+        report_detail_state = await read_field_state(page)
+        expect("プレイ時間: 7分1秒" in report_detail_state["modalLines"], "冒険レポート詳細にプレイ時間が表示されていません。")
+        expect("使用モンスター: ダンゴマル" in report_detail_state["modalLines"], "冒険レポート詳細に使用モンスターが表示されていません。")
+        expect("取得アイテム: 回復薬 3 / パーフェクトボール 1" in report_detail_state["modalLines"], "冒険レポート詳細に取得アイテムが表示されていません。")
+
+        await load_fresh(page, base_url)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "冒険レポート")
+        await asyncio.sleep(0.2)
+        report_after_reload_state = await read_field_state(page)
+        expect("保存 1件" in report_after_reload_state["modalLines"], "再読み込み後に冒険レポート履歴が保持されていません。")
+        await click_modal_button(page, "閉じる")
+        await asyncio.sleep(0.2)
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                const monster = runtime.dataRegistry.createMonsterInstance("tsolf", 12);
+                monster.currentHp = monster.maxHp;
+                state.party = [monster];
+                state.collection.capturedSpeciesIds = ["dummy_flare", "tsolf", "dummy_drop"];
+                state.progress.storyIntroAccepted = true;
+                state.progress.battleCount = 11;
+                state.progress.defeatCount = 0;
+                state.progress.acquiredFullHealCount = 4;
+                state.progress.acquiredMasterBallCount = 2;
+                state.timeAttack.active = true;
+                state.timeAttack.elapsedMs = 720000;
+                state.progress.gameCleared = true;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "殿堂入り" """,
+            {"timeout": 2000},
+        )
+        multi_report_state = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.adventureReports.list()"""
+        )
+        expect(len(multi_report_state) == 2, "冒険レポートが複数履歴として蓄積されていません。")
+        expect(multi_report_state[-1]["usedMonsterName"] == "ツォルフ", "2件目の冒険レポートに最終パーティが保存されていません。")
         expect(not browser_errors, "ブラウザエラーが発生しました: " + " / ".join(browser_errors))
 
-        print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップまで確認しました。")
+        print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップ、冒険レポート保存まで確認しました。")
     finally:
         await browser.close()
 

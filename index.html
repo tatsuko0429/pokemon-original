@@ -1447,6 +1447,26 @@ select {
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), var(--monster-accent));
 }
 
+.modal-monster-frame.is-silhouette {
+  --monster-accent: rgba(77, 83, 82, 0.92);
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(88, 98, 96, 0.34), rgba(31, 35, 35, 0.42) 68%, transparent 69%),
+    linear-gradient(180deg, rgba(118, 126, 119, 0.72), var(--monster-accent));
+}
+
+.modal-monster-frame.is-silhouette img,
+.modal-monster-frame.is-silhouette canvas,
+.modal-dex-card.is-unknown img,
+.modal-dex-card.is-unknown canvas {
+  filter:
+    brightness(0)
+    grayscale(1)
+    contrast(1.28)
+    drop-shadow(0 0 7px rgba(220, 240, 236, 0.38));
+  opacity: 0.88;
+}
+
 .modal-monster-frame canvas {
   position: relative;
   z-index: 1;
@@ -1506,6 +1526,70 @@ select {
   font-size: 0.72rem;
   font-weight: 900;
   line-height: 1.2;
+}
+
+.modal-dex-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.modal-dex-card {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 2px solid rgba(32, 34, 27, 0.72);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(248, 244, 215, 0.9), rgba(216, 210, 171, 0.9));
+  color: var(--text);
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  font: inherit;
+  font-weight: 900;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
+.modal-dex-card.is-active {
+  transform: translateY(1px);
+}
+
+.modal-dex-card.is-unknown {
+  background: linear-gradient(180deg, rgba(117, 126, 120, 0.72), rgba(58, 63, 60, 0.74));
+  color: #f8f4d7;
+}
+
+.modal-dex-thumb {
+  width: 76px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+}
+
+.modal-dex-thumb img,
+.modal-dex-thumb canvas {
+  max-width: 76px;
+  max-height: 58px;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.modal-dex-number {
+  font-size: 0.66rem;
+  color: rgba(32, 34, 27, 0.66);
+  line-height: 1;
+}
+
+.modal-dex-card.is-unknown .modal-dex-number {
+  color: rgba(248, 244, 215, 0.62);
+}
+
+.modal-dex-name {
+  max-width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .modal-actions {
@@ -1858,6 +1942,8 @@ select {
       schemaVersion: 1,
       storageKey: "monster_prototype_save_v1",
       autoSaveIntervalMs: 600,
+      reportStorageKey: "monster_adventure_reports_v1",
+      reportLimit: 30,
     },
     story: {
       // 準備5分の運用ルール。app.jsのupdatePreparationTimerとui.jsのタイマー表示がこの値を共有する。
@@ -2727,15 +2813,14 @@ select {
       },
       objectives: {
         not_started: {
-          default: "目的: 左の出口からしずかなひろばへ行き、案内人に話を聞く。",
-          ready: "目的: しずかなひろばの案内人に、捕獲した相手を見せに行く。",
+          default: "目的: ひろばで案内人に話す。",
+          ready: "目的: 案内人へ見せる。",
         },
         active: {
-          default: "目的: ながめのみちの草むらで、野生の相手を1体つかまえる。",
-          ready: "目的: しずかなひろばの案内人へ、捕獲の観察結果を報告する。",
+          default: "目的: 草むらで1体つかまえる。",
+          ready: "目的: 案内人へ報告する。",
         },
-        reported:
-          "目的: 最初の報告は終わった。残り時間で、さらに準備を進めよう。",
+        reported: "目的: 残り時間で準備する。",
       },
       messages: {
         start:
@@ -3356,6 +3441,11 @@ select {
     return Number.isInteger(value) && value >= 0 ? value : fallback;
   }
 
+  function asNonNegativeRoundedInteger(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? Math.round(number) : fallback;
+  }
+
   function asPositiveInteger(value, fallback) {
     return Number.isInteger(value) && value > 0 ? value : fallback;
   }
@@ -3651,6 +3741,138 @@ select {
     );
   }
 
+  function sanitizeReportText(value, fallback = "") {
+    return typeof value === "string" ? value.slice(0, 80) : fallback;
+  }
+
+  function sanitizeReportItems(items) {
+    const source = isPlainObject(items) ? items : {};
+    return {
+      fullHeal: asNonNegativeRoundedInteger(source.fullHeal, 0),
+      masterBall: asNonNegativeRoundedInteger(source.masterBall, 0),
+    };
+  }
+
+  function sanitizeReportParty(party) {
+    if (!Array.isArray(party)) {
+      return [];
+    }
+
+    return party.slice(0, 6).map((entry) => {
+      const source = isPlainObject(entry) ? entry : {};
+      return {
+        speciesId: sanitizeReportText(source.speciesId),
+        name: sanitizeReportText(source.name, "？？？"),
+        level: asPositiveInteger(source.level, 1),
+        currentHp: asNonNegativeRoundedInteger(source.currentHp, 0),
+        maxHp: asPositiveInteger(source.maxHp, 1),
+      };
+    });
+  }
+
+  function sanitizeAdventureReport(report) {
+    if (!isPlainObject(report)) {
+      return null;
+    }
+
+    const clearedAt = new Date(sanitizeReportText(report.clearedAt) || Date.now());
+    const clearedAtIso = Number.isNaN(clearedAt.getTime())
+      ? new Date().toISOString()
+      : clearedAt.toISOString();
+
+    return {
+      id: sanitizeReportText(report.id) || `report_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      clearedAt: clearedAtIso,
+      playTimeMs: asNonNegativeRoundedInteger(report.playTimeMs, 0),
+      rank: sanitizeReportText(report.rank, "C"),
+      usedMonsterName: sanitizeReportText(report.usedMonsterName, "？？？"),
+      usedMonsterId: sanitizeReportText(report.usedMonsterId),
+      capturedCount: asNonNegativeRoundedInteger(report.capturedCount, 0),
+      battleCount: asNonNegativeRoundedInteger(report.battleCount, 0),
+      defeatCount: asNonNegativeRoundedInteger(report.defeatCount, 0),
+      items: sanitizeReportItems(report.items),
+      finalParty: sanitizeReportParty(report.finalParty),
+    };
+  }
+
+  function createAdventureReportManager(config = {}) {
+    const storage = getStorage();
+    const schemaVersion = 1;
+    const storageKey = config.reportStorageKey || "monster_adventure_reports_v1";
+    const reportLimit = Math.max(1, Math.min(asPositiveInteger(config.reportLimit, 30), 99));
+
+    function readPayload() {
+      if (!storage) {
+        return null;
+      }
+
+      try {
+        const rawPayload = storage.getItem(storageKey);
+        if (!rawPayload) {
+          return null;
+        }
+
+        const payload = JSON.parse(rawPayload);
+        if (
+          !isPlainObject(payload) ||
+          payload.schemaVersion !== schemaVersion ||
+          !Array.isArray(payload.reports)
+        ) {
+          return null;
+        }
+        return payload;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function list() {
+      const payload = readPayload();
+      if (!payload) {
+        return [];
+      }
+
+      return payload.reports
+        .map(sanitizeAdventureReport)
+        .filter(Boolean)
+        .slice(-reportLimit);
+    }
+
+    function append(report) {
+      if (!storage) {
+        return null;
+      }
+
+      const sanitized = sanitizeAdventureReport(report);
+      if (!sanitized) {
+        return null;
+      }
+
+      const nextReports = list().concat(sanitized).slice(-reportLimit);
+      try {
+        storage.setItem(
+          storageKey,
+          JSON.stringify({
+            schemaVersion,
+            updatedAt: new Date().toISOString(),
+            reports: nextReports,
+          })
+        );
+        return sanitized;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    return {
+      append,
+      list,
+      isAvailable: Boolean(storage),
+      storageKey,
+      reportLimit,
+    };
+  }
+
   function createSaveManager(config = {}, dataRegistry) {
     const storage = getStorage();
     const schemaVersion = config.schemaVersion || 1;
@@ -3787,6 +4009,7 @@ select {
     };
   }
 
+  App.core.createAdventureReportManager = createAdventureReportManager;
   App.core.createSaveManager = createSaveManager;
 })();
 
@@ -4259,6 +4482,10 @@ select {
       return speciesById.get(id);
     }
 
+    function getSpeciesList() {
+      return Array.from(speciesById.values());
+    }
+
     function getMove(id) {
       return movesById.get(id);
     }
@@ -4453,6 +4680,7 @@ select {
     return {
       errors,
       getSpecies,
+      getSpeciesList,
       getMove,
       getMap,
       getEncounterTable,
@@ -6002,6 +6230,7 @@ select {
       badges: settings.badges || species.types || [],
       note: settings.note || "",
       variant: settings.variant || "",
+      silhouette: Boolean(settings.silhouette),
       placement: settings.placement || "beforeLines",
       backgroundColor: species.palette && species.palette.secondary,
     };
@@ -6108,6 +6337,7 @@ select {
         frame.className = [
           "modal-monster-frame",
           section.variant ? `is-${section.variant}` : "",
+          section.silhouette ? "is-silhouette" : "",
         ].filter(Boolean).join(" ");
         if (section.backgroundColor) {
           frame.style.setProperty("--monster-accent", section.backgroundColor);
@@ -6162,6 +6392,80 @@ select {
           caption.textContent = section.caption;
           wrapper.appendChild(caption);
         }
+
+        return wrapper;
+      }
+
+      if (section.kind === "monsterDexGrid") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "modal-section modal-dex-grid";
+
+        (section.entries || []).forEach((entry) => {
+          const button = document.createElement("button");
+          let handledByPointer = false;
+          button.type = "button";
+          button.className = [
+            "modal-dex-card",
+            entry.captured ? "is-captured" : "is-unknown",
+          ].filter(Boolean).join(" ");
+          button.setAttribute("aria-label", entry.label || "？？？");
+
+          const thumb = document.createElement("span");
+          thumb.className = "modal-dex-thumb";
+          if (entry.imageSrc) {
+            const image = document.createElement("img");
+            image.src = entry.imageSrc;
+            image.alt = "";
+            thumb.appendChild(image);
+          } else {
+            const canvas = createSpriteCanvas(entry.spriteId, entry.scaleMultiplier || 2);
+            if (canvas) {
+              thumb.appendChild(canvas);
+            }
+          }
+
+          const number = document.createElement("span");
+          number.className = "modal-dex-number";
+          number.textContent = entry.number || "";
+
+          const name = document.createElement("span");
+          name.className = "modal-dex-name";
+          name.textContent = entry.label || "？？？";
+
+          button.appendChild(thumb);
+          button.appendChild(number);
+          button.appendChild(name);
+
+          button.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            button.classList.add("is-active");
+            if (button.setPointerCapture && event.pointerId !== undefined) {
+              button.setPointerCapture(event.pointerId);
+            }
+          });
+          button.addEventListener("pointerup", (event) => {
+            event.preventDefault();
+            button.classList.remove("is-active");
+            handledByPointer = true;
+            selectAction(entry.id);
+          });
+          button.addEventListener("pointerleave", () => {
+            button.classList.remove("is-active");
+          });
+          button.addEventListener("pointercancel", () => {
+            button.classList.remove("is-active");
+          });
+          button.addEventListener("click", (event) => {
+            if (handledByPointer) {
+              handledByPointer = false;
+              event.preventDefault();
+              return;
+            }
+            selectAction(entry.id);
+          });
+
+          wrapper.appendChild(button);
+        });
 
         return wrapper;
       }
@@ -6292,13 +6596,37 @@ select {
           variant: action.variant || "",
         };
       });
+      const sections = (payload.sections || []).map((section, sectionIndex) => {
+        if (!section || section.kind !== "monsterDexGrid") {
+          return { ...section };
+        }
+
+        return {
+          ...section,
+          entries: (section.entries || []).map((entry, entryIndex) => {
+            const id = entry.id || `section_${sectionIndex}_entry_${entryIndex}`;
+            if (typeof entry.onSelect === "function") {
+              actionHandlers.set(id, entry.onSelect);
+            }
+            return {
+              id,
+              label: entry.label || "",
+              number: entry.number || "",
+              captured: Boolean(entry.captured),
+              imageSrc: entry.imageSrc || "",
+              spriteId: entry.spriteId || "",
+              scaleMultiplier: entry.scaleMultiplier,
+            };
+          }),
+        };
+      });
 
       store.update((state) => {
         state.modal = {
           open: true,
           title: payload.title,
           lines: (payload.lines || []).slice(),
-          sections: (payload.sections || []).map((section) => ({ ...section })),
+          sections,
           buttonLabel: payload.buttonLabel || "閉じる",
           actions,
           dismissible: payload.dismissible !== false,
@@ -9268,6 +9596,7 @@ select {
       // 戦闘終了時だけfieldへ戻し、手持ち回復・最終メッセージ・battle-end遷移をまとめて行う。
       // セーブは戦闘中禁止なので、ここで復元可能なフィールド状態へ戻すことが重要。
       if (result && result.gameOver) {
+        state.progress.defeatCount = (state.progress.defeatCount || 0) + 1;
         state.progress.gameOver = true;
         return;
       }
@@ -9283,6 +9612,7 @@ select {
       let finalMessage = result && result.message ? result.message : "";
       if (result && result.rewardItem === "full_heal") {
         state.inventory.fullHealCount += 1;
+        state.progress.acquiredFullHealCount = (state.progress.acquiredFullHealCount || 0) + 1;
         finalMessage += "\n回復薬を 1つ 手に入れた！";
       }
 
@@ -9326,15 +9656,11 @@ select {
             view: capturePreview.view,
             variant: "capture",
             imageMaxHeight: capturePreview.imageMaxHeight || 158,
-            note: "捕獲成功",
           }
         ),
         lines: [
           `${species.name} Lv${result.capturedLevel}`,
           `タイプ: ${species.types.join(" / ")}`,
-          result.addedToCollection
-            ? "新しく図鑑へ記録しました。"
-            : "このモンスターは、すでに図鑑へ記録されています。",
         ],
         buttonLabel: "戻る",
       });
@@ -9348,6 +9674,7 @@ select {
         clearBattleVolatile(playerMonster);
         clearBattleVolatile(enemyMonster);
 
+        state.progress.battleCount = (state.progress.battleCount || 0) + 1;
         state.scene = "battle";
         state.field.message = "";
         state.field.messageKind = "";
@@ -10990,10 +11317,13 @@ select {
 
     function applyPickup(state, event) {
       // 拾得済みはprogress.resolvedEventIdsで管理する。保存復元・再取得防止・描画非表示がこのidに依存する。
+      const amount = Number.isInteger(event.amount) && event.amount > 0 ? event.amount : 1;
       if (event.itemType === "full_heal") {
-        state.inventory.fullHealCount += event.amount;
+        state.inventory.fullHealCount += amount;
+        state.progress.acquiredFullHealCount = (state.progress.acquiredFullHealCount || 0) + amount;
       } else if (event.itemType === "master_ball") {
-        state.inventory.masterBallCount += event.amount;
+        state.inventory.masterBallCount += amount;
+        state.progress.acquiredMasterBallCount = (state.progress.acquiredMasterBallCount || 0) + amount;
       }
       rememberResolvedEvent(state, event.id);
       setFieldMessage(state, event.message || "アイテムを みつけた！", "item");
@@ -11413,6 +11743,10 @@ select {
       prepElapsedMs: 0,
       prepGateUnlocked: false,
       prepGateAnnounced: false,
+      battleCount: 0,
+      defeatCount: 0,
+      acquiredFullHealCount: 0,
+      acquiredMasterBallCount: 0,
     };
 
     dataRegistry.getQuests().forEach((quest) => {
@@ -11475,8 +11809,8 @@ select {
     // 目的表示はステータス帯・メニュー系表示の共通文言。準備期間は依頼よりストーリー進行を優先する。
     if (state.progress && state.progress.storyStage === "preparation") {
       return state.progress.prepGateUnlocked
-        ? "目的: 準備時間が終わりました。左の出口から次のステージへ進む。"
-        : "目的: 草むらで5分間準備する。戦う、捕まえる、試す内容は自由です。";
+        ? "目的: 左出口から進む"
+        : "目的: 草むらで5分準備";
     }
 
     const quest = dataRegistry.getPrimaryQuest();
@@ -11515,6 +11849,10 @@ select {
     return Array.from(new Set((state.collection && state.collection.capturedSpeciesIds) || []));
   }
 
+  function formatDexNumber(index) {
+    return `No.${String(index + 1).padStart(2, "0")}`;
+  }
+
   function formatSavedAt(savedInfo) {
     // 保存日時は表示専用。保存データ本体の互換性判定はsave.jsのschemaVersionで行う。
     if (!savedInfo || !savedInfo.savedAt) {
@@ -11547,6 +11885,94 @@ select {
         variant: "is-subtle",
       },
     ];
+  }
+
+  function formatPlayTime(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    let timeString = "";
+    if (hours > 0) {
+      timeString += `${hours}時間`;
+    }
+    if (minutes > 0 || hours > 0) {
+      timeString += `${minutes}分`;
+    }
+    return `${timeString}${seconds}秒`;
+  }
+
+  function getClearRank(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+    if (totalSeconds < 300) {
+      return "S";
+    }
+    if (totalSeconds < 600) {
+      return "A";
+    }
+    if (totalSeconds < 1200) {
+      return "B";
+    }
+    return "C";
+  }
+
+  function formatReportDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "日時不明";
+    }
+
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  function createAdventureReport(state, dataRegistry, rank) {
+    const finalParty = (state.party || []).map((monster) => {
+      const species = monster && dataRegistry.getSpecies(monster.speciesId);
+      return {
+        speciesId: monster && monster.speciesId ? monster.speciesId : "",
+        name: species ? species.name : "？？？",
+        level: monster && Number.isInteger(monster.level) ? monster.level : 1,
+        currentHp: monster && Number.isFinite(monster.currentHp) ? monster.currentHp : 0,
+        maxHp: monster && Number.isFinite(monster.maxHp) ? monster.maxHp : 1,
+      };
+    });
+    const leadMonster = finalParty[0] || {};
+    const progress = state.progress || {};
+
+    return {
+      clearedAt: new Date().toISOString(),
+      playTimeMs: state.timeAttack ? state.timeAttack.elapsedMs : 0,
+      rank,
+      usedMonsterName: leadMonster.name || "？？？",
+      usedMonsterId: leadMonster.speciesId || "",
+      capturedCount: getCapturedSpeciesIds(state).length,
+      battleCount: progress.battleCount || 0,
+      defeatCount: progress.defeatCount || 0,
+      items: {
+        fullHeal: progress.acquiredFullHealCount || 0,
+        masterBall: progress.acquiredMasterBallCount || 0,
+      },
+      finalParty,
+    };
+  }
+
+  function formatReportItems(items) {
+    const source = items || {};
+    return `回復薬 ${source.fullHeal || 0} / パーフェクトボール ${source.masterBall || 0}`;
+  }
+
+  function formatReportParty(finalParty, fallback) {
+    if (!Array.isArray(finalParty) || finalParty.length === 0) {
+      return fallback || "記録なし";
+    }
+
+    return finalParty.map((monster) => `${monster.name} Lv${monster.level}`).join(" / ");
   }
 
   function getPreparationDurationMs() {
@@ -11587,12 +12013,14 @@ select {
 
     const initialState = createInitialState(dataRegistry);
     const save = App.core.createSaveManager(App.config.game.save, dataRegistry);
+    const adventureReports = App.core.createAdventureReportManager(App.config.game.save);
     const shouldAskStartChoice = save.hasSavedState();
     // 保存データの有無はstore生成直後に判断する。以降はstartChoicePendingで自動保存とタイマー進行を止める。
     const store = App.core.createStore(initialState);
     App.runtime.store = store;
     App.runtime.dataRegistry = dataRegistry;
     App.runtime.save = save;
+    App.runtime.adventureReports = adventureReports;
     const input = App.core.createInputController();
     const audio = App.core.createAudioManager(App.config.game.audio);
     App.runtime.audio = audio;
@@ -11684,6 +12112,77 @@ select {
       ];
     }
 
+    function getSpeciesPreviewRef(species, view) {
+      const spriteKey = view === "back" ? "battleBack" : "battleFront";
+      if (species.imageSprites && species.imageSprites[spriteKey]) {
+        return {
+          imageSrc: species.imageSprites[spriteKey],
+        };
+      }
+      if (species.spriteIds && species.spriteIds[spriteKey]) {
+        return {
+          spriteId: species.spriteIds[spriteKey],
+        };
+      }
+      return {};
+    }
+
+    function createDexEntry(species, index, captured) {
+      const previewRef = getSpeciesPreviewRef(species, "front");
+      return {
+        id: `record_${species.id}`,
+        number: formatDexNumber(index),
+        label: captured ? species.name : "？？？",
+        captured,
+        ...previewRef,
+        onSelect: () => {
+          openObservationDetail(species, index, captured);
+        },
+      };
+    }
+
+    function openObservationDetail(species, index, captured) {
+      if (!species) {
+        return;
+      }
+
+      audio.playSe("confirm");
+      if (!captured) {
+        modal.openModal({
+          title: `${formatDexNumber(index)} ？？？`,
+          sections: App.core.buildMonsterPreviewSection(species, "", {
+            variant: "record",
+            name: "？？？",
+            badges: [],
+            note: "未確認",
+            silhouette: true,
+          }),
+          lines: [],
+          actions: createBackToObservationActions(openObservationMenu),
+        });
+        return;
+      }
+
+      const moveNames = (species.defaultMoveIds || [])
+        .map((moveId) => {
+          const move = dataRegistry.getMove(moveId);
+          return move ? move.name : moveId;
+        })
+        .join(" / ");
+
+      modal.openModal({
+        title: species.name,
+        sections: App.core.buildMonsterPreviewSection(species, "", {
+          variant: "record",
+        }),
+        lines: [
+          `タイプ: ${species.types.join(" / ")}`,
+          `初期技: ${moveNames}`,
+        ],
+        actions: createBackToObservationActions(openObservationMenu),
+      });
+    }
+
     function spawnTapRipple(event) {
       if (!shell || !event || !["touch", "pen"].includes(event.pointerType)) {
         return;
@@ -11769,7 +12268,11 @@ select {
             label: "図鑑",
             onSelect: openObservationMenu,
           },
-
+          {
+            id: "adventure_reports",
+            label: "冒険レポート",
+            onSelect: openAdventureReportsMenu,
+          },
           {
             id: "objective",
             label: "目的",
@@ -11924,7 +12427,6 @@ select {
             imageMaxHeight: partyPreview.imageMaxHeight,
             variant: "party",
             level: playerMonster.level,
-            note: "先頭メンバー",
           }
         ),
         lines: [
@@ -11964,49 +12466,90 @@ select {
     function openObservationMenu() {
       const state = store.getState();
       const capturedSpeciesIds = getCapturedSpeciesIds(state);
+      const capturedSet = new Set(capturedSpeciesIds);
+      const speciesList = dataRegistry.getSpeciesList ? dataRegistry.getSpeciesList() : [];
       audio.playSe("confirm");
 
-      if (capturedSpeciesIds.length === 0) {
+      modal.openModal({
+        title: "図鑑",
+        lines: [`記録 ${capturedSpeciesIds.length}/${speciesList.length}`],
+        sections: [
+          {
+            kind: "monsterDexGrid",
+            placement: "afterLines",
+            entries: speciesList.map((species, index) => {
+              return createDexEntry(species, index, capturedSet.has(species.id));
+            }),
+          },
+        ],
+        actions: [
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
+      });
+    }
+
+    function openAdventureReportsMenu(options) {
+      if (!(options && options.silent)) {
+        audio.playSe("confirm");
+      }
+
+      if (!adventureReports.isAvailable) {
         modal.openModal({
-          title: "図鑑",
-          lines: ["まだ図鑑には記録がありません。草むらで出会った相手をつかまえると、ここに記録されます。"],
+          title: "冒険レポート",
+          lines: [
+            "この環境ではローカル保存が使えません。",
+            "クリア記録を残すには、ブラウザの保存を有効にしてください。",
+          ],
           actions: createBackToMenuActions(openMenu),
         });
         return;
       }
 
+      const reports = adventureReports.list().slice().reverse();
+      if (reports.length === 0) {
+        modal.openModal({
+          title: "冒険レポート",
+          lines: [
+            "まだクリア記録はありません。",
+            "ゲームをクリアすると、ここに冒険の記録が残ります。",
+          ],
+          actions: createBackToMenuActions(openMenu),
+        });
+        return;
+      }
+
+      const latest = reports[0];
+      const visibleReports = reports.slice(0, 12);
+      const lines = [
+        `保存 ${reports.length}件`,
+        `最新: ${formatReportDate(latest.clearedAt)}`,
+        `最新パーティ: ${formatReportParty(latest.finalParty, latest.usedMonsterName)}`,
+      ];
+      if (reports.length > visibleReports.length) {
+        lines.push(`最新 ${visibleReports.length}件を表示中`);
+      }
+
       modal.openModal({
-        title: "図鑑",
-        lines: ["見たいモンスターを選んでください。"],
+        title: "冒険レポート",
+        lines,
         actions: [
-          ...capturedSpeciesIds.map((speciesId) => {
-            const species = dataRegistry.getSpecies(speciesId);
+          ...visibleReports.map((report, index) => {
+            const listDate = formatSavedAt({ savedAt: report.clearedAt }) || "日時不明";
             return {
-              id: `record_${speciesId}`,
-              label: species ? species.name : speciesId,
+              id: `adventure_report_${index}`,
+              label: `${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)}`,
               onSelect: () => {
-                const detailSpecies = dataRegistry.getSpecies(speciesId);
-                if (!detailSpecies) {
-                  return;
-                }
-                const moveNames = (detailSpecies.defaultMoveIds || [])
-                  .map((moveId) => {
-                    const move = dataRegistry.getMove(moveId);
-                    return move ? move.name : moveId;
-                  })
-                  .join(" / ");
-                audio.playSe("confirm");
-                modal.openModal({
-                  title: detailSpecies.name,
-                  sections: App.core.buildMonsterPreviewSection(detailSpecies, "図鑑データ", {
-                    variant: "record",
-                  }),
-                  lines: [
-                    `タイプ: ${detailSpecies.types.join(" / ")}`,
-                    `初期技: ${moveNames}`,
-                  ],
-                  actions: createBackToObservationActions(openObservationMenu),
-                });
+                openAdventureReportDetail(report);
               },
             };
           }),
@@ -12025,7 +12568,44 @@ select {
       });
     }
 
-    
+    function openAdventureReportDetail(report) {
+      audio.playSe("confirm");
+      modal.openModal({
+        title: "冒険レポート",
+        lines: [
+          `クリア日時: ${formatReportDate(report.clearedAt)}`,
+          `プレイ時間: ${formatPlayTime(report.playTimeMs)}`,
+          `ランク: ${report.rank}`,
+          `使用モンスター: ${report.usedMonsterName}`,
+          `捕獲数: ${report.capturedCount}`,
+          `戦闘回数: ${report.battleCount} / 敗北: ${report.defeatCount}`,
+          `取得アイテム: ${formatReportItems(report.items)}`,
+          `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
+        ],
+        actions: [
+          {
+            id: "back_to_reports",
+            label: "一覧へ",
+            variant: "is-primary",
+            onSelect: () => {
+              openAdventureReportsMenu({ silent: true });
+            },
+          },
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
+      });
+    }
+
     function openObjectiveMenu() {
       const state = store.getState();
       const currentMap = dataRegistry.getMap(state.field.mapId);
@@ -12281,29 +12861,24 @@ select {
       if (store.getState().progress && store.getState().progress.gameCleared) {
         startChoicePending = false;
         store.update(s => { s.timeAttack.finished = true; });
-        const finalTimeMs = store.getState().timeAttack.elapsedMs;
-        const totalSeconds = Math.floor(finalTimeMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        let timeString = "";
-        if (hours > 0) timeString += `${hours}時間`;
-        if (minutes > 0 || hours > 0) timeString += `${minutes}分`;
-        timeString += `${seconds}秒`;
+        const clearState = store.getState();
+        const finalTimeMs = clearState.timeAttack.elapsedMs;
+        const timeString = formatPlayTime(finalTimeMs);
+        const rank = getClearRank(finalTimeMs);
+        const report = adventureReports.append(
+          createAdventureReport(clearState, dataRegistry, rank)
+        );
 
-        let rank = "C";
-        if (totalSeconds < 300) rank = "S";
-        else if (totalSeconds < 600) rank = "A";
-        else if (totalSeconds < 1200) rank = "B";
-
-        audio.playSe("confirm");
+        audio.playSe("victory");
         modal.openModal({
           title: "殿堂入り",
           lines: [
             "おめでとうございます！",
             `クリアタイム: ${timeString}`,
             `ランク: ${rank}`,
-            "あなたの記録は殿堂入りとして登録されました。"
+            report ? "冒険レポートを保存しました。" : "冒険レポートを保存できませんでした。",
+            `使用: ${report ? report.usedMonsterName : "？？？"}`,
+            `捕獲: ${report ? report.capturedCount : 0} / 戦闘: ${report ? report.battleCount : 0}`,
           ],
           dismissible: false,
           actions: [
