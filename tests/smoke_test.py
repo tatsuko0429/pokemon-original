@@ -173,9 +173,14 @@ async def wait_for_caption(page, expected: str) -> None:
     )
 
 
+async def goto_app(page, base_url: str) -> None:
+    await page.goto(base_url, {"waitUntil": "domcontentloaded"})
+    await wait_for_caption(page, EXPECTED_START_CAPTION)
+
+
 async def load_fresh(page, base_url: str, accept_intro: bool = True) -> None:
     # localStorageを消してから再読込する。保存再開テストの前提を汚さないため、通常起動確認は必ずここを通す。
-    await page.goto(base_url, {"waitUntil": "networkidle0"})
+    await goto_app(page, base_url)
     await page.evaluate(
         """() => {
           if (window.MonsterPrototype?.runtime?.save) {
@@ -187,8 +192,7 @@ async def load_fresh(page, base_url: str, accept_intro: bool = True) -> None:
           window.localStorage.clear();
         }"""
     )
-    await page.goto(base_url, {"waitUntil": "networkidle0"})
-    await wait_for_caption(page, EXPECTED_START_CAPTION)
+    await goto_app(page, base_url)
     if accept_intro:
         await click_modal_button(page, "はじめる")
         await page.waitForFunction(
@@ -641,8 +645,7 @@ async def run_smoke_test(base_url: str) -> None:
               runtime.save.persist(runtime.store.getState());
             }"""
         )
-        await page.goto(base_url, {"waitUntil": "networkidle0"})
-        await wait_for_caption(page, EXPECTED_START_CAPTION)
+        await goto_app(page, base_url)
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#modal-actions button")]
               .some((button) => button.textContent === "つづきから")""",
@@ -708,8 +711,7 @@ async def run_smoke_test(base_url: str) -> None:
               runtime.save.persist(runtime.store.getState());
             }"""
         )
-        await page.goto(base_url, {"waitUntil": "networkidle0"})
-        await wait_for_caption(page, EXPECTED_START_CAPTION)
+        await goto_app(page, base_url)
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#modal-actions button")]
               .some((button) => button.textContent === "はじめから")""",
@@ -843,6 +845,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("手持ち" in menu_state["modalButtons"], "メニューに手持ちボタンがありません。")
         expect("アイテム" in menu_state["modalButtons"], "メニューにアイテムボタンがありません。")
         expect("図鑑" in menu_state["modalButtons"], "メニューに図鑑ボタンがありません。")
+        expect("冒険レポート" in menu_state["modalButtons"], "メニューに冒険レポートボタンがありません。")
         expect("やり直す" in menu_state["modalButtons"], "メニューにやり直すボタンがありません。")
         expect("目的" in menu_state["modalButtons"], "メニューに目的ボタンがありません。")
         expect("音設定" in menu_state["modalButtons"], "メニューに音設定ボタンがありません。")
@@ -1650,9 +1653,121 @@ async def run_smoke_test(base_url: str) -> None:
             repeat_state["state"]["inventory"]["masterBallCount"] == master_balls_before_pickup + 1,
             "取得済みの拾得物が再取得されています。",
         )
+
+        await load_fresh(page, base_url)
+        await page.evaluate(
+            """() => {
+              const reportKey = window.MonsterPrototype.config.game.save.reportStorageKey;
+              window.localStorage.removeItem(reportKey);
+            }"""
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                const monster = runtime.dataRegistry.createMonsterInstance("dummy_flare", 9);
+                monster.currentHp = monster.maxHp;
+                state.party = [monster];
+                state.collection.capturedSpeciesIds = ["dummy_flare", "tsolf"];
+                state.inventory.fullHealCount = 1;
+                state.inventory.masterBallCount = 1;
+                state.progress.storyIntroAccepted = true;
+                state.progress.battleCount = 7;
+                state.progress.defeatCount = 1;
+                state.progress.acquiredFullHealCount = 3;
+                state.progress.acquiredMasterBallCount = 1;
+                state.timeAttack.active = true;
+                state.timeAttack.elapsedMs = 421000;
+                state.progress.gameCleared = true;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "殿堂入り" """,
+            {"timeout": 2000},
+        )
+        clear_modal_state = await read_field_state(page)
+        expect("冒険レポートを保存しました。" in clear_modal_state["modalLines"], "クリア時に冒険レポート保存結果が表示されていません。")
+        expect("使用: ダンゴマル" in clear_modal_state["modalLines"], "クリアモーダルに使用モンスターが表示されていません。")
+        expect("捕獲: 2 / 戦闘: 7" in clear_modal_state["modalLines"], "クリアモーダルに捕獲数と戦闘回数が表示されていません。")
+        first_report = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.adventureReports.list()[0]"""
+        )
+        expect(first_report["capturedCount"] == 2, "冒険レポートに捕獲数が保存されていません。")
+        expect(first_report["battleCount"] == 7, "冒険レポートに戦闘回数が保存されていません。")
+        expect(first_report["defeatCount"] == 1, "冒険レポートに敗北回数が保存されていません。")
+        expect(first_report["items"]["fullHeal"] == 3, "冒険レポートに取得回復薬数が保存されていません。")
+        expect(first_report["items"]["masterBall"] == 1, "冒険レポートに取得パーフェクトボール数が保存されていません。")
+        await click_modal_button(page, "タイトルへ")
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "ルール" """,
+            {"timeout": 1200},
+        )
+        await click_modal_button(page, "はじめる")
+        await asyncio.sleep(0.2)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "冒険レポート")
+        await asyncio.sleep(0.2)
+        report_menu_state = await read_field_state(page)
+        expect(report_menu_state["modalTitle"] == "冒険レポート", "冒険レポート画面が開いていません。")
+        expect("保存 1件" in report_menu_state["modalLines"], "冒険レポート一覧に保存件数が表示されていません。")
+        expect(any(line.startswith("最新パーティ: ダンゴマル Lv9") for line in report_menu_state["modalLines"]), "冒険レポート一覧に最新パーティが表示されていません。")
+        first_report_button = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll("#modal-actions button")]
+                .find((entry) => entry.textContent.includes("R:"));
+              return button ? button.textContent : "";
+            }"""
+        )
+        expect(first_report_button, "冒険レポート一覧に履歴ボタンがありません。")
+        await click_modal_button(page, first_report_button)
+        await asyncio.sleep(0.2)
+        report_detail_state = await read_field_state(page)
+        expect("プレイ時間: 7分1秒" in report_detail_state["modalLines"], "冒険レポート詳細にプレイ時間が表示されていません。")
+        expect("使用モンスター: ダンゴマル" in report_detail_state["modalLines"], "冒険レポート詳細に使用モンスターが表示されていません。")
+        expect("取得アイテム: 回復薬 3 / パーフェクトボール 1" in report_detail_state["modalLines"], "冒険レポート詳細に取得アイテムが表示されていません。")
+
+        await load_fresh(page, base_url)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "冒険レポート")
+        await asyncio.sleep(0.2)
+        report_after_reload_state = await read_field_state(page)
+        expect("保存 1件" in report_after_reload_state["modalLines"], "再読み込み後に冒険レポート履歴が保持されていません。")
+        await click_modal_button(page, "閉じる")
+        await asyncio.sleep(0.2)
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                const monster = runtime.dataRegistry.createMonsterInstance("tsolf", 12);
+                monster.currentHp = monster.maxHp;
+                state.party = [monster];
+                state.collection.capturedSpeciesIds = ["dummy_flare", "tsolf", "dummy_drop"];
+                state.progress.storyIntroAccepted = true;
+                state.progress.battleCount = 11;
+                state.progress.defeatCount = 0;
+                state.progress.acquiredFullHealCount = 4;
+                state.progress.acquiredMasterBallCount = 2;
+                state.timeAttack.active = true;
+                state.timeAttack.elapsedMs = 720000;
+                state.progress.gameCleared = true;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "殿堂入り" """,
+            {"timeout": 2000},
+        )
+        multi_report_state = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.adventureReports.list()"""
+        )
+        expect(len(multi_report_state) == 2, "冒険レポートが複数履歴として蓄積されていません。")
+        expect(multi_report_state[-1]["usedMonsterName"] == "ツォルフ", "2件目の冒険レポートに最終パーティが保存されていません。")
         expect(not browser_errors, "ブラウザエラーが発生しました: " + " / ".join(browser_errors))
 
-        print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップまで確認しました。")
+        print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップ、冒険レポート保存まで確認しました。")
     finally:
         await browser.close()
 

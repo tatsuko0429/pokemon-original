@@ -1973,6 +1973,8 @@ select {
       schemaVersion: 1,
       storageKey: "monster_prototype_save_v1",
       autoSaveIntervalMs: 600,
+      reportStorageKey: "monster_adventure_reports_v1",
+      reportLimit: 30,
     },
     story: {
       // 準備5分の運用ルール。app.jsのupdatePreparationTimerとui.jsのタイマー表示がこの値を共有する。
@@ -3471,6 +3473,11 @@ select {
     return Number.isInteger(value) && value >= 0 ? value : fallback;
   }
 
+  function asNonNegativeRoundedInteger(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? Math.round(number) : fallback;
+  }
+
   function asPositiveInteger(value, fallback) {
     return Number.isInteger(value) && value > 0 ? value : fallback;
   }
@@ -3766,6 +3773,138 @@ select {
     );
   }
 
+  function sanitizeReportText(value, fallback = "") {
+    return typeof value === "string" ? value.slice(0, 80) : fallback;
+  }
+
+  function sanitizeReportItems(items) {
+    const source = isPlainObject(items) ? items : {};
+    return {
+      fullHeal: asNonNegativeRoundedInteger(source.fullHeal, 0),
+      masterBall: asNonNegativeRoundedInteger(source.masterBall, 0),
+    };
+  }
+
+  function sanitizeReportParty(party) {
+    if (!Array.isArray(party)) {
+      return [];
+    }
+
+    return party.slice(0, 6).map((entry) => {
+      const source = isPlainObject(entry) ? entry : {};
+      return {
+        speciesId: sanitizeReportText(source.speciesId),
+        name: sanitizeReportText(source.name, "？？？"),
+        level: asPositiveInteger(source.level, 1),
+        currentHp: asNonNegativeRoundedInteger(source.currentHp, 0),
+        maxHp: asPositiveInteger(source.maxHp, 1),
+      };
+    });
+  }
+
+  function sanitizeAdventureReport(report) {
+    if (!isPlainObject(report)) {
+      return null;
+    }
+
+    const clearedAt = new Date(sanitizeReportText(report.clearedAt) || Date.now());
+    const clearedAtIso = Number.isNaN(clearedAt.getTime())
+      ? new Date().toISOString()
+      : clearedAt.toISOString();
+
+    return {
+      id: sanitizeReportText(report.id) || `report_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      clearedAt: clearedAtIso,
+      playTimeMs: asNonNegativeRoundedInteger(report.playTimeMs, 0),
+      rank: sanitizeReportText(report.rank, "C"),
+      usedMonsterName: sanitizeReportText(report.usedMonsterName, "？？？"),
+      usedMonsterId: sanitizeReportText(report.usedMonsterId),
+      capturedCount: asNonNegativeRoundedInteger(report.capturedCount, 0),
+      battleCount: asNonNegativeRoundedInteger(report.battleCount, 0),
+      defeatCount: asNonNegativeRoundedInteger(report.defeatCount, 0),
+      items: sanitizeReportItems(report.items),
+      finalParty: sanitizeReportParty(report.finalParty),
+    };
+  }
+
+  function createAdventureReportManager(config = {}) {
+    const storage = getStorage();
+    const schemaVersion = 1;
+    const storageKey = config.reportStorageKey || "monster_adventure_reports_v1";
+    const reportLimit = Math.max(1, Math.min(asPositiveInteger(config.reportLimit, 30), 99));
+
+    function readPayload() {
+      if (!storage) {
+        return null;
+      }
+
+      try {
+        const rawPayload = storage.getItem(storageKey);
+        if (!rawPayload) {
+          return null;
+        }
+
+        const payload = JSON.parse(rawPayload);
+        if (
+          !isPlainObject(payload) ||
+          payload.schemaVersion !== schemaVersion ||
+          !Array.isArray(payload.reports)
+        ) {
+          return null;
+        }
+        return payload;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function list() {
+      const payload = readPayload();
+      if (!payload) {
+        return [];
+      }
+
+      return payload.reports
+        .map(sanitizeAdventureReport)
+        .filter(Boolean)
+        .slice(-reportLimit);
+    }
+
+    function append(report) {
+      if (!storage) {
+        return null;
+      }
+
+      const sanitized = sanitizeAdventureReport(report);
+      if (!sanitized) {
+        return null;
+      }
+
+      const nextReports = list().concat(sanitized).slice(-reportLimit);
+      try {
+        storage.setItem(
+          storageKey,
+          JSON.stringify({
+            schemaVersion,
+            updatedAt: new Date().toISOString(),
+            reports: nextReports,
+          })
+        );
+        return sanitized;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    return {
+      append,
+      list,
+      isAvailable: Boolean(storage),
+      storageKey,
+      reportLimit,
+    };
+  }
+
   function createSaveManager(config = {}, dataRegistry) {
     const storage = getStorage();
     const schemaVersion = config.schemaVersion || 1;
@@ -3902,6 +4041,7 @@ select {
     };
   }
 
+  App.core.createAdventureReportManager = createAdventureReportManager;
   App.core.createSaveManager = createSaveManager;
 })();
 
@@ -9678,6 +9818,7 @@ select {
       // 戦闘終了時だけfieldへ戻し、手持ち回復・最終メッセージ・battle-end遷移をまとめて行う。
       // セーブは戦闘中禁止なので、ここで復元可能なフィールド状態へ戻すことが重要。
       if (result && result.gameOver) {
+        state.progress.defeatCount = (state.progress.defeatCount || 0) + 1;
         state.progress.gameOver = true;
         return;
       }
@@ -9693,6 +9834,7 @@ select {
       let finalMessage = result && result.message ? result.message : "";
       if (result && result.rewardItem === "full_heal") {
         state.inventory.fullHealCount += 1;
+        state.progress.acquiredFullHealCount = (state.progress.acquiredFullHealCount || 0) + 1;
         finalMessage += "\n回復薬を 1つ 手に入れた！";
       }
 
@@ -9754,6 +9896,7 @@ select {
         clearBattleVolatile(playerMonster);
         clearBattleVolatile(enemyMonster);
 
+        state.progress.battleCount = (state.progress.battleCount || 0) + 1;
         state.scene = "battle";
         state.field.message = "";
         state.field.messageKind = "";
@@ -11399,8 +11542,10 @@ select {
       const amount = Number.isInteger(event.amount) && event.amount > 0 ? event.amount : 1;
       if (event.itemType === "full_heal") {
         state.inventory.fullHealCount += amount;
+        state.progress.acquiredFullHealCount = (state.progress.acquiredFullHealCount || 0) + amount;
       } else if (event.itemType === "master_ball") {
         state.inventory.masterBallCount += amount;
+        state.progress.acquiredMasterBallCount = (state.progress.acquiredMasterBallCount || 0) + amount;
       }
       rememberResolvedEvent(state, event.id);
       setFieldMessage(state, event.message || "アイテムを みつけた！", "item");
@@ -11820,6 +11965,10 @@ select {
       prepElapsedMs: 0,
       prepGateUnlocked: false,
       prepGateAnnounced: false,
+      battleCount: 0,
+      defeatCount: 0,
+      acquiredFullHealCount: 0,
+      acquiredMasterBallCount: 0,
     };
 
     dataRegistry.getQuests().forEach((quest) => {
@@ -11960,6 +12109,94 @@ select {
     ];
   }
 
+  function formatPlayTime(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    let timeString = "";
+    if (hours > 0) {
+      timeString += `${hours}時間`;
+    }
+    if (minutes > 0 || hours > 0) {
+      timeString += `${minutes}分`;
+    }
+    return `${timeString}${seconds}秒`;
+  }
+
+  function getClearRank(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
+    if (totalSeconds < 300) {
+      return "S";
+    }
+    if (totalSeconds < 600) {
+      return "A";
+    }
+    if (totalSeconds < 1200) {
+      return "B";
+    }
+    return "C";
+  }
+
+  function formatReportDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "日時不明";
+    }
+
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  function createAdventureReport(state, dataRegistry, rank) {
+    const finalParty = (state.party || []).map((monster) => {
+      const species = monster && dataRegistry.getSpecies(monster.speciesId);
+      return {
+        speciesId: monster && monster.speciesId ? monster.speciesId : "",
+        name: species ? species.name : "？？？",
+        level: monster && Number.isInteger(monster.level) ? monster.level : 1,
+        currentHp: monster && Number.isFinite(monster.currentHp) ? monster.currentHp : 0,
+        maxHp: monster && Number.isFinite(monster.maxHp) ? monster.maxHp : 1,
+      };
+    });
+    const leadMonster = finalParty[0] || {};
+    const progress = state.progress || {};
+
+    return {
+      clearedAt: new Date().toISOString(),
+      playTimeMs: state.timeAttack ? state.timeAttack.elapsedMs : 0,
+      rank,
+      usedMonsterName: leadMonster.name || "？？？",
+      usedMonsterId: leadMonster.speciesId || "",
+      capturedCount: getCapturedSpeciesIds(state).length,
+      battleCount: progress.battleCount || 0,
+      defeatCount: progress.defeatCount || 0,
+      items: {
+        fullHeal: progress.acquiredFullHealCount || 0,
+        masterBall: progress.acquiredMasterBallCount || 0,
+      },
+      finalParty,
+    };
+  }
+
+  function formatReportItems(items) {
+    const source = items || {};
+    return `回復薬 ${source.fullHeal || 0} / パーフェクトボール ${source.masterBall || 0}`;
+  }
+
+  function formatReportParty(finalParty, fallback) {
+    if (!Array.isArray(finalParty) || finalParty.length === 0) {
+      return fallback || "記録なし";
+    }
+
+    return finalParty.map((monster) => `${monster.name} Lv${monster.level}`).join(" / ");
+  }
+
   function getPreparationDurationMs() {
     return (App.config.game.story && App.config.game.story.preparationDurationMs) || 300000;
   }
@@ -11998,12 +12235,14 @@ select {
 
     const initialState = createInitialState(dataRegistry);
     const save = App.core.createSaveManager(App.config.game.save, dataRegistry);
+    const adventureReports = App.core.createAdventureReportManager(App.config.game.save);
     const shouldAskStartChoice = save.hasSavedState();
     // 保存データの有無はstore生成直後に判断する。以降はstartChoicePendingで自動保存とタイマー進行を止める。
     const store = App.core.createStore(initialState);
     App.runtime.store = store;
     App.runtime.dataRegistry = dataRegistry;
     App.runtime.save = save;
+    App.runtime.adventureReports = adventureReports;
     const input = App.core.createInputController();
     const audio = App.core.createAudioManager(App.config.game.audio);
     App.runtime.audio = audio;
@@ -12252,6 +12491,11 @@ select {
             onSelect: openObservationMenu,
           },
           {
+            id: "adventure_reports",
+            label: "冒険レポート",
+            onSelect: openAdventureReportsMenu,
+          },
+          {
             id: "objective",
             label: "目的",
             onSelect: openObjectiveMenu,
@@ -12461,6 +12705,114 @@ select {
           },
         ],
         actions: [
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
+      });
+    }
+
+    function openAdventureReportsMenu(options) {
+      if (!(options && options.silent)) {
+        audio.playSe("confirm");
+      }
+
+      if (!adventureReports.isAvailable) {
+        modal.openModal({
+          title: "冒険レポート",
+          lines: [
+            "この環境ではローカル保存が使えません。",
+            "クリア記録を残すには、ブラウザの保存を有効にしてください。",
+          ],
+          actions: createBackToMenuActions(openMenu),
+        });
+        return;
+      }
+
+      const reports = adventureReports.list().slice().reverse();
+      if (reports.length === 0) {
+        modal.openModal({
+          title: "冒険レポート",
+          lines: [
+            "まだクリア記録はありません。",
+            "ゲームをクリアすると、ここに冒険の記録が残ります。",
+          ],
+          actions: createBackToMenuActions(openMenu),
+        });
+        return;
+      }
+
+      const latest = reports[0];
+      const visibleReports = reports.slice(0, 12);
+      const lines = [
+        `保存 ${reports.length}件`,
+        `最新: ${formatReportDate(latest.clearedAt)}`,
+        `最新パーティ: ${formatReportParty(latest.finalParty, latest.usedMonsterName)}`,
+      ];
+      if (reports.length > visibleReports.length) {
+        lines.push(`最新 ${visibleReports.length}件を表示中`);
+      }
+
+      modal.openModal({
+        title: "冒険レポート",
+        lines,
+        actions: [
+          ...visibleReports.map((report, index) => {
+            const listDate = formatSavedAt({ savedAt: report.clearedAt }) || "日時不明";
+            return {
+              id: `adventure_report_${index}`,
+              label: `${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)}`,
+              onSelect: () => {
+                openAdventureReportDetail(report);
+              },
+            };
+          }),
+          {
+            id: "back_to_menu",
+            label: "メニューへ",
+            variant: "is-subtle",
+            onSelect: openMenu,
+          },
+          {
+            id: "close",
+            label: "閉じる",
+            variant: "is-subtle",
+          },
+        ],
+      });
+    }
+
+    function openAdventureReportDetail(report) {
+      audio.playSe("confirm");
+      modal.openModal({
+        title: "冒険レポート",
+        lines: [
+          `クリア日時: ${formatReportDate(report.clearedAt)}`,
+          `プレイ時間: ${formatPlayTime(report.playTimeMs)}`,
+          `ランク: ${report.rank}`,
+          `使用モンスター: ${report.usedMonsterName}`,
+          `捕獲数: ${report.capturedCount}`,
+          `戦闘回数: ${report.battleCount} / 敗北: ${report.defeatCount}`,
+          `取得アイテム: ${formatReportItems(report.items)}`,
+          `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
+        ],
+        actions: [
+          {
+            id: "back_to_reports",
+            label: "一覧へ",
+            variant: "is-primary",
+            onSelect: () => {
+              openAdventureReportsMenu({ silent: true });
+            },
+          },
           {
             id: "back_to_menu",
             label: "メニューへ",
@@ -12731,29 +13083,24 @@ select {
       if (store.getState().progress && store.getState().progress.gameCleared) {
         startChoicePending = false;
         store.update(s => { s.timeAttack.finished = true; });
-        const finalTimeMs = store.getState().timeAttack.elapsedMs;
-        const totalSeconds = Math.floor(finalTimeMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        let timeString = "";
-        if (hours > 0) timeString += `${hours}時間`;
-        if (minutes > 0 || hours > 0) timeString += `${minutes}分`;
-        timeString += `${seconds}秒`;
+        const clearState = store.getState();
+        const finalTimeMs = clearState.timeAttack.elapsedMs;
+        const timeString = formatPlayTime(finalTimeMs);
+        const rank = getClearRank(finalTimeMs);
+        const report = adventureReports.append(
+          createAdventureReport(clearState, dataRegistry, rank)
+        );
 
-        let rank = "C";
-        if (totalSeconds < 300) rank = "S";
-        else if (totalSeconds < 600) rank = "A";
-        else if (totalSeconds < 1200) rank = "B";
-
-        audio.playSe("confirm");
+        audio.playSe("victory");
         modal.openModal({
           title: "殿堂入り",
           lines: [
             "おめでとうございます！",
             `クリアタイム: ${timeString}`,
             `ランク: ${rank}`,
-            "あなたの記録は殿堂入りとして登録されました。"
+            report ? "冒険レポートを保存しました。" : "冒険レポートを保存できませんでした。",
+            `使用: ${report ? report.usedMonsterName : "？？？"}`,
+            `捕獲: ${report ? report.capturedCount : 0} / 戦闘: ${report ? report.battleCount : 0}`,
           ],
           dismissible: false,
           actions: [
