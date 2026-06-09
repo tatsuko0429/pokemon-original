@@ -1688,6 +1688,8 @@ async def run_smoke_test(base_url: str) -> None:
         )
         clear_modal_state = await read_field_state(page)
         expect("冒険レポートを保存しました。" in clear_modal_state["modalLines"], "クリア時に冒険レポート保存結果が表示されていません。")
+        expect("称号: 切り札を使いこなす勝負師" in clear_modal_state["modalLines"], "クリアモーダルに冒険称号が表示されていません。")
+        expect("ハイライト: ダンゴマルと7分1秒で殿堂入り。" in clear_modal_state["modalLines"], "クリアモーダルに冒険ハイライトが表示されていません。")
         expect("使用: ダンゴマル" in clear_modal_state["modalLines"], "クリアモーダルに使用モンスターが表示されていません。")
         expect("捕獲: 2 / 戦闘: 7" in clear_modal_state["modalLines"], "クリアモーダルに捕獲数と戦闘回数が表示されていません。")
         first_report = await page.evaluate(
@@ -1712,6 +1714,7 @@ async def run_smoke_test(base_url: str) -> None:
         report_menu_state = await read_field_state(page)
         expect(report_menu_state["modalTitle"] == "冒険レポート", "冒険レポート画面が開いていません。")
         expect("保存 1件" in report_menu_state["modalLines"], "冒険レポート一覧に保存件数が表示されていません。")
+        expect("最新称号: 切り札を使いこなす勝負師" in report_menu_state["modalLines"], "冒険レポート一覧に最新称号が表示されていません。")
         expect(any(line.startswith("最新パーティ: ダンゴマル Lv9") for line in report_menu_state["modalLines"]), "冒険レポート一覧に最新パーティが表示されていません。")
         first_report_button = await page.evaluate(
             """() => {
@@ -1724,9 +1727,30 @@ async def run_smoke_test(base_url: str) -> None:
         await click_modal_button(page, first_report_button)
         await asyncio.sleep(0.2)
         report_detail_state = await read_field_state(page)
+        expect("称号: 切り札を使いこなす勝負師" in report_detail_state["modalLines"], "冒険レポート詳細に称号が表示されていません。")
+        expect("ハイライト: ダンゴマルと7分1秒で殿堂入り。" in report_detail_state["modalLines"], "冒険レポート詳細にハイライトが表示されていません。")
         expect("プレイ時間: 7分1秒" in report_detail_state["modalLines"], "冒険レポート詳細にプレイ時間が表示されていません。")
         expect("使用モンスター: ダンゴマル" in report_detail_state["modalLines"], "冒険レポート詳細に使用モンスターが表示されていません。")
         expect("取得アイテム: 回復薬 3 / パーフェクトボール 1" in report_detail_state["modalLines"], "冒険レポート詳細に取得アイテムが表示されていません。")
+        expect("共有文をコピー" in report_detail_state["modalButtons"], "冒険レポート詳細に共有文コピー導線がありません。")
+        await page.evaluate(
+            """() => {
+              window.MonsterPrototype.runtime.clipboardWriter = (text) => {
+                window.__copiedAdventureReportText = text;
+                return true;
+              };
+            }"""
+        )
+        await click_modal_button(page, "共有文をコピー")
+        await page.waitForFunction(
+            """() => window.__copiedAdventureReportText
+              && document.querySelector("#modal-body")?.textContent.includes("共有文をコピーしました。")""",
+            {"timeout": 1200},
+        )
+        copied_report_text = await page.evaluate("""() => window.__copiedAdventureReportText || "" """)
+        expect("初代風モンスター 冒険レポート" in copied_report_text, "コピー用共有文に見出しが入っていません。")
+        expect("称号: 切り札を使いこなす勝負師" in copied_report_text, "コピー用共有文に称号が入っていません。")
+        expect("最終パーティ: ダンゴマル Lv9" in copied_report_text, "コピー用共有文に最終パーティが入っていません。")
 
         await load_fresh(page, base_url)
         await press(page, "m")

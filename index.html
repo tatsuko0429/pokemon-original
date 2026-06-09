@@ -12197,6 +12197,77 @@ select {
     return finalParty.map((monster) => `${monster.name} Lv${monster.level}`).join(" / ");
   }
 
+  function getAdventureReportTitle(report) {
+    const items = report && report.items ? report.items : {};
+    if (report.rank === "S" && report.defeatCount === 0) {
+      return "疾風の無敗チャンピオン";
+    }
+    if (report.capturedCount >= 3) {
+      return "図鑑を広げた冒険家";
+    }
+    if (report.defeatCount === 0) {
+      return "不屈の勝利者";
+    }
+    if ((items.masterBall || 0) > 0) {
+      return "切り札を使いこなす勝負師";
+    }
+    return "旅を刻んだトレーナー";
+  }
+
+  function getAdventureReportHighlight(report) {
+    const monsterName = report.usedMonsterName || "相棒";
+    return `${monsterName}と${formatPlayTime(report.playTimeMs)}で殿堂入り。`;
+  }
+
+  function createAdventureReportShareText(report) {
+    return [
+      "初代風モンスター 冒険レポート",
+      `称号: ${getAdventureReportTitle(report)}`,
+      `クリアタイム: ${formatPlayTime(report.playTimeMs)} / ランク: ${report.rank}`,
+      `相棒: ${report.usedMonsterName}`,
+      `捕獲: ${report.capturedCount} / 戦闘: ${report.battleCount} / 敗北: ${report.defeatCount}`,
+      `取得アイテム: ${formatReportItems(report.items)}`,
+      `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
+      "#初代風モンスター",
+    ].join("\n");
+  }
+
+  async function copyTextToClipboard(text) {
+    if (App.runtime && typeof App.runtime.clipboardWriter === "function") {
+      try {
+        return Boolean(await App.runtime.clipboardWriter(text));
+      } catch (error) {
+        return false;
+      }
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (error) {
+        // フォールバックへ進む。
+      }
+    }
+
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute("readonly", "readonly");
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    textArea.style.pointerEvents = "none";
+    document.body.appendChild(textArea);
+    textArea.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch (error) {
+      copied = false;
+    }
+    document.body.removeChild(textArea);
+    return copied;
+  }
+
   function getPreparationDurationMs() {
     return (App.config.game.story && App.config.game.story.preparationDurationMs) || 300000;
   }
@@ -12755,6 +12826,7 @@ select {
       const lines = [
         `保存 ${reports.length}件`,
         `最新: ${formatReportDate(latest.clearedAt)}`,
+        `最新称号: ${getAdventureReportTitle(latest)}`,
         `最新パーティ: ${formatReportParty(latest.finalParty, latest.usedMonsterName)}`,
       ];
       if (reports.length > visibleReports.length) {
@@ -12790,11 +12862,15 @@ select {
       });
     }
 
-    function openAdventureReportDetail(report) {
+    function openAdventureReportDetail(report, options) {
       audio.playSe("confirm");
+      const shareText = createAdventureReportShareText(report);
+      const copyStatus = options && options.copyStatus;
       modal.openModal({
         title: "冒険レポート",
         lines: [
+          `称号: ${getAdventureReportTitle(report)}`,
+          `ハイライト: ${getAdventureReportHighlight(report)}`,
           `クリア日時: ${formatReportDate(report.clearedAt)}`,
           `プレイ時間: ${formatPlayTime(report.playTimeMs)}`,
           `ランク: ${report.rank}`,
@@ -12803,12 +12879,24 @@ select {
           `戦闘回数: ${report.battleCount} / 敗北: ${report.defeatCount}`,
           `取得アイテム: ${formatReportItems(report.items)}`,
           `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
-        ],
+          "共有文: タイム、称号、最終パーティをコピーできます。",
+          copyStatus === "success" ? "共有文をコピーしました。" : "",
+          copyStatus === "failure" ? "共有文をコピーできませんでした。" : "",
+        ].filter(Boolean),
         actions: [
+          {
+            id: "copy_report",
+            label: "共有文をコピー",
+            variant: "is-primary",
+            onSelect: async () => {
+              const copied = await copyTextToClipboard(shareText);
+              App.runtime.lastAdventureReportShareText = shareText;
+              openAdventureReportDetail(report, { copyStatus: copied ? "success" : "failure" });
+            },
+          },
           {
             id: "back_to_reports",
             label: "一覧へ",
-            variant: "is-primary",
             onSelect: () => {
               openAdventureReportsMenu({ silent: true });
             },
@@ -13099,9 +13187,11 @@ select {
             `クリアタイム: ${timeString}`,
             `ランク: ${rank}`,
             report ? "冒険レポートを保存しました。" : "冒険レポートを保存できませんでした。",
+            report ? `称号: ${getAdventureReportTitle(report)}` : "",
+            report ? `ハイライト: ${getAdventureReportHighlight(report)}` : "",
             `使用: ${report ? report.usedMonsterName : "？？？"}`,
             `捕獲: ${report ? report.capturedCount : 0} / 戦闘: ${report ? report.battleCount : 0}`,
-          ],
+          ].filter(Boolean),
           dismissible: false,
           actions: [
             {
