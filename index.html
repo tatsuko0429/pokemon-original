@@ -12138,6 +12138,10 @@ select {
     return "C";
   }
 
+  function getRankScore(rank) {
+    return { S: 4, A: 3, B: 2, C: 1 }[rank] || 0;
+  }
+
   function formatReportDate(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -12212,6 +12216,53 @@ select {
       return "切り札を使いこなす勝負師";
     }
     return "旅を刻んだトレーナー";
+  }
+
+  function createAdventureReportSummary(reports) {
+    const source = Array.isArray(reports) ? reports.filter(Boolean) : [];
+    if (source.length === 0) {
+      return null;
+    }
+
+    const partnerCounts = new Map();
+    let favoritePartnerName = "";
+    let favoritePartnerCount = 0;
+    let bestTimeReport = source[0];
+    let bestRankReport = source[0];
+    let totalCaptured = 0;
+    let totalBattles = 0;
+    let totalDefeats = 0;
+
+    source.forEach((report) => {
+      if (report.playTimeMs < bestTimeReport.playTimeMs) {
+        bestTimeReport = report;
+      }
+      if (getRankScore(report.rank) > getRankScore(bestRankReport.rank)) {
+        bestRankReport = report;
+      }
+
+      totalCaptured += report.capturedCount || 0;
+      totalBattles += report.battleCount || 0;
+      totalDefeats += report.defeatCount || 0;
+
+      const partnerName = report.usedMonsterName || "？？？";
+      const nextCount = (partnerCounts.get(partnerName) || 0) + 1;
+      partnerCounts.set(partnerName, nextCount);
+      if (nextCount > favoritePartnerCount) {
+        favoritePartnerName = partnerName;
+        favoritePartnerCount = nextCount;
+      }
+    });
+
+    return {
+      bestTimeReport,
+      bestRankReport,
+      favoritePartnerName,
+      favoritePartnerCount,
+      totalCaptured,
+      totalBattles,
+      totalDefeats,
+    };
   }
 
   function getAdventureReportHighlight(report) {
@@ -12822,6 +12873,7 @@ select {
       }
 
       const latest = reports[0];
+      const summary = createAdventureReportSummary(reports);
       const visibleReports = reports.slice(0, 12);
       const lines = [
         `保存 ${reports.length}件`,
@@ -12829,6 +12881,14 @@ select {
         `最新称号: ${getAdventureReportTitle(latest)}`,
         `最新パーティ: ${formatReportParty(latest.finalParty, latest.usedMonsterName)}`,
       ];
+      if (summary) {
+        lines.push(
+          `ベストタイム: ${formatPlayTime(summary.bestTimeReport.playTimeMs)} (${summary.bestTimeReport.usedMonsterName})`,
+          `最高ランク: ${summary.bestRankReport.rank} (${getAdventureReportTitle(summary.bestRankReport)})`,
+          `冒険の足跡: 捕獲 ${summary.totalCaptured} / 戦闘 ${summary.totalBattles} / 敗北 ${summary.totalDefeats}`,
+          `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`
+        );
+      }
       if (reports.length > visibleReports.length) {
         lines.push(`最新 ${visibleReports.length}件を表示中`);
       }

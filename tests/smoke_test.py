@@ -1715,6 +1715,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(report_menu_state["modalTitle"] == "冒険レポート", "冒険レポート画面が開いていません。")
         expect("保存 1件" in report_menu_state["modalLines"], "冒険レポート一覧に保存件数が表示されていません。")
         expect("最新称号: 切り札を使いこなす勝負師" in report_menu_state["modalLines"], "冒険レポート一覧に最新称号が表示されていません。")
+        expect("ベストタイム: 7分1秒 (ダンゴマル)" in report_menu_state["modalLines"], "冒険レポート一覧にベストタイムが表示されていません。")
+        expect("最高ランク: A (切り札を使いこなす勝負師)" in report_menu_state["modalLines"], "冒険レポート一覧に最高ランクが表示されていません。")
+        expect("冒険の足跡: 捕獲 2 / 戦闘 7 / 敗北 1" in report_menu_state["modalLines"], "冒険レポート一覧に累計サマリーが表示されていません。")
+        expect("よく使った相棒: ダンゴマル (1回)" in report_menu_state["modalLines"], "冒険レポート一覧に相棒サマリーが表示されていません。")
         expect(any(line.startswith("最新パーティ: ダンゴマル Lv9") for line in report_menu_state["modalLines"]), "冒険レポート一覧に最新パーティが表示されていません。")
         first_report_button = await page.evaluate(
             """() => {
@@ -1789,6 +1793,24 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(len(multi_report_state) == 2, "冒険レポートが複数履歴として蓄積されていません。")
         expect(multi_report_state[-1]["usedMonsterName"] == "ツォルフ", "2件目の冒険レポートに最終パーティが保存されていません。")
+        await click_modal_button(page, "タイトルへ")
+        await page.waitForFunction(
+            """() => document.querySelector("#modal-title")?.textContent === "ルール" """,
+            {"timeout": 1200},
+        )
+        await click_modal_button(page, "はじめる")
+        await asyncio.sleep(0.2)
+        await press(page, "m")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "冒険レポート")
+        await asyncio.sleep(0.2)
+        multi_report_menu_state = await read_field_state(page)
+        expect("保存 2件" in multi_report_menu_state["modalLines"], "冒険レポート一覧に複数保存件数が表示されていません。")
+        expect("最新称号: 図鑑を広げた冒険家" in multi_report_menu_state["modalLines"], "冒険レポート一覧に最新履歴の称号が表示されていません。")
+        expect("ベストタイム: 7分1秒 (ダンゴマル)" in multi_report_menu_state["modalLines"], "複数履歴のベストタイムが表示されていません。")
+        expect("最高ランク: A (切り札を使いこなす勝負師)" in multi_report_menu_state["modalLines"], "複数履歴の最高ランクが表示されていません。")
+        expect("冒険の足跡: 捕獲 5 / 戦闘 18 / 敗北 1" in multi_report_menu_state["modalLines"], "複数履歴の累計サマリーが表示されていません。")
+        expect("よく使った相棒: ツォルフ (1回)" in multi_report_menu_state["modalLines"], "複数履歴の相棒サマリーが表示されていません。")
         expect(not browser_errors, "ブラウザエラーが発生しました: " + " / ".join(browser_errors))
 
         print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップ、冒険レポート保存まで確認しました。")
