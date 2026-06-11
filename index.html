@@ -12288,6 +12288,26 @@ select {
     ].join("\n");
   }
 
+  function createAdventureReportSummaryShareText(reports) {
+    const source = Array.isArray(reports) ? reports.filter(Boolean) : [];
+    const summary = createAdventureReportSummary(source);
+    if (!summary) {
+      return "初代風モンスター 歴代冒険レポート";
+    }
+
+    const latest = source[0];
+    return [
+      "初代風モンスター 歴代冒険レポート",
+      `クリア履歴: ${source.length}件`,
+      `ベストタイム: ${formatPlayTime(summary.bestTimeReport.playTimeMs)} (${summary.bestTimeReport.usedMonsterName})`,
+      `最高ランク: ${summary.bestRankReport.rank} (${getAdventureReportTitle(summary.bestRankReport)})`,
+      `累計: 捕獲 ${summary.totalCaptured} / 戦闘 ${summary.totalBattles} / 敗北 ${summary.totalDefeats}`,
+      `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`,
+      latest ? `最新称号: ${getAdventureReportTitle(latest)}` : "",
+      "#初代風モンスター",
+    ].filter(Boolean).join("\n");
+  }
+
   async function copyTextToClipboard(text) {
     if (App.runtime && typeof App.runtime.clipboardWriter === "function") {
       try {
@@ -12879,6 +12899,8 @@ select {
 
       const latest = reports[0];
       const summary = createAdventureReportSummary(reports);
+      const summaryShareText = createAdventureReportSummaryShareText(reports);
+      const copyStatus = options && options.copyStatus;
       const visibleReports = reports.slice(0, 12);
       const lines = [
         `保存 ${reports.length}件`,
@@ -12894,6 +12916,12 @@ select {
           `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`
         );
       }
+      if (copyStatus === "success") {
+        lines.push("総合記録をコピーしました。");
+      }
+      if (copyStatus === "failure") {
+        lines.push("総合記録をコピーできませんでした。");
+      }
       if (reports.length > visibleReports.length) {
         lines.push(`最新 ${visibleReports.length}件を表示中`);
       }
@@ -12902,6 +12930,20 @@ select {
         title: "冒険レポート",
         lines,
         actions: [
+          {
+            id: "copy_report_summary",
+            label: "総合記録をコピー",
+            variant: "is-primary",
+            onSelect: async () => {
+              audio.playSe("confirm");
+              const copied = await copyTextToClipboard(summaryShareText);
+              App.runtime.lastAdventureReportSummaryShareText = summaryShareText;
+              openAdventureReportsMenu({
+                silent: true,
+                copyStatus: copied ? "success" : "failure",
+              });
+            },
+          },
           ...visibleReports.map((report, index) => {
             return {
               id: `adventure_report_${index}`,
