@@ -1730,6 +1730,9 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(first_report_button, "冒険レポート一覧に履歴ボタンがありません。")
         expect("ダンゴマル" in first_report_button, "冒険レポート一覧の履歴ボタンに相棒名が表示されていません。")
+        expect("最新" in first_report_button, "1件目の履歴ボタンに最新ラベルが表示されていません。")
+        expect("最速" in first_report_button, "1件目の履歴ボタンに最速ラベルが表示されていません。")
+        expect("最高ランク" in first_report_button, "1件目の履歴ボタンに最高ランクラベルが表示されていません。")
         await click_modal_button(page, first_report_button)
         await asyncio.sleep(0.2)
         report_detail_state = await read_field_state(page)
@@ -1842,6 +1845,19 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         expect(latest_report_button, "冒険レポート一覧に最新履歴の相棒名が表示されていません。")
+        expect("最新" in latest_report_button, "最新履歴ボタンに最新ラベルが表示されていません。")
+        expect("最速" not in latest_report_button, "最新履歴ボタンに最速ラベルが誤表示されています。")
+        older_best_report_button = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll("#modal-actions button")]
+                .find((entry) => entry.textContent.includes("ダンゴマル"));
+              return button ? button.textContent : "";
+            }"""
+        )
+        expect(older_best_report_button, "冒険レポート一覧に最速履歴の相棒名が表示されていません。")
+        expect("最速" in older_best_report_button, "最速履歴ボタンに最速ラベルが表示されていません。")
+        expect("最高ランク" in older_best_report_button, "最高ランク履歴ボタンに最高ランクラベルが表示されていません。")
+        expect("最新" not in older_best_report_button, "古い履歴ボタンに最新ラベルが誤表示されています。")
         await click_modal_button(page, latest_report_button)
         await asyncio.sleep(0.2)
         latest_detail_state = await read_field_state(page)

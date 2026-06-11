@@ -12201,9 +12201,26 @@ select {
     return finalParty.map((monster) => `${monster.name} Lv${monster.level}`).join(" / ");
   }
 
-  function formatAdventureReportListLabel(report) {
+  function getAdventureReportListMarkers(report, index, summary) {
+    const markers = [];
+    if (index === 0) {
+      markers.push("最新");
+    }
+    if (summary && summary.bestTimeReport === report) {
+      markers.push("最速");
+    }
+    if (summary && summary.bestRankReport === report) {
+      markers.push("最高ランク");
+    }
+    return markers;
+  }
+
+  function formatAdventureReportListLabel(report, options) {
+    const settings = options || {};
     const listDate = formatSavedAt({ savedAt: report.clearedAt }) || "日時不明";
-    return `${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)} ${report.usedMonsterName}`;
+    const markers = getAdventureReportListMarkers(report, settings.index, settings.summary);
+    const markerLabel = markers.length > 0 ? `【${markers.join("・")}】 ` : "";
+    return `${markerLabel}${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)} ${report.usedMonsterName}`;
   }
 
   function getAdventureReportTitle(report) {
@@ -12947,7 +12964,10 @@ select {
           ...visibleReports.map((report, index) => {
             return {
               id: `adventure_report_${index}`,
-              label: formatAdventureReportListLabel(report),
+              label: formatAdventureReportListLabel(report, {
+                index,
+                summary,
+              }),
               onSelect: () => {
                 openAdventureReportDetail(report, {
                   reports: visibleReports,
