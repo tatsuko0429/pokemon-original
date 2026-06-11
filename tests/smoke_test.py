@@ -1728,9 +1728,11 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         expect(first_report_button, "冒険レポート一覧に履歴ボタンがありません。")
+        expect("ダンゴマル" in first_report_button, "冒険レポート一覧の履歴ボタンに相棒名が表示されていません。")
         await click_modal_button(page, first_report_button)
         await asyncio.sleep(0.2)
         report_detail_state = await read_field_state(page)
+        expect("履歴: 1/1" in report_detail_state["modalLines"], "冒険レポート詳細に履歴位置が表示されていません。")
         expect("称号: 切り札を使いこなす勝負師" in report_detail_state["modalLines"], "冒険レポート詳細に称号が表示されていません。")
         expect("ハイライト: ダンゴマルと7分1秒で殿堂入り。" in report_detail_state["modalLines"], "冒険レポート詳細にハイライトが表示されていません。")
         expect("プレイ時間: 7分1秒" in report_detail_state["modalLines"], "冒険レポート詳細にプレイ時間が表示されていません。")
@@ -1811,6 +1813,26 @@ async def run_smoke_test(base_url: str) -> None:
         expect("最高ランク: A (切り札を使いこなす勝負師)" in multi_report_menu_state["modalLines"], "複数履歴の最高ランクが表示されていません。")
         expect("冒険の足跡: 捕獲 5 / 戦闘 18 / 敗北 1" in multi_report_menu_state["modalLines"], "複数履歴の累計サマリーが表示されていません。")
         expect("よく使った相棒: ツォルフ (1回)" in multi_report_menu_state["modalLines"], "複数履歴の相棒サマリーが表示されていません。")
+        latest_report_button = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll("#modal-actions button")]
+                .find((entry) => entry.textContent.includes("ツォルフ"));
+              return button ? button.textContent : "";
+            }"""
+        )
+        expect(latest_report_button, "冒険レポート一覧に最新履歴の相棒名が表示されていません。")
+        await click_modal_button(page, latest_report_button)
+        await asyncio.sleep(0.2)
+        latest_detail_state = await read_field_state(page)
+        expect("履歴: 1/2" in latest_detail_state["modalLines"], "最新冒険レポート詳細に履歴位置が表示されていません。")
+        expect("使用モンスター: ツォルフ" in latest_detail_state["modalLines"], "最新冒険レポート詳細に使用モンスターが表示されていません。")
+        expect("古い記録" in latest_detail_state["modalButtons"], "最新冒険レポート詳細に古い記録への移動ボタンがありません。")
+        await click_modal_button(page, "古い記録")
+        await asyncio.sleep(0.2)
+        older_detail_state = await read_field_state(page)
+        expect("履歴: 2/2" in older_detail_state["modalLines"], "古い冒険レポート詳細に履歴位置が表示されていません。")
+        expect("使用モンスター: ダンゴマル" in older_detail_state["modalLines"], "古い冒険レポート詳細へ移動できていません。")
+        expect("新しい記録" in older_detail_state["modalButtons"], "古い冒険レポート詳細に新しい記録への移動ボタンがありません。")
         expect(not browser_errors, "ブラウザエラーが発生しました: " + " / ".join(browser_errors))
 
         print("OK: 起動説明、画面右上タイマー、デスクトップクリック移動、ゲート解放、GBA風スマホレイアウト、ゲーム内メニュー、保存再開、移動反応、依頼進行、ワープ、拾得物、野生戦導入、技選択UI、捕獲演出、捕獲記録ポップ、冒険レポート保存まで確認しました。")

@@ -12201,6 +12201,11 @@ select {
     return finalParty.map((monster) => `${monster.name} Lv${monster.level}`).join(" / ");
   }
 
+  function formatAdventureReportListLabel(report) {
+    const listDate = formatSavedAt({ savedAt: report.clearedAt }) || "日時不明";
+    return `${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)} ${report.usedMonsterName}`;
+  }
+
   function getAdventureReportTitle(report) {
     const items = report && report.items ? report.items : {};
     if (report.rank === "S" && report.defeatCount === 0) {
@@ -12898,12 +12903,14 @@ select {
         lines,
         actions: [
           ...visibleReports.map((report, index) => {
-            const listDate = formatSavedAt({ savedAt: report.clearedAt }) || "日時不明";
             return {
               id: `adventure_report_${index}`,
-              label: `${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)}`,
+              label: formatAdventureReportListLabel(report),
               onSelect: () => {
-                openAdventureReportDetail(report);
+                openAdventureReportDetail(report, {
+                  reports: visibleReports,
+                  index,
+                });
               },
             };
           }),
@@ -12924,11 +12931,17 @@ select {
 
     function openAdventureReportDetail(report, options) {
       audio.playSe("confirm");
+      const detailOptions = options || {};
+      const detailReports = Array.isArray(detailOptions.reports) ? detailOptions.reports : [];
+      const detailIndex = Number.isInteger(detailOptions.index) ? detailOptions.index : -1;
+      const hasNewerReport = detailIndex > 0;
+      const hasOlderReport = detailIndex >= 0 && detailIndex < detailReports.length - 1;
       const shareText = createAdventureReportShareText(report);
-      const copyStatus = options && options.copyStatus;
+      const copyStatus = detailOptions.copyStatus;
       modal.openModal({
         title: "冒険レポート",
         lines: [
+          detailIndex >= 0 ? `履歴: ${detailIndex + 1}/${detailReports.length}` : "",
           `称号: ${getAdventureReportTitle(report)}`,
           `ハイライト: ${getAdventureReportHighlight(report)}`,
           `クリア日時: ${formatReportDate(report.clearedAt)}`,
@@ -12951,9 +12964,36 @@ select {
             onSelect: async () => {
               const copied = await copyTextToClipboard(shareText);
               App.runtime.lastAdventureReportShareText = shareText;
-              openAdventureReportDetail(report, { copyStatus: copied ? "success" : "failure" });
+              openAdventureReportDetail(report, {
+                ...detailOptions,
+                copyStatus: copied ? "success" : "failure",
+              });
             },
           },
+          hasNewerReport
+            ? {
+                id: "newer_report",
+                label: "新しい記録",
+                onSelect: () => {
+                  openAdventureReportDetail(detailReports[detailIndex - 1], {
+                    reports: detailReports,
+                    index: detailIndex - 1,
+                  });
+                },
+              }
+            : null,
+          hasOlderReport
+            ? {
+                id: "older_report",
+                label: "古い記録",
+                onSelect: () => {
+                  openAdventureReportDetail(detailReports[detailIndex + 1], {
+                    reports: detailReports,
+                    index: detailIndex + 1,
+                  });
+                },
+              }
+            : null,
           {
             id: "back_to_reports",
             label: "一覧へ",
@@ -12972,7 +13012,7 @@ select {
             label: "閉じる",
             variant: "is-subtle",
           },
-        ],
+        ].filter(Boolean),
       });
     }
 
