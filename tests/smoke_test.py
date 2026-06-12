@@ -1760,6 +1760,7 @@ async def run_smoke_test(base_url: str) -> None:
         )
         copied_report_text = await page.evaluate("""() => window.__copiedAdventureReportText || "" """)
         expect("初代風モンスター 冒険レポート" in copied_report_text, "コピー用共有文に見出しが入っていません。")
+        expect("記録タグ: 最新 / 最速 / 最高ランク" in copied_report_text, "コピー用共有文に記録タグが入っていません。")
         expect("称号: 切り札を使いこなす勝負師" in copied_report_text, "コピー用共有文に称号が入っていません。")
         expect("最終パーティ: ダンゴマル Lv9" in copied_report_text, "コピー用共有文に最終パーティが入っていません。")
 

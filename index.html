@@ -12299,9 +12299,11 @@ select {
     return `${monsterName}と${formatPlayTime(report.playTimeMs)}で殿堂入り。`;
   }
 
-  function createAdventureReportShareText(report) {
+  function createAdventureReportShareText(report, options) {
+    const markerLine = formatAdventureReportMarkerLine(options && options.markers);
     return [
       "初代風モンスター 冒険レポート",
+      markerLine,
       `称号: ${getAdventureReportTitle(report)}`,
       `クリアタイム: ${formatPlayTime(report.playTimeMs)} / ランク: ${report.rank}`,
       `相棒: ${report.usedMonsterName}`,
@@ -12309,7 +12311,7 @@ select {
       `取得アイテム: ${formatReportItems(report.items)}`,
       `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
       "#初代風モンスター",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
 
   function createAdventureReportSummaryShareText(reports) {
@@ -13006,9 +13008,9 @@ select {
       const detailIndex = Number.isInteger(detailOptions.index) ? detailOptions.index : -1;
       const hasNewerReport = detailIndex > 0;
       const hasOlderReport = detailIndex >= 0 && detailIndex < detailReports.length - 1;
-      const shareText = createAdventureReportShareText(report);
       const copyStatus = detailOptions.copyStatus;
       const markers = getAdventureReportListMarkers(report, detailIndex, detailOptions.summary);
+      const shareText = createAdventureReportShareText(report, { markers });
       modal.openModal({
         title: "冒険レポート",
         lines: [
@@ -13024,7 +13026,7 @@ select {
           `戦闘回数: ${report.battleCount} / 敗北: ${report.defeatCount}`,
           `取得アイテム: ${formatReportItems(report.items)}`,
           `最終パーティ: ${formatReportParty(report.finalParty, report.usedMonsterName)}`,
-          "共有文: タイム、称号、最終パーティをコピーできます。",
+          "共有文: タイム、称号、記録タグ、最終パーティをコピーできます。",
           copyStatus === "success" ? "共有文をコピーしました。" : "",
           copyStatus === "failure" ? "共有文をコピーできませんでした。" : "",
         ].filter(Boolean),
