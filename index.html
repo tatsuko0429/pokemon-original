@@ -12223,6 +12223,13 @@ select {
     return `${markerLabel}${listDate} R:${report.rank} ${formatPlayTime(report.playTimeMs)} ${report.usedMonsterName}`;
   }
 
+  function formatAdventureReportMarkerLine(markers) {
+    if (!Array.isArray(markers) || markers.length === 0) {
+      return "";
+    }
+    return `記録タグ: ${markers.join(" / ")}`;
+  }
+
   function getAdventureReportTitle(report) {
     const items = report && report.items ? report.items : {};
     if (report.rank === "S" && report.defeatCount === 0) {
@@ -12972,6 +12979,7 @@ select {
                 openAdventureReportDetail(report, {
                   reports: visibleReports,
                   index,
+                  summary,
                 });
               },
             };
@@ -13000,10 +13008,12 @@ select {
       const hasOlderReport = detailIndex >= 0 && detailIndex < detailReports.length - 1;
       const shareText = createAdventureReportShareText(report);
       const copyStatus = detailOptions.copyStatus;
+      const markers = getAdventureReportListMarkers(report, detailIndex, detailOptions.summary);
       modal.openModal({
         title: "冒険レポート",
         lines: [
           detailIndex >= 0 ? `履歴: ${detailIndex + 1}/${detailReports.length}` : "",
+          formatAdventureReportMarkerLine(markers),
           `称号: ${getAdventureReportTitle(report)}`,
           `ハイライト: ${getAdventureReportHighlight(report)}`,
           `クリア日時: ${formatReportDate(report.clearedAt)}`,
@@ -13040,6 +13050,7 @@ select {
                   openAdventureReportDetail(detailReports[detailIndex - 1], {
                     reports: detailReports,
                     index: detailIndex - 1,
+                    summary: detailOptions.summary,
                   });
                 },
               }
@@ -13052,6 +13063,7 @@ select {
                   openAdventureReportDetail(detailReports[detailIndex + 1], {
                     reports: detailReports,
                     index: detailIndex + 1,
+                    summary: detailOptions.summary,
                   });
                 },
               }
