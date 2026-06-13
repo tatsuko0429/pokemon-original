@@ -1922,11 +1922,12 @@ select {
       width: 160,
       height: 144,
       renderScale: 3,
+      maxRenderScale: 4,
       tileSize: 8,
     },
     timing: {
       moveDurationMs: 140,
-      runMoveDurationMs: 64,
+      runMoveDurationMs: 88,
       encounterCooldownSteps: 2,
       blockedFeedbackCooldownMs: 420,
     },
@@ -2050,7 +2051,7 @@ select {
       seDuckBgmRatio: 0.35,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
-      preloadSeIds: ["confirm", "cancel", "menu", "message", "hit", "exp", "item"],
+      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item"],
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -5851,6 +5852,10 @@ select {
     }
 
     function scheduleSePreload() {
+      if (AudioContextCtor) {
+        return;
+      }
+
       const callback = () => {
         preloadHtmlSePools();
       };
@@ -6261,7 +6266,7 @@ select {
       recordSe(id);
       duckBgmForSe();
 
-      if (unlocked && context && context.state === "running") {
+      if (AudioContextCtor) {
         playWebAudioSe(id, pattern);
         return;
       }
@@ -6879,7 +6884,7 @@ select {
     const ctx = canvas.getContext("2d");
     const { screen, palette, fieldTiles, animation } = App.config.game;
     const renderScale = Math.max(1, Math.floor(screen.renderScale || 1));
-    const maxRenderScale = 9;
+    const maxRenderScale = Math.max(renderScale, Math.floor(screen.maxRenderScale || 4));
     const damageAnimation = animation.damage;
     const attackAnimation = animation.attack || {};
     const ballAnimation = animation.ball || {};
