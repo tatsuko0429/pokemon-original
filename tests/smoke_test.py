@@ -49,13 +49,6 @@ ROUTE_TO_SQUARE = expand_route(("ArrowLeft", 10))
 # ルート定数はマップ座標と密結合。maps.jsのrows/spawn/warp座標を変えたら最初にここを見直す。
 ROUTE_BACK_TO_ROUTE = ["ArrowRight"]
 ROUTE_TO_SQUARE_GUIDE = expand_route(("ArrowDown", 1), ("ArrowLeft", 13))
-ROUTE_TO_PICKUP = expand_route(
-    ("ArrowRight", 19),
-    ("ArrowDown", 3),
-    ("ArrowRight", 1),
-    ("ArrowDown", 4),
-    ("ArrowRight", 2),
-)
 ROUTE_TO_BATTLE = [
     "ArrowRight",
     "ArrowRight",
@@ -255,6 +248,75 @@ async def read_field_state(page):
           bodyText: document.body.textContent?.replace(/\\s+/g, " ").trim() || "",
           state: window.MonsterPrototype.runtime.store.snapshot()
         })"""
+    )
+
+
+async def place_player_next_to_pickup(page, event_id: str):
+    return await page.evaluate(
+        """(eventId) => {
+          const App = window.MonsterPrototype;
+          const runtime = App.runtime;
+          let result = null;
+
+          runtime.store.update((state) => {
+            const mapDef = runtime.dataRegistry.getMap(state.field.mapId);
+            const event = (mapDef.events || []).find((entry) => entry.id === eventId);
+            if (!event) {
+              throw new Error(`${eventId} が現在マップに見つかりません。`);
+            }
+
+            const position = App.core.resolveFieldEventPosition(state, event);
+            const resolvedIds = new Set(state.progress.resolvedEventIds || []);
+            const occupied = new Set(
+              (mapDef.events || [])
+                .filter((entry) => {
+                  return entry.id !== event.id && entry.trigger === "interact" && !resolvedIds.has(entry.id);
+                })
+                .map((entry) => {
+                  const entryPosition = App.core.resolveFieldEventPosition(state, entry);
+                  return `${entryPosition.x},${entryPosition.y}`;
+                })
+            );
+            const tileConfig = App.config.game.fieldTiles;
+            const isPassable = (x, y) => {
+              const row = mapDef.rows[y];
+              const tile = row ? tileConfig[row[x]] : null;
+              return Boolean(tile && tile.passable && !occupied.has(`${x},${y}`));
+            };
+            const neighbors = [
+              { x: position.x, y: position.y - 1, direction: "down" },
+              { x: position.x - 1, y: position.y, direction: "right" },
+              { x: position.x + 1, y: position.y, direction: "left" },
+              { x: position.x, y: position.y + 1, direction: "up" },
+            ];
+            const player = neighbors.find((entry) => isPassable(entry.x, entry.y));
+            if (!player) {
+              throw new Error(`${eventId} の隣に立てる場所がありません。`);
+            }
+
+            state.field.player.x = player.x;
+            state.field.player.y = player.y;
+            state.field.player.fromX = player.x;
+            state.field.player.fromY = player.y;
+            state.field.player.toX = player.x;
+            state.field.player.toY = player.y;
+            state.field.player.direction = player.direction;
+            state.field.player.moving = false;
+            state.field.player.progress = 0;
+            state.field.message = "";
+            result = {
+              eventId,
+              x: position.x,
+              y: position.y,
+              playerX: player.x,
+              playerY: player.y,
+              direction: player.direction,
+            };
+          });
+
+          return result;
+        }""",
+        event_id,
     )
 
 
@@ -645,6 +707,9 @@ async def run_smoke_test(base_url: str) -> None:
               runtime.save.persist(runtime.store.getState());
             }"""
         )
+        saved_pickup_placements = await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.snapshot().field.pickupPlacements"""
+        )
         await goto_app(page, base_url)
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#modal-actions button")]
@@ -692,6 +757,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             "route_ball_pickup" in restored_state["state"]["progress"]["resolvedEventIds"],
             "保存した拾得済みイベントが復元されていません。",
+        )
+        expect(
+            restored_state["state"]["field"]["pickupPlacements"] == saved_pickup_placements,
+            "保存した拾得物のランダム配置が復元されていません。",
         )
 
         await page.evaluate(
@@ -744,6 +813,11 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             new_game_state["state"]["progress"]["storyIntroAccepted"],
             "はじめから選択後にルール説明の確認状態が記録されていません。",
+        )
+        expect(
+            "route_ball_pickup" in new_game_state["state"]["field"]["pickupPlacements"]
+            and "route_heal_pickup" in new_game_state["state"]["field"]["pickupPlacements"],
+            "はじめから選択後に拾得物のランダム配置が再生成されていません。",
         )
         await load_fresh(page, base_url)
 
@@ -1499,6 +1573,15 @@ async def run_smoke_test(base_url: str) -> None:
         route_state = await read_field_state(page)
         expect(route_state["caption"] == EXPECTED_START_CAPTION, "広場から道へのワープが確認できません。")
         expect(route_state["state"]["field"]["mapId"] == "camera_route", "道の内部マップ状態が想定と違います。")
+        pickup_placements = route_state["state"]["field"]["pickupPlacements"]
+        expect(
+            "route_ball_pickup" in pickup_placements and "route_heal_pickup" in pickup_placements,
+            "道の拾得物ランダム配置が生成されていません。",
+        )
+        expect(
+            pickup_placements["route_ball_pickup"] != pickup_placements["route_heal_pickup"],
+            "拾得物のランダム配置が重なっています。",
+        )
 
         await page.evaluate(
             """() => {
@@ -1527,22 +1610,8 @@ async def run_smoke_test(base_url: str) -> None:
             "5分経過後も初期ステージで野生遭遇が発生しています。",
         )
 
-        await page.evaluate(
-            """() => window.MonsterPrototype.runtime.store.update((state) => {
-              state.field.player.x = 24;
-              state.field.player.y = 16;
-              state.field.player.fromX = 24;
-              state.field.player.fromY = 16;
-              state.field.player.toX = 24;
-              state.field.player.toY = 16;
-              state.field.player.direction = "down";
-              state.field.player.moving = false;
-              state.field.player.progress = 0;
-              state.field.message = "";
-            })"""
-        )
-
         master_balls_before_pickup = route_state["state"]["inventory"]["masterBallCount"]
+        await place_player_next_to_pickup(page, "route_ball_pickup")
         await press(page, "Enter")
         await asyncio.sleep(0.2)
         pickup_state = await read_field_state(page)
@@ -1574,22 +1643,8 @@ async def run_smoke_test(base_url: str) -> None:
         await click_modal_button(page, "閉じる")
         await asyncio.sleep(0.2)
 
-        await page.evaluate(
-            """() => window.MonsterPrototype.runtime.store.update((state) => {
-              state.field.player.x = 22;
-              state.field.player.y = 16;
-              state.field.player.fromX = 22;
-              state.field.player.fromY = 16;
-              state.field.player.toX = 22;
-              state.field.player.toY = 16;
-              state.field.player.direction = "down";
-              state.field.player.moving = false;
-              state.field.player.progress = 0;
-              state.field.message = "";
-            })"""
-        )
-
         full_heals_before_pickup = pickup_state["state"]["inventory"]["fullHealCount"]
+        await place_player_next_to_pickup(page, "route_heal_pickup")
         await press(page, "Enter")
         await asyncio.sleep(0.2)
         heal_pickup_state = await read_field_state(page)

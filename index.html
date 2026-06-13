@@ -3503,6 +3503,255 @@ select {
     return Boolean(tileConfig && tileConfig.passable);
   }
 
+  function coordinateKey(x, y) {
+    return `${x},${y}`;
+  }
+
+  function getUnseededRandomIndex(length) {
+    if (!Number.isInteger(length) || length <= 0) {
+      return 0;
+    }
+
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      const values = new Uint32Array(1);
+      window.crypto.getRandomValues(values);
+      return values[0] % length;
+    }
+
+    return Math.floor(Math.random() * length);
+  }
+
+  function getPickupEvents(mapDef) {
+    return (mapDef && Array.isArray(mapDef.events) ? mapDef.events : []).filter((event) => {
+      return event && event.kind === "pickup";
+    });
+  }
+
+  function getStaticOccupiedKeys(mapDef) {
+    const occupied = new Set();
+    if (!mapDef) {
+      return occupied;
+    }
+
+    if (mapDef.spawn) {
+      occupied.add(coordinateKey(mapDef.spawn.x, mapDef.spawn.y));
+    }
+
+    (mapDef.events || []).forEach((event) => {
+      if (event.kind !== "pickup") {
+        occupied.add(coordinateKey(event.x, event.y));
+      }
+    });
+
+    return occupied;
+  }
+
+  function getBlockingKeys(mapDef, occupied) {
+    const blocked = new Set(occupied || []);
+    (mapDef && mapDef.events ? mapDef.events : []).forEach((event) => {
+      if (event.kind === "pickup") {
+        return;
+      }
+      if (event.trigger === "interact") {
+        blocked.add(coordinateKey(event.x, event.y));
+      }
+    });
+    return blocked;
+  }
+
+  function getReachableKeys(mapDef, blocked) {
+    const reachable = new Set();
+    if (!mapDef || !mapDef.spawn || !isPassableTile(mapDef, mapDef.spawn.x, mapDef.spawn.y)) {
+      return reachable;
+    }
+
+    const blockedKeys = new Set(blocked || []);
+    const startKey = coordinateKey(mapDef.spawn.x, mapDef.spawn.y);
+    blockedKeys.delete(startKey);
+
+    const queue = [{ x: mapDef.spawn.x, y: mapDef.spawn.y }];
+    reachable.add(startKey);
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      [
+        { x: current.x, y: current.y - 1 },
+        { x: current.x + 1, y: current.y },
+        { x: current.x, y: current.y + 1 },
+        { x: current.x - 1, y: current.y },
+      ].forEach((next) => {
+        const key = coordinateKey(next.x, next.y);
+        if (reachable.has(key) || blockedKeys.has(key) || !isPassableTile(mapDef, next.x, next.y)) {
+          return;
+        }
+        reachable.add(key);
+        queue.push(next);
+      });
+    }
+
+    return reachable;
+  }
+
+  function hasReachableNeighbor(mapDef, x, y, reachable) {
+    return [
+      coordinateKey(x, y - 1),
+      coordinateKey(x + 1, y),
+      coordinateKey(x, y + 1),
+      coordinateKey(x - 1, y),
+    ].some((key) => reachable.has(key));
+  }
+
+  function getPickupPlacementCandidates(mapDef, occupied) {
+    if (!mapDef || !Array.isArray(mapDef.rows) || mapDef.rows.length === 0) {
+      return [];
+    }
+
+    const blocked = getBlockingKeys(mapDef, occupied);
+    const reachable = getReachableKeys(mapDef, blocked);
+    const candidates = [];
+    const height = mapDef.rows.length;
+    const width = mapDef.rows[0].length;
+
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const key = coordinateKey(x, y);
+        if (occupied.has(key) || !isPassableTile(mapDef, x, y)) {
+          continue;
+        }
+        if (!hasReachableNeighbor(mapDef, x, y, reachable)) {
+          continue;
+        }
+        candidates.push({ x, y });
+      }
+    }
+
+    return candidates;
+  }
+
+  function isValidPickupPlacement(mapDef, placement, occupied) {
+    if (
+      !isPlainObject(placement) ||
+      !Number.isInteger(placement.x) ||
+      !Number.isInteger(placement.y)
+    ) {
+      return false;
+    }
+
+    const key = coordinateKey(placement.x, placement.y);
+    if (occupied.has(key) || !isPassableTile(mapDef, placement.x, placement.y)) {
+      return false;
+    }
+
+    const reachable = getReachableKeys(mapDef, getBlockingKeys(mapDef, occupied));
+    return hasReachableNeighbor(mapDef, placement.x, placement.y, reachable);
+  }
+
+  function choosePickupPlacement(mapDef, occupied, preferredPlacement) {
+    if (isValidPickupPlacement(mapDef, preferredPlacement, occupied)) {
+      return {
+        x: preferredPlacement.x,
+        y: preferredPlacement.y,
+      };
+    }
+
+    const candidates = getPickupPlacementCandidates(mapDef, occupied);
+    if (candidates.length > 0) {
+      return candidates[getUnseededRandomIndex(candidates.length)];
+    }
+
+    return isPlainObject(preferredPlacement)
+      ? { x: preferredPlacement.x || 0, y: preferredPlacement.y || 0 }
+      : { x: 0, y: 0 };
+  }
+
+  function createPickupPlacements(dataRegistry) {
+    const placements = {};
+    (App.data.maps || []).forEach((sourceMap) => {
+      const mapDef =
+        dataRegistry && typeof dataRegistry.getMap === "function"
+          ? dataRegistry.getMap(sourceMap.id) || sourceMap
+          : sourceMap;
+      const occupied = getStaticOccupiedKeys(mapDef);
+      getPickupEvents(mapDef).forEach((event) => {
+        const randomPlacement = choosePickupPlacement(mapDef, occupied, null);
+        const placement = isValidPickupPlacement(mapDef, randomPlacement, occupied)
+          ? randomPlacement
+          : { x: event.x, y: event.y };
+        placements[event.id] = placement;
+        occupied.add(coordinateKey(placement.x, placement.y));
+      });
+    });
+    return placements;
+  }
+
+  function buildStablePickupPlacements(placements) {
+    const stable = {};
+    if (!isPlainObject(placements)) {
+      return stable;
+    }
+
+    Object.keys(placements).forEach((eventId) => {
+      const placement = placements[eventId];
+      if (
+        typeof eventId === "string" &&
+        isPlainObject(placement) &&
+        Number.isInteger(placement.x) &&
+        Number.isInteger(placement.y)
+      ) {
+        stable[eventId] = {
+          x: placement.x,
+          y: placement.y,
+        };
+      }
+    });
+
+    return stable;
+  }
+
+  function sanitizePickupPlacements(placements, dataRegistry, fallbackPlacements) {
+    const source = isPlainObject(placements) ? placements : {};
+    const fallback = isPlainObject(fallbackPlacements) ? fallbackPlacements : {};
+    const sanitized = {};
+
+    (App.data.maps || []).forEach((sourceMap) => {
+      const mapDef =
+        dataRegistry && typeof dataRegistry.getMap === "function"
+          ? dataRegistry.getMap(sourceMap.id) || sourceMap
+          : sourceMap;
+      const occupied = getStaticOccupiedKeys(mapDef);
+      getPickupEvents(mapDef).forEach((event) => {
+        const savedPlacement = source[event.id];
+        const fallbackPlacement = fallback[event.id] || event;
+        const placement = isValidPickupPlacement(mapDef, savedPlacement, occupied)
+          ? { x: savedPlacement.x, y: savedPlacement.y }
+          : choosePickupPlacement(mapDef, occupied, fallbackPlacement);
+        sanitized[event.id] = placement;
+        occupied.add(coordinateKey(placement.x, placement.y));
+      });
+    });
+
+    return sanitized;
+  }
+
+  function resolveFieldEventPosition(state, event) {
+    const placements = state && state.field && state.field.pickupPlacements;
+    const placement =
+      event && event.kind === "pickup" && isPlainObject(placements)
+        ? placements[event.id]
+        : null;
+    if (
+      isPlainObject(placement) &&
+      Number.isInteger(placement.x) &&
+      Number.isInteger(placement.y)
+    ) {
+      return placement;
+    }
+
+    return {
+      x: event ? event.x : 0,
+      y: event ? event.y : 0,
+    };
+  }
+
   function buildStableProgress(progress) {
     const stable = {};
     Object.keys(progress || {}).forEach((key) => {
@@ -3580,6 +3829,7 @@ select {
         },
         steps: field.steps,
         lastEncounterStep: field.lastEncounterStep,
+        pickupPlacements: buildStablePickupPlacements(field.pickupPlacements),
       },
       party: buildStableParty(state.party || []),
       inventory: buildStableInventory(state.inventory || {}),
@@ -3750,6 +4000,11 @@ select {
       nextState.field.lastEncounterStep
     );
     restorePlayer(savedField, nextState, mapDef);
+    nextState.field.pickupPlacements = sanitizePickupPlacements(
+      savedField.pickupPlacements,
+      dataRegistry,
+      nextState.field.pickupPlacements
+    );
     restoreParty(savedState.party, nextState, dataRegistry);
     restoreInventory(savedState.inventory, nextState);
     restoreCollection(savedState.collection, nextState, dataRegistry);
@@ -4042,6 +4297,8 @@ select {
     };
   }
 
+  App.core.createPickupPlacements = createPickupPlacements;
+  App.core.resolveFieldEventPosition = resolveFieldEventPosition;
   App.core.createAdventureReportManager = createAdventureReportManager;
   App.core.createSaveManager = createSaveManager;
 })();
@@ -7403,7 +7660,11 @@ select {
       const resolvedIds = new Set((state.progress && state.progress.resolvedEventIds) || []);
       return (mapDef.events || [])
         .filter((event) => event.sprite && !resolvedIds.has(event.id))
-        .sort((left, right) => left.y - right.y || left.x - right.x);
+        .sort((left, right) => {
+          const leftPosition = App.core.resolveFieldEventPosition(state, left);
+          const rightPosition = App.core.resolveFieldEventPosition(state, right);
+          return leftPosition.y - rightPosition.y || leftPosition.x - rightPosition.x;
+        });
     }
 
     function drawField(state) {
@@ -7432,8 +7693,9 @@ select {
       });
 
       getVisibleFieldEvents(state, mapDef).forEach((event) => {
-        const x = event.x * screen.tileSize - camera.offsetX;
-        const y = event.y * screen.tileSize - camera.offsetY;
+        const position = App.core.resolveFieldEventPosition(state, event);
+        const x = position.x * screen.tileSize - camera.offsetX;
+        const y = position.y * screen.tileSize - camera.offsetY;
         const sprite = fieldPixelArt[event.sprite];
         if (sprite && isVisible(x, y)) {
           drawFieldSpriteShadow(sprite, x, y, event.sprite);
@@ -11499,7 +11761,8 @@ select {
 
     function findEvent(state, mapDef, x, y, predicate) {
       return getActiveEvents(state, mapDef).find((event) => {
-        return event.x === x && event.y === y && (!predicate || predicate(event));
+        const position = App.core.resolveFieldEventPosition(state, event);
+        return position.x === x && position.y === y && (!predicate || predicate(event));
       });
     }
 
@@ -11565,6 +11828,7 @@ select {
 
     function applyPickup(state, event) {
       // 拾得済みはprogress.resolvedEventIdsで管理する。保存復元・再取得防止・描画非表示がこのidに依存する。
+      const position = App.core.resolveFieldEventPosition(state, event);
       const amount = Number.isInteger(event.amount) && event.amount > 0 ? event.amount : 1;
       if (event.itemType === "full_heal") {
         state.inventory.fullHealCount += amount;
@@ -11577,8 +11841,8 @@ select {
       setFieldMessage(state, event.message || "アイテムを みつけた！", "item");
       setFieldEventEffect(state, {
         kind: "pickup",
-        x: event.x,
-        y: event.y,
+        x: position.x,
+        y: position.y,
         itemType: event.itemType,
         durationMs: fieldAnimation.pickupEffectDurationMs || 420,
       });
@@ -12029,6 +12293,7 @@ select {
         messageKind: "",
         steps: 0,
         lastEncounterStep: -10,
+        pickupPlacements: App.core.createPickupPlacements(dataRegistry),
         stepEffect: null,
         eventEffect: null,
         bumpEffect: null,
@@ -12459,6 +12724,13 @@ select {
     );
     const getCurrentObjectiveText = (state) => getObjectiveText(state, dataRegistry);
     let startChoicePending = shouldAskStartChoice;
+
+    function resetForNewGame() {
+      store.reset();
+      store.update((state) => {
+        state.field.pickupPlacements = App.core.createPickupPlacements(dataRegistry);
+      });
+    }
 
     function getFieldBgmId(state) {
       const mapDef = state.field ? dataRegistry.getMap(state.field.mapId) : null;
@@ -13154,7 +13426,7 @@ select {
             variant: "is-danger",
             onSelect: () => {
               modal.closeModal({ force: true, silent: true });
-              store.reset();
+              resetForNewGame();
               save.clear(store.getState());
               openStoryIntro();
               audio.playSe("confirm");
@@ -13213,7 +13485,7 @@ select {
             onSelect: () => {
               startChoicePending = false;
               modal.closeModal({ force: true, silent: true });
-              store.reset();
+              resetForNewGame();
               save.clear(store.getState());
               syncFieldBgm();
               openStoryIntro();
@@ -13362,7 +13634,7 @@ select {
       if (store.getState().progress && store.getState().progress.gameOver) {
         startChoicePending = false;
         modal.closeModal({ force: true, silent: true });
-        store.reset();
+        resetForNewGame();
         save.clear(store.getState());
         syncFieldBgm();
         openStoryIntro();
@@ -13401,7 +13673,7 @@ select {
               label: "タイトルへ",
               onSelect: () => {
                 modal.closeModal({ force: true, silent: true });
-                store.reset();
+                resetForNewGame();
                 save.clear(store.getState());
                 syncFieldBgm();
                 openStoryIntro();
