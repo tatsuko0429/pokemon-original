@@ -420,7 +420,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(audio_state["config"]["maxActiveSeTones"] == 18, "SE同時発音上限が想定値ではありません。")
         expect(abs(audio_state["config"]["firstGrassVolume"] - 0.004375) < 0.0001, "草むらBGM音量が想定値ではありません。")
         expect(abs(audio_state["config"]["fieldVolume"] - 0.004375) < 0.0001, "合成フィールドBGM音量が想定値ではありません。")
-        expect(abs(audio_state["config"]["battleVolume"] - 0.005) < 0.0001, "戦闘BGM音量が想定値ではありません。")
+        expect(abs(audio_state["config"]["battleVolume"] - 0.007) < 0.0001, "戦闘BGM音量が想定値ではありません。")
         expect(audio_state["debug"]["unlocked"], "初回操作後に音声アンロック状態へ移行していません。")
         expect(audio_state["debug"]["desiredBgmId"] == "first_grass", "BGMの要求状態が初期マップBGMになっていません。")
         expect(abs(audio_state["debug"]["finalBgmVolume"] - 0.00109375) < 0.0001, "草むらBGMの実効音量が最終倍率込みになっていません。")

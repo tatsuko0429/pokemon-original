@@ -2048,7 +2048,7 @@ select {
       sePeakBase: 0.42,
       seNoteVolumeFloor: 0.75,
       htmlSeVolume: 0.88,
-      seDuckBgmRatio: 0.35,
+      seDuckBgmRatio: 0.55,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
       preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item"],
@@ -2080,7 +2080,7 @@ select {
         battle: {
           src: "./assets/audio/battle-bgm.mp3",
           loop: true,
-          volume: 0.005,
+          volume: 0.007,
         },
       },
       se: {
@@ -5836,34 +5836,44 @@ select {
       return element;
     }
 
-    function preloadHtmlSePools() {
-      preloadSeIds.forEach((id) => {
-        const pattern = sePatterns[id];
-        if (!pattern) {
-          return;
-        }
-        const element = getHtmlSeElement(id, pattern);
-        if (element && typeof element.load === "function") {
-          try {
-            element.load();
-          } catch (error) {}
-        }
-      });
-    }
-
-    function scheduleSePreload() {
-      if (AudioContextCtor) {
+    function preloadHtmlSePool(id) {
+      const pattern = sePatterns[id];
+      if (!pattern) {
         return;
       }
 
-      const callback = () => {
-        preloadHtmlSePools();
-      };
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(callback);
-      } else {
-        window.setTimeout(callback, 80);
+      const element = getHtmlSeElement(id, pattern);
+      if (element && typeof element.load === "function") {
+        try {
+          element.load();
+        } catch (error) {}
       }
+    }
+
+    function scheduleSePreload() {
+      const queue = preloadSeIds.slice();
+      const scheduleNext = (callback) => {
+        if (typeof window.requestIdleCallback === "function") {
+          window.requestIdleCallback(callback, { timeout: 1600 });
+        } else {
+          window.setTimeout(callback, 260);
+        }
+      };
+      const runChunk = (deadline) => {
+        let processed = 0;
+        while (
+          queue.length > 0 &&
+          (processed === 0 || !deadline || deadline.timeRemaining() > 5)
+        ) {
+          preloadHtmlSePool(queue.shift());
+          processed += 1;
+        }
+        if (queue.length > 0) {
+          scheduleNext(runChunk);
+        }
+      };
+
+      scheduleNext(runChunk);
     }
 
     function playHtmlSe(id, pattern) {
@@ -6267,6 +6277,17 @@ select {
       duckBgmForSe();
 
       if (AudioContextCtor) {
+        const audioContext = ensureContext();
+        if (unlocked && audioContext && audioContext.state === "running") {
+          playWebAudioSe(id, pattern);
+          return;
+        }
+
+        if (playHtmlSe(id, pattern)) {
+          recoverAudioPlayback();
+          return;
+        }
+
         playWebAudioSe(id, pattern);
         return;
       }
