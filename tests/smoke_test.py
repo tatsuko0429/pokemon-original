@@ -242,6 +242,13 @@ async def read_field_state(page):
             captured: el.classList.contains("is-captured"),
             thumbCount: el.querySelectorAll("img, canvas").length
           })),
+          fieldMapCellCount: document.querySelectorAll("#modal-body .modal-field-map-cell").length,
+          fieldMapPlayerCount: document.querySelectorAll("#modal-body .modal-field-map-cell.is-marker-player").length,
+          fieldMapPickupCount: document.querySelectorAll("#modal-body .modal-field-map-cell.is-marker-pickup").length,
+          fieldMapWarpCount: document.querySelectorAll("#modal-body .modal-field-map-cell.is-marker-warp").length,
+          fieldMapNpcCount: document.querySelectorAll("#modal-body .modal-field-map-cell.is-marker-npc, #modal-body .modal-field-map-cell.is-marker-sign").length,
+          fieldMapLegend: [...document.querySelectorAll("#modal-body .modal-field-map-legend-item")]
+            .map((el) => el.textContent.replace(/\\s+/g, " ").trim()),
           silhouetteCount: document.querySelectorAll("#modal-body .is-silhouette, #modal-body .modal-dex-card.is-unknown").length,
           modalButtons: [...document.querySelectorAll("#modal-actions button")].map((el) => el.textContent),
           tapRippleCount: document.querySelectorAll(".tap-ripple").length,
@@ -919,6 +926,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(menu_state["modalTitle"] == "メニュー", "メニューポップの見出しが想定と違います。")
         expect("手持ち" in menu_state["modalButtons"], "メニューに手持ちボタンがありません。")
         expect("アイテム" in menu_state["modalButtons"], "メニューにアイテムボタンがありません。")
+        expect("マップ" in menu_state["modalButtons"], "メニューにマップボタンがありません。")
         expect("図鑑" in menu_state["modalButtons"], "メニューに図鑑ボタンがありません。")
         expect("冒険レポート" in menu_state["modalButtons"], "メニューに冒険レポートボタンがありません。")
         expect("やり直す" in menu_state["modalButtons"], "メニューにやり直すボタンがありません。")
@@ -936,6 +944,20 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(any("HP" in line for line in party_state["modalLines"]), "手持ち画面にHPが表示されていません。")
         expect(any("PP" in line for line in party_state["modalLines"]), "手持ち画面に技PPが表示されていません。")
+        await click_modal_button(page, "メニューへ")
+        await asyncio.sleep(0.2)
+        await click_modal_button(page, "マップ")
+        await asyncio.sleep(0.2)
+        field_map_state = await read_field_state(page)
+        expect(field_map_state["modalTitle"] == "マップ", "マップ画面に切り替わっていません。")
+        expect("現在地: ながめのみち" in field_map_state["modalLines"], "マップ画面に現在地が表示されていません。")
+        expect(field_map_state["fieldMapCellCount"] > 0, "マップ画面に地形セルが表示されていません。")
+        expect(field_map_state["fieldMapPlayerCount"] == 1, "マップ画面に現在地マーカーが1つ表示されていません。")
+        expect(field_map_state["fieldMapPickupCount"] >= 1, "マップ画面に未取得アイテムが表示されていません。")
+        expect(field_map_state["fieldMapWarpCount"] >= 1, "マップ画面に出口が表示されていません。")
+        expect(field_map_state["fieldMapNpcCount"] >= 1, "マップ画面に人物または看板が表示されていません。")
+        expect(any("現在地" in entry for entry in field_map_state["fieldMapLegend"]), "マップ凡例に現在地がありません。")
+        expect(any("拾得物" in entry for entry in field_map_state["fieldMapLegend"]), "マップ凡例に拾得物がありません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await click_modal_button(page, "目的")

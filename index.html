@@ -1639,6 +1639,124 @@ select {
   overflow-wrap: anywhere;
 }
 
+.modal-field-map {
+  gap: 7px;
+  width: 100%;
+}
+
+.modal-field-map-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--field-map-columns), minmax(0, 1fr));
+  gap: 1px;
+  width: 100%;
+  padding: 5px;
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: #20221b;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 4px 0 rgba(20, 24, 17, 0.18);
+}
+
+.modal-field-map-cell {
+  min-width: 0;
+  height: clamp(7px, 1.2svh, 12px);
+  border-radius: 2px;
+  background: #c6bd8a;
+  color: transparent;
+  display: grid;
+  place-items: center;
+  font-size: 0.54rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(10, 12, 8, 0.3);
+}
+
+.modal-field-map-cell.is-tile-path {
+  background: #d2b463;
+}
+
+.modal-field-map-cell.is-tile-grass {
+  background:
+    linear-gradient(135deg, rgba(78, 99, 53, 0.8) 25%, transparent 25% 50%, rgba(78, 99, 53, 0.8) 50% 75%, transparent 75%),
+    #6d824d;
+}
+
+.modal-field-map-cell.is-tile-wall {
+  background: #3f4938;
+}
+
+.modal-field-map-cell.is-tile-water {
+  background: #6d9299;
+}
+
+.modal-field-map-cell.is-tile-special {
+  background: #b3ad8d;
+}
+
+.modal-field-map-cell[class*="is-marker-"] {
+  color: #f8f4d7;
+  border: 1px solid rgba(32, 34, 27, 0.72);
+}
+
+.modal-field-map-cell.is-marker-player,
+.modal-field-map-legend-mark.is-marker-player {
+  background: #9b3638;
+  color: #f8f4d7;
+}
+
+.modal-field-map-cell.is-marker-pickup,
+.modal-field-map-legend-mark.is-marker-pickup {
+  background: #d8b546;
+  color: #20221b;
+}
+
+.modal-field-map-cell.is-marker-warp,
+.modal-field-map-legend-mark.is-marker-warp {
+  background: #5c7f91;
+  color: #f8f4d7;
+}
+
+.modal-field-map-cell.is-marker-npc,
+.modal-field-map-legend-mark.is-marker-npc {
+  background: #304663;
+  color: #f8f4d7;
+}
+
+.modal-field-map-cell.is-marker-sign,
+.modal-field-map-legend-mark.is-marker-sign {
+  background: #6d7055;
+  color: #f8f4d7;
+}
+
+.modal-field-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.modal-field-map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modal-field-map-legend-mark {
+  min-width: 1.4em;
+  height: 1.4em;
+  border: 2px solid rgba(32, 34, 27, 0.76);
+  border-radius: 4px;
+  background: #d2b463;
+  color: #20221b;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
 .modal-actions {
   display: grid;
   gap: 10px;
@@ -6844,6 +6962,56 @@ select {
           caption.className = "modal-monster-caption";
           caption.textContent = section.caption;
           wrapper.appendChild(caption);
+        }
+
+        return wrapper;
+      }
+
+      if (section.kind === "fieldMap") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "modal-section modal-field-map";
+
+        const grid = document.createElement("div");
+        grid.className = "modal-field-map-grid";
+        grid.style.setProperty("--field-map-columns", String(section.width || 1));
+        grid.setAttribute("role", "img");
+        grid.setAttribute("aria-label", section.label || "フィールドマップ");
+
+        (section.cells || []).forEach((cell) => {
+          const tile = document.createElement("span");
+          tile.className = [
+            "modal-field-map-cell",
+            cell.tileClass || "",
+            cell.markerClass || "",
+          ].filter(Boolean).join(" ");
+          tile.textContent = cell.symbol || "";
+          tile.setAttribute("aria-label", cell.label || "");
+          grid.appendChild(tile);
+        });
+        wrapper.appendChild(grid);
+
+        if (section.legend && section.legend.length > 0) {
+          const legend = document.createElement("div");
+          legend.className = "modal-field-map-legend";
+          section.legend.forEach((entry) => {
+            const item = document.createElement("span");
+            item.className = "modal-field-map-legend-item";
+
+            const mark = document.createElement("span");
+            mark.className = [
+              "modal-field-map-legend-mark",
+              entry.markerClass || "",
+            ].filter(Boolean).join(" ");
+            mark.textContent = entry.symbol || "";
+
+            const label = document.createElement("span");
+            label.textContent = entry.label || "";
+
+            item.appendChild(mark);
+            item.appendChild(label);
+            legend.appendChild(item);
+          });
+          wrapper.appendChild(legend);
         }
 
         return wrapper;
@@ -12465,6 +12633,152 @@ select {
     };
   }
 
+  function getFieldMapTileClass(tileCode) {
+    if (tileCode === "=") {
+      return "is-tile-path";
+    }
+    if (tileCode === "g") {
+      return "is-tile-grass";
+    }
+    if (tileCode === "#") {
+      return "is-tile-wall";
+    }
+    if (tileCode === "~") {
+      return "is-tile-water";
+    }
+    if (["1", "2", "3", "4", "c"].includes(tileCode)) {
+      return "is-tile-special";
+    }
+    return "is-tile-ground";
+  }
+
+  function getFieldMapEventMarker(event) {
+    if (!event) {
+      return null;
+    }
+    if (event.kind === "pickup") {
+      return {
+        type: "pickup",
+        symbol: "I",
+        label: getPickupItemLabel(event),
+        markerClass: "is-marker-pickup",
+        priority: 1,
+      };
+    }
+    if (event.kind === "warp") {
+      return {
+        type: "warp",
+        symbol: "E",
+        label: "出口",
+        markerClass: "is-marker-warp",
+        priority: 2,
+      };
+    }
+    if (event.sprite === "npc" || event.kind === "battle") {
+      return {
+        type: "npc",
+        symbol: "N",
+        label: "人物",
+        markerClass: "is-marker-npc",
+        priority: 3,
+      };
+    }
+    if (event.sprite === "sign") {
+      return {
+        type: "sign",
+        symbol: "S",
+        label: "看板",
+        markerClass: "is-marker-sign",
+        priority: 4,
+      };
+    }
+    return null;
+  }
+
+  function isFieldEventHiddenOnMap(state, event) {
+    if (!state || !event || event.kind === "warp") {
+      return false;
+    }
+    const resolvedIds = new Set((state.progress && state.progress.resolvedEventIds) || []);
+    return resolvedIds.has(event.id) || (event.resolvedEventId && resolvedIds.has(event.resolvedEventId));
+  }
+
+  function createFieldMapLegend(markerTypes) {
+    const entries = [
+      { type: "player", symbol: "P", label: "現在地", markerClass: "is-marker-player" },
+      { type: "pickup", symbol: "I", label: "拾得物", markerClass: "is-marker-pickup" },
+      { type: "warp", symbol: "E", label: "出口", markerClass: "is-marker-warp" },
+      { type: "npc", symbol: "N", label: "人物", markerClass: "is-marker-npc" },
+      { type: "sign", symbol: "S", label: "看板", markerClass: "is-marker-sign" },
+    ];
+    return entries.filter((entry) => markerTypes.has(entry.type));
+  }
+
+  function createFieldMapSection(state, dataRegistry) {
+    if (!state || !state.field || !dataRegistry) {
+      return null;
+    }
+    const mapDef = dataRegistry.getMap(state.field.mapId);
+    if (!mapDef || !Array.isArray(mapDef.rows) || mapDef.rows.length === 0) {
+      return null;
+    }
+
+    const player = state.field.player || {};
+    const markerByPosition = new Map();
+    const markerTypes = new Set(["player"]);
+    (mapDef.events || []).forEach((event) => {
+      if (isFieldEventHiddenOnMap(state, event)) {
+        return;
+      }
+      const marker = getFieldMapEventMarker(event);
+      if (!marker) {
+        return;
+      }
+      const position = App.core.resolveFieldEventPosition(state, event);
+      const key = `${position.x},${position.y}`;
+      const current = markerByPosition.get(key);
+      if (!current || marker.priority < current.priority) {
+        markerByPosition.set(key, marker);
+      }
+      markerTypes.add(marker.type);
+    });
+
+    const tileConfig = App.config.game.fieldTiles || {};
+    const width = mapDef.rows.reduce((max, row) => Math.max(max, row.length), 0);
+    const cells = [];
+    mapDef.rows.forEach((row, y) => {
+      for (let x = 0; x < width; x += 1) {
+        const tileCode = row[x] || "#";
+        const tile = tileConfig[tileCode] || tileConfig["."] || {};
+        const eventMarker = markerByPosition.get(`${x},${y}`);
+        const isPlayer = player.x === x && player.y === y;
+        const marker = isPlayer
+          ? {
+              symbol: "P",
+              label: "現在地",
+              markerClass: "is-marker-player",
+            }
+          : eventMarker;
+
+        cells.push({
+          tileClass: getFieldMapTileClass(tileCode),
+          markerClass: marker ? marker.markerClass : "",
+          symbol: marker ? marker.symbol : "",
+          label: marker ? `${marker.label} ${x},${y}` : `${tile.label || "地形"} ${x},${y}`,
+        });
+      }
+    });
+
+    return {
+      kind: "fieldMap",
+      placement: "afterLines",
+      width,
+      label: `${mapDef.name} マップ`,
+      cells,
+      legend: createFieldMapLegend(markerTypes),
+    };
+  }
+
   function getCapturedSpeciesIds(state) {
     return Array.from(new Set((state.collection && state.collection.capturedSpeciesIds) || []));
   }
@@ -13064,6 +13378,11 @@ select {
             onSelect: openInventoryMenu,
           },
           {
+            id: "field_map",
+            label: "マップ",
+            onSelect: openFieldMapMenu,
+          },
+          {
             id: "records",
             label: "図鑑",
             onSelect: openObservationMenu,
@@ -13262,6 +13581,23 @@ select {
           pickupRadar.inventoryLine,
         ].filter(Boolean),
         actions,
+      });
+    }
+
+    function openFieldMapMenu() {
+      const state = store.getState();
+      const currentMap = dataRegistry.getMap(state.field.mapId);
+      const pickupRadar = getPickupRadarInfo(state, dataRegistry);
+      const fieldMapSection = createFieldMapSection(state, dataRegistry);
+      audio.playSe("confirm");
+      modal.openModal({
+        title: "マップ",
+        lines: [
+          `現在地: ${currentMap.name}`,
+          pickupRadar.inventoryLine,
+        ].filter(Boolean),
+        sections: [fieldMapSection].filter(Boolean),
+        actions: createBackToMenuActions(openMenu),
       });
     }
 
