@@ -594,6 +594,14 @@ select {
   gap: 5px;
 }
 
+.status-strip.has-radar {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 0.72fr)
+    minmax(96px, 1.12fr)
+    minmax(78px, 0.8fr);
+}
+
 .status-strip.is-compact {
   grid-template-columns: 1fr;
 }
@@ -631,6 +639,14 @@ select {
   font-size: clamp(0.58rem, 2.25vw, 0.7rem);
   line-height: 1.18;
   text-align: left;
+}
+
+.status-pill.is-radar {
+  background:
+    linear-gradient(180deg, #f5e9b8, #cdb864);
+  color: #251d10;
+  font-size: clamp(0.56rem, 2.05vw, 0.68rem);
+  line-height: 1.08;
 }
 
 .action-card {
@@ -8934,6 +8950,7 @@ select {
       dataRegistry,
       battleScene,
       getObjectiveText,
+      getPickupRadarText,
     } = options;
 
     let lastStatusKey = "";
@@ -9201,6 +9218,8 @@ select {
           ? formatShownHp(state.battle.display.playerHp)
           : playerMonster.currentHp;
       const objectiveText = getStatusObjectiveText(state);
+      const pickupRadarText =
+        typeof getPickupRadarText === "function" ? getPickupRadarText(state) : "";
       if (statusCard) {
         statusCard.classList.toggle("is-hidden", hideStatus);
       }
@@ -9210,6 +9229,7 @@ select {
         level: playerMonster.level,
         hp: shownHp,
         objectiveText,
+        pickupRadarText,
       });
 
       if (statusKey === lastStatusKey) {
@@ -9218,6 +9238,7 @@ select {
       lastStatusKey = statusKey;
 
       statusStrip.classList.toggle("is-compact", state.scene === "battle");
+      statusStrip.classList.toggle("has-radar", Boolean(pickupRadarText));
       statusStrip.innerHTML = "";
       if (hideStatus) {
         return;
@@ -9228,6 +9249,9 @@ select {
         { text: `HP ${shownHp}/${playerMonster.maxHp}`, className: "is-hp" },
         { text: objectiveText, className: "is-objective" },
       ];
+      if (pickupRadarText) {
+        items.push({ text: pickupRadarText, className: "is-radar" });
+      }
 
       items.forEach((item) => {
         const pill = document.createElement("div");
@@ -12358,6 +12382,89 @@ select {
     };
   }
 
+  function getPickupItemLabel(event) {
+    if (!event) {
+      return "アイテム";
+    }
+    if (event.itemType === "master_ball") {
+      return "ボール";
+    }
+    if (event.itemType === "full_heal") {
+      return "回復薬";
+    }
+    return "アイテム";
+  }
+
+  function getDirectionLabel(deltaX, deltaY) {
+    const vertical = deltaY < 0 ? "北" : deltaY > 0 ? "南" : "";
+    const horizontal = deltaX < 0 ? "西" : deltaX > 0 ? "東" : "";
+    return `${vertical}${horizontal}` || "足元";
+  }
+
+  function getPickupRadarInfo(state, dataRegistry) {
+    if (!state || !state.field || !dataRegistry) {
+      return {
+        statusText: "",
+        objectiveLine: "",
+        inventoryLine: "",
+      };
+    }
+
+    const mapDef = dataRegistry.getMap(state.field.mapId);
+    const pickupEvents = (mapDef && mapDef.events ? mapDef.events : []).filter((event) => {
+      return event.kind === "pickup";
+    });
+    if (pickupEvents.length === 0) {
+      return {
+        statusText: "",
+        objectiveLine: "",
+        inventoryLine: "",
+      };
+    }
+
+    const resolvedIds = new Set((state.progress && state.progress.resolvedEventIds) || []);
+    const activePickups = pickupEvents.filter((event) => !resolvedIds.has(event.id));
+    const collected = pickupEvents.length - activePickups.length;
+    if (activePickups.length === 0) {
+      return {
+        statusText: "気配 なし",
+        objectiveLine: "この場所の拾得物: 回収済み",
+        inventoryLine: "この場所の拾得物: 回収済み",
+      };
+    }
+
+    const player = state.field.player || {};
+    const nearest = activePickups
+      .map((event) => {
+        const position = App.core.resolveFieldEventPosition(state, event);
+        const deltaX = position.x - player.x;
+        const deltaY = position.y - player.y;
+        return {
+          event,
+          position,
+          deltaX,
+          deltaY,
+          distance: Math.abs(deltaX) + Math.abs(deltaY),
+        };
+      })
+      .sort((left, right) => {
+        return (
+          left.distance - right.distance ||
+          left.position.y - right.position.y ||
+          left.position.x - right.position.x
+        );
+      })[0];
+
+    const direction = getDirectionLabel(nearest.deltaX, nearest.deltaY);
+    const distanceLabel = nearest.distance <= 1 ? "すぐ" : `${direction}${nearest.distance}歩`;
+    const itemLabel = getPickupItemLabel(nearest.event);
+    return {
+      statusText: `気配 ${distanceLabel}`,
+      objectiveLine: `近い拾得物: ${itemLabel} ${distanceLabel}`,
+      inventoryLine: `この場所: ${collected}/${pickupEvents.length} 次 ${itemLabel} ${distanceLabel}`,
+    };
+  }
+
   function getCapturedSpeciesIds(state) {
     return Array.from(new Set((state.collection && state.collection.capturedSpeciesIds) || []));
   }
@@ -13134,6 +13241,7 @@ select {
 
       const state = store.getState();
       const pickupRecord = countPickupRecords(state);
+      const pickupRadar = getPickupRadarInfo(state, dataRegistry);
       const actions = [];
       if (canUseFullHeal(state)) {
         actions.push({
@@ -13151,7 +13259,8 @@ select {
           `パーフェクトボール: ${state.inventory.masterBallCount || 0} 個`,
           `回復薬: ${state.inventory.fullHealCount} 個`,
           `拾ったもの: ${pickupRecord.collected}/${pickupRecord.total}`,
-        ],
+          pickupRadar.inventoryLine,
+        ].filter(Boolean),
         actions,
       });
     }
@@ -13393,13 +13502,15 @@ select {
     function openObjectiveMenu() {
       const state = store.getState();
       const currentMap = dataRegistry.getMap(state.field.mapId);
+      const pickupRadar = getPickupRadarInfo(state, dataRegistry);
       audio.playSe("confirm");
       modal.openModal({
         title: "目的",
         lines: [
           getObjectiveText(state, dataRegistry),
           `現在地: ${currentMap.name}`,
-        ],
+          pickupRadar.objectiveLine,
+        ].filter(Boolean),
         actions: createBackToMenuActions(openMenu),
       });
     }
@@ -13531,6 +13642,7 @@ select {
       dataRegistry,
       openMenu,
       getObjectiveText: getCurrentObjectiveText,
+      getPickupRadarText: (state) => getPickupRadarInfo(state, dataRegistry).statusText,
     });
 
     syncFieldBgm();

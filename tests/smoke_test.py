@@ -436,6 +436,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(not initial_state["modalOpen"], "起動直後にモーダルが開いています。")
         expect("メニュー" in initial_state["actions"], "フィールド操作ボタンが不足しています。")
         expect(len(initial_state["status"]) >= 1, "状態表示が描画されていません。")
+        expect(any(entry.startswith("気配") for entry in initial_state["status"]), "拾得物レーダーが状態表示に出ていません。")
         expect(initial_state["timerText"] == "5:00", "準備タイマーが画面右上に表示されていません。")
         expect(
             not any("つかまえた" in entry for entry in initial_state["status"]),
@@ -946,6 +947,7 @@ async def run_smoke_test(base_url: str) -> None:
             "目的画面に現在の目的が表示されていません。",
         )
         expect("現在地: ながめのみち" in objective_state["modalLines"], "目的画面に現在地が表示されていません。")
+        expect(any(line.startswith("近い拾得物:") for line in objective_state["modalLines"]), "目的画面に拾得物レーダーが表示されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await click_modal_button(page, "音設定")
@@ -1638,6 +1640,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("パーフェクトボール: 1 個" in pickup_menu_state["modalLines"], "アイテム画面のパーフェクトボール数が更新されていません。")
         expect("回復薬: 0 個" in pickup_menu_state["modalLines"], "拾得物で回復薬数が増えています。")
         expect("拾ったもの: 1/2" in pickup_menu_state["modalLines"], "アイテム画面の拾得記録が更新されていません。")
+        expect(any(line.startswith("この場所: 1/2 次") for line in pickup_menu_state["modalLines"]), "アイテム画面に次の拾得物レーダーが表示されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await click_modal_button(page, "閉じる")
@@ -1668,6 +1671,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("パーフェクトボール: 1 個" in both_pickup_menu_state["modalLines"], "アイテム画面のパーフェクトボール数が維持されていません。")
         expect("回復薬: 1 個" in both_pickup_menu_state["modalLines"], "アイテム画面の回復薬数が更新されていません。")
         expect("拾ったもの: 2/2" in both_pickup_menu_state["modalLines"], "2つの拾得記録が表示されていません。")
+        expect("この場所の拾得物: 回収済み" in both_pickup_menu_state["modalLines"], "全回収後の拾得物レーダーが更新されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)
         await click_modal_button(page, "閉じる")
