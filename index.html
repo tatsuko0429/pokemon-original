@@ -736,24 +736,24 @@ select {
     行数やボタン数を増やす場合はmax-height 760pxのメディアクエリも同時に確認する。
   */
   display: grid;
-  grid-template-rows: minmax(54px, 0.9fr) auto;
+  grid-template-rows: minmax(72px, 0.9fr) auto;
   gap: 6px;
   height: 100%;
   min-height: 0;
 }
 
 .battle-message-panel {
-  min-height: 54px;
+  min-height: 72px;
   padding: 6px 10px 8px;
   border: 3px solid var(--line);
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(247, 249, 235, 0.96), rgba(220, 226, 199, 0.96));
   color: #181d18;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  align-content: center;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
   text-align: center;
   box-shadow:
@@ -800,6 +800,67 @@ select {
   font-weight: 900;
   line-height: 1.28;
   white-space: pre-line;
+}
+
+.battle-rush-meter {
+  width: min(100%, 230px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.54rem;
+  font-weight: 900;
+  color: #4e5558;
+  line-height: 1;
+}
+
+.battle-rush-label,
+.battle-rush-value {
+  min-width: 44px;
+}
+
+.battle-rush-label {
+  text-align: right;
+}
+
+.battle-rush-value {
+  text-align: left;
+}
+
+.battle-rush-track {
+  height: 7px;
+  overflow: hidden;
+  border: 2px solid rgba(32, 34, 27, 0.66);
+  border-radius: 999px;
+  background: rgba(32, 34, 27, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.battle-rush-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, #5f9dc0, #d8b546 72%, #f8f4d7);
+  transition: width 160ms ease;
+}
+
+.battle-rush-meter.is-ready {
+  color: #5d4212;
+}
+
+.battle-rush-meter.is-ready .battle-rush-track {
+  border-color: #6a5120;
+  box-shadow:
+    0 0 0 2px rgba(216, 181, 70, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.battle-rush-meter.is-ready .battle-rush-fill {
+  background:
+    linear-gradient(90deg, #d8b546, #f8f4d7 52%, #d8b546);
+  animation: battle-rush-ready 720ms ease-in-out infinite alternate;
 }
 
 .battle-buttons {
@@ -1212,6 +1273,12 @@ select {
   border-color: rgba(51, 87, 94, 0.68);
   background: rgba(213, 237, 247, 0.82);
   color: #255464;
+}
+
+.move-advice-chip.is-rush {
+  border-color: rgba(93, 66, 18, 0.72);
+  background: rgba(248, 238, 171, 0.92);
+  color: #5d4212;
 }
 
 .move-pp-row {
@@ -1839,6 +1906,16 @@ select {
   }
 }
 
+@keyframes battle-rush-ready {
+  from {
+    filter: brightness(1);
+  }
+
+  to {
+    filter: brightness(1.22);
+  }
+}
+
 @media (max-height: 760px) {
   /*
     低い端末でスクロールを出さないための圧縮ルール。
@@ -1872,13 +1949,24 @@ select {
   }
 
   .battle-panel {
-    grid-template-rows: minmax(50px, 0.9fr) auto;
+    grid-template-rows: minmax(66px, 0.9fr) auto;
     gap: 5px;
   }
 
   .battle-message-panel {
-    min-height: 50px;
-    padding: 7px 9px;
+    min-height: 66px;
+    padding: 5px 9px;
+  }
+
+  .battle-rush-meter {
+    width: min(100%, 204px);
+    font-size: 0.48rem;
+    gap: 4px;
+  }
+
+  .battle-rush-label,
+  .battle-rush-value {
+    min-width: 38px;
   }
 
   .control-button.face-button {
@@ -2069,6 +2157,12 @@ select {
       messageAutoAdvanceMs: 1180,
       messageAutoAdvancePerCharMs: 12,
       messageAutoAdvanceMaxExtraMs: 420,
+      rushGaugeMax: 100,
+      rushAttackGain: 34,
+      rushStrongGain: 18,
+      rushDamageTakenGain: 30,
+      rushPinchGain: 12,
+      rushDamageMultiplier: 1.55,
     },
     field: {
       startMapId: "camera_route",
@@ -2185,7 +2279,7 @@ select {
       seDuckBgmRatio: 0.55,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
-      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item"],
+      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item", "rush"],
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -2304,6 +2398,12 @@ select {
         exp_tick: [
           { freq: 783.99, ms: 24, wave: "triangle", volume: 0.34 },
           { freq: 987.77, ms: 28, wave: "triangle", volume: 0.26 },
+        ],
+        rush: [
+          { freq: 659.25, ms: 34, wave: "triangle", volume: 0.46 },
+          { freq: 987.77, ms: 46, wave: "sine", volume: 0.42 },
+          { freq: 1318.51, ms: 58, wave: "triangle", volume: 0.34 },
+          { freq: 1760, ms: 72, wave: "sine", volume: 0.22 },
         ],
         victory: [
           { freq: 523.25, ms: 46, wave: "triangle", volume: 0.48 },
@@ -8788,6 +8888,14 @@ select {
         };
       }
 
+      if (variant === "rush") {
+        return {
+          main: palette.white,
+          accent: palette.captureYellow || "#d8b546",
+          shadow: "#6fb5dc",
+        };
+      }
+
       return {
         main: palette.white,
         accent: palette.captureYellow || "#d8b546",
@@ -9233,7 +9341,13 @@ select {
     function createMoveButton(move, currentPp, onHover, options) {
       const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
-      const adviceChips = getMoveAdviceChips(move, currentPp, settings.enemySpecies);
+      let adviceChips = getMoveAdviceChips(move, currentPp, settings.enemySpecies);
+      if (settings.rushReady && move.power > 0 && currentPp > 0) {
+        adviceChips = [
+          { label: "CHANCE", className: "is-rush" },
+          ...adviceChips,
+        ].slice(0, 2);
+      }
       const classNames = [
         "move-button",
         getMoveTypeClass(move.type),
@@ -9670,8 +9784,8 @@ select {
       const itemCount = fullHealCount + masterBallCount;
 
       const fight = createButton("たたかう", "battle-command-button is-fight", null, settings.disabledAll);
-      fight.dataset.commandHint = "技";
-      fight.setAttribute("aria-label", "たたかう 技を選ぶ");
+      fight.dataset.commandHint = settings.rushReady ? "CHANCE" : "技";
+      fight.setAttribute("aria-label", settings.rushReady ? "たたかう チャンス攻撃を選ぶ" : "たたかう 技を選ぶ");
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
       ball.dataset.commandHint = "捕獲";
       ball.setAttribute("aria-label", "ボール 捕獲を試す");
@@ -9773,6 +9887,36 @@ select {
       return { label: "COMMAND", className: "is-command" };
     }
 
+    function createBattleRushMeter(battle) {
+      const rush = (battle && battle.rush) || {};
+      const maxGauge = (App.config.game.battle && App.config.game.battle.rushGaugeMax) || 100;
+      const gauge = Math.max(0, Math.min(maxGauge, Number(rush.gauge) || 0));
+      const ready = Boolean(rush.ready);
+      const root = document.createElement("div");
+      root.className = `battle-rush-meter ${ready ? "is-ready" : ""}`.trim();
+      root.setAttribute("aria-label", ready ? "チャンス 準備完了" : `チャンス ${Math.round(gauge)}%`);
+
+      const label = document.createElement("span");
+      label.className = "battle-rush-label";
+      label.textContent = "CHANCE";
+
+      const track = document.createElement("span");
+      track.className = "battle-rush-track";
+      const fill = document.createElement("span");
+      fill.className = "battle-rush-fill";
+      fill.style.width = `${ready ? 100 : (gauge / maxGauge) * 100}%`;
+      track.appendChild(fill);
+
+      const value = document.createElement("span");
+      value.className = "battle-rush-value";
+      value.textContent = ready ? "READY" : `${Math.round(gauge)}%`;
+
+      root.appendChild(label);
+      root.appendChild(track);
+      root.appendChild(value);
+      return root;
+    }
+
     function renderBattleMessagePanel(message, battle, text) {
       const tagInfo = getBattleMessageTag(battle);
       const tag = document.createElement("span");
@@ -9785,6 +9929,7 @@ select {
 
       message.innerHTML = "";
       message.appendChild(tag);
+      message.appendChild(createBattleRushMeter(battle));
       message.appendChild(messageText);
     }
 
@@ -9903,6 +10048,7 @@ select {
           itemDisabled: true,
           fullHealCount: state.inventory.fullHealCount,
           masterBallCount: state.inventory.masterBallCount,
+          rushReady: Boolean(battle.rush && battle.rush.ready),
         }));
         return panel;
       }
@@ -9914,6 +10060,7 @@ select {
             itemDisabled,
             fullHealCount: state.inventory.fullHealCount,
             masterBallCount: state.inventory.masterBallCount,
+            rushReady: Boolean(battle.rush && battle.rush.ready),
           })
         );
         return panel;
@@ -9931,6 +10078,7 @@ select {
           const button = createMoveButton(move, currentPp, battleScene.hoverMove, {
             previewed: battle.hoveredMoveId === moveId,
             enemySpecies,
+            rushReady: Boolean(battle.rush && battle.rush.ready),
           });
           input.attachLongPressActionButton(button, "battle_select_move", { moveId });
           wrapper.appendChild(button);
@@ -9963,6 +10111,8 @@ select {
         battleAnimation: state.battle ? state.battle.animation && state.battle.animation.kind : null,
         battleHoveredMove: state.battle ? state.battle.hoveredMoveId : null,
         battleEnemySpecies: state.battle && state.battle.enemy ? state.battle.enemy.speciesId : null,
+        battleRushGauge: state.battle && state.battle.rush ? state.battle.rush.gauge : 0,
+        battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
         fullHealCount: state.inventory.fullHealCount,
         masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,
@@ -10035,6 +10185,14 @@ select {
     const expConfig = animationConfig.exp || {};
     const resultConfig = animationConfig.result || {};
     const battleConfig = App.config.game.battle || {};
+    const rushConfig = {
+      gaugeMax: battleConfig.rushGaugeMax || 100,
+      attackGain: battleConfig.rushAttackGain || 34,
+      strongGain: battleConfig.rushStrongGain || 18,
+      damageTakenGain: battleConfig.rushDamageTakenGain || 30,
+      pinchGain: battleConfig.rushPinchGain || 12,
+      damageMultiplier: battleConfig.rushDamageMultiplier || 1.5,
+    };
 
     function getPlayerMonster(state) {
       return state.party[0];
@@ -10137,6 +10295,100 @@ select {
       const maxExtraMs = battleConfig.messageAutoAdvanceMaxExtraMs || 0;
       const readableLength = String(text || "").replace(/\s/g, "").length;
       return baseMs + Math.min(maxExtraMs, readableLength * perCharMs);
+    }
+
+    function createBattleRushState() {
+      return {
+        gauge: 0,
+        ready: false,
+        lastDelta: 0,
+      };
+    }
+
+    function getBattleRush(battle) {
+      if (!battle) {
+        return createBattleRushState();
+      }
+      if (!battle.rush) {
+        battle.rush = createBattleRushState();
+      }
+      return battle.rush;
+    }
+
+    function chargeBattleRush(battle, amount) {
+      if (!battle || !Number.isFinite(amount) || amount <= 0) {
+        return null;
+      }
+
+      const rush = getBattleRush(battle);
+      if (rush.ready) {
+        rush.lastDelta = 0;
+        return null;
+      }
+
+      const nextGauge = Math.min(rushConfig.gaugeMax, (rush.gauge || 0) + amount);
+      rush.lastDelta = nextGauge - (rush.gauge || 0);
+      rush.gauge = nextGauge;
+      if (rush.gauge < rushConfig.gaugeMax) {
+        return null;
+      }
+
+      rush.ready = true;
+      return createStep(
+        "チャンスが きた！",
+        createResultEffect("rush", "player"),
+        "rush"
+      );
+    }
+
+    function consumeBattleRush(battle, attackerTarget, move) {
+      if (attackerTarget !== "player" || !move || move.power <= 0 || !battle || !battle.rush) {
+        return null;
+      }
+
+      const rush = getBattleRush(battle);
+      if (!rush.ready) {
+        return null;
+      }
+
+      rush.gauge = 0;
+      rush.ready = false;
+      rush.lastDelta = 0;
+      return {
+        multiplier: rushConfig.damageMultiplier,
+        step: createStep(
+          "チャンスラッシュ！",
+          createResultEffect("rush", "player"),
+          "rush"
+        ),
+      };
+    }
+
+    function appendBattleRushChargeStep(steps, battle, hpTargets, outcome, damage, defender) {
+      if (!battle || !hpTargets || !Array.isArray(steps)) {
+        return;
+      }
+
+      let gain = 0;
+      if (hpTargets.attacker === "player" && damage > 0) {
+        gain += rushConfig.attackGain;
+        if (outcome && outcome.typeMultiplier > 1) {
+          gain += rushConfig.strongGain;
+        }
+      }
+
+      if (hpTargets.defender === "player" && damage > 0) {
+        gain += rushConfig.damageTakenGain;
+        const hpRatio = defender ? defender.currentHp / Math.max(1, defender.maxHp) : 1;
+        if (hpRatio <= 0.35) {
+          gain += rushConfig.pinchGain;
+        }
+      }
+
+      const readyStep = chargeBattleRush(battle, gain);
+      if (readyStep) {
+        steps.push(readyStep);
+      }
     }
 
     function rememberCapturedSpecies(state, speciesId) {
@@ -10396,6 +10648,7 @@ select {
           enemy: enemyMonster,
           isTrainerBattle: isTrainer,
           trainerInfo: isTrainer ? context : null,
+          rush: createBattleRushState(),
           display: {
             playerHp: playerMonster.currentHp,
             enemyHp: enemyMonster.currentHp,
@@ -10868,9 +11121,12 @@ select {
       moveId,
       attackerLabel,
       defenderLabel,
-      hpTargets
+      hpTargets,
+      options
     ) {
       // 技効果はここに集約。moves.jsのeffect追加時は、UI説明文と敵AI選択もあわせて確認する。
+      const settings = options || {};
+      const battle = settings.battle || null;
       const move = dataRegistry.getMove(moveId);
 
       if (move.effect === "charge_attack") {
@@ -11009,9 +11265,9 @@ select {
       }
 
       if (move.effect === "chance_big_damage") {
-        const damageMultiplier = attacker.nextDamageBoost || 1;
+        const baseDamageMultiplier = attacker.nextDamageBoost || 1;
         attacker.nextDamageBoost = 1;
-        if (damageMultiplier > 1) {
+        if (baseDamageMultiplier > 1) {
           steps.push(createStep("きんとれの せいかが はっきされた！"));
         }
 
@@ -11025,6 +11281,11 @@ select {
         }
 
         steps.push(createStep(move.successText || "うまく きまった！"));
+        const rushBoost = consumeBattleRush(battle, hpTargets.attacker, move);
+        if (rushBoost) {
+          steps.push(rushBoost.step);
+        }
+        const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
@@ -11051,6 +11312,9 @@ select {
           )
         );
         appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+        if (!rushBoost) {
+          appendBattleRushChargeStep(steps, battle, hpTargets, outcome, appliedDamage, defender);
+        }
 
         if (outcome.typeMultiplier > 1) {
           steps.push(createStep("効果は 非常に大きい！"));
@@ -11066,14 +11330,19 @@ select {
       }
 
       if (move.effect === "water_forms") {
-        const damageMultiplier = attacker.nextDamageBoost || 1;
+        const baseDamageMultiplier = attacker.nextDamageBoost || 1;
         attacker.nextDamageBoost = 1;
-        if (damageMultiplier > 1) {
+        if (baseDamageMultiplier > 1) {
           steps.push(createStep("きんとれの せいかが はっきされた！"));
         }
 
         const form = chooseWeightedWaterForm(move);
         steps.push(createStep(`${form.label}！`));
+        const rushBoost = consumeBattleRush(battle, hpTargets.attacker, move);
+        if (rushBoost) {
+          steps.push(rushBoost.step);
+        }
+        const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, {
@@ -11098,6 +11367,16 @@ select {
           )
         );
         appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+        if (!rushBoost) {
+          appendBattleRushChargeStep(
+            steps,
+            battle,
+            hpTargets,
+            outcome,
+            Math.min(fromHp, wallResult.damage),
+            defender
+          );
+        }
 
         if (outcome.typeMultiplier > 1) {
           steps.push(createStep("効果は 非常に大きい！"));
@@ -11147,11 +11426,16 @@ select {
         steps.push(createStep("AIのぶんせきにより、じゃくてんをついた！"));
       }
 
-      const damageMultiplier = attacker.nextDamageBoost || 1;
+      const baseDamageMultiplier = attacker.nextDamageBoost || 1;
       attacker.nextDamageBoost = 1;
-      if (damageMultiplier > 1) {
+      if (baseDamageMultiplier > 1) {
         steps.push(createStep("きんとれの せいかが はっきされた！"));
       }
+      const rushBoost = consumeBattleRush(battle, hpTargets.attacker, move);
+      if (rushBoost) {
+        steps.push(rushBoost.step);
+      }
+      const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
 
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
@@ -11173,6 +11457,16 @@ select {
         )
       );
       appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+      if (!rushBoost) {
+        appendBattleRushChargeStep(
+          steps,
+          battle,
+          hpTargets,
+          outcome,
+          Math.min(fromHp, wallResult.damage),
+          defender
+        );
+      }
 
       if (outcome.typeMultiplier > 1) {
         steps.push(createStep("効果は 非常に大きい！"));
@@ -11212,6 +11506,9 @@ select {
         {
           attacker: "enemy",
           defender: "player",
+        },
+        {
+          battle: state.battle,
         }
       );
       steps.push(...enemyTurn.steps);
@@ -11329,6 +11626,9 @@ select {
           {
             attacker: "player",
             defender: "enemy",
+          },
+          {
+            battle: state.battle,
           }
         );
         const steps = attack.steps.slice();

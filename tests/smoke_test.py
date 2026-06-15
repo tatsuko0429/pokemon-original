@@ -1118,6 +1118,9 @@ async def run_smoke_test(base_url: str) -> None:
               message: document.querySelector("#screen-message")?.textContent || "",
               battlePanelMessage: document.querySelector(".battle-message-panel")?.textContent || "",
               battleMessageTag: document.querySelector(".battle-message-tag")?.textContent || "",
+              battleRushText: document.querySelector(".battle-rush-meter")?.textContent || "",
+              battleRushReady: document.querySelector(".battle-rush-meter")?.classList.contains("is-ready") || false,
+              battleRushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -1150,6 +1153,9 @@ async def run_smoke_test(base_url: str) -> None:
         expect(not battle_state["message"], "バトルメッセージがゲーム画面内に残っています。")
         expect(battle_state["battlePanelMessage"], "バトルメッセージ枠が操作パネル側に出ていません。")
         expect(battle_state["battleMessageTag"] in ("EVENT", "WAIT", "COMMAND"), "バトルメッセージ枠に状態タグが表示されていません。")
+        expect("CHANCE" in battle_state["battleRushText"], "バトルのチャンスゲージが表示されていません。")
+        expect(not battle_state["battleRushReady"], "戦闘開始直後からチャンスゲージがREADYになっています。")
+        expect("チャンス" in battle_state["battleRushAria"], "チャンスゲージのアクセシブルラベルがありません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
@@ -1295,6 +1301,7 @@ async def run_smoke_test(base_url: str) -> None:
         advice_labels = [label for entry in move_ui_state for label in entry["advice"]]
         expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
         expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
+        expect("CHANCE" not in advice_labels, "準備前の技にCHANCEチップが表示されています。")
         move_tag = await page.evaluate(
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """
         )
@@ -1382,6 +1389,111 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.nextPhase = "command";
                 state.battle.animation = null;
                 state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && !button.disabled)""",
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              window.__battleRushMessageAutoAdvance = {
+                ms: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs,
+                perChar: window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs,
+                maxExtra: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs
+              };
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 90;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = 0;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = 0;
+              runtime.store.update((state) => {
+                const maxGauge = window.MonsterPrototype.config.game.battle.rushGaugeMax || 100;
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: maxGauge, ready: true, lastDelta: maxGauge };
+                state.battle.enemy.currentHp = state.battle.enemy.maxHp;
+                state.battle.display.enemyHp = state.battle.enemy.maxHp;
+                state.party[0].moveIds.forEach((moveId, index) => {
+                  if (moveId === "chilly_attack") {
+                    state.party[0].currentPp[index] = runtime.dataRegistry.getMove(moveId).pp;
+                  }
+                });
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector(".battle-rush-meter.is-ready")
+              && [...document.querySelectorAll("#action-panel button")]
+                .some((button) => button.textContent === "たたかう" && button.getAttribute("data-command-hint") === "CHANCE")""",
+            {"timeout": 1200},
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".move-button .move-advice-chip.is-rush")]
+              .some((chip) => chip.textContent === "CHANCE")""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll(".move-button")]
+                .find((candidate) => candidate.querySelector(".move-advice-chip.is-rush"));
+              if (!button) {
+                throw new Error("チャンスラッシュ確認用の攻撃技が見つかりません。");
+              }
+              button.click();
+            }"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("チャンスラッシュ"));
+            }""",
+            {"timeout": 4000},
+        )
+        rush_fire_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                message: state.battle.currentMessage,
+                rush: state.battle.rush,
+                enemyHp: state.battle.enemy.currentHp,
+                enemyMaxHp: state.battle.enemy.maxHp
+              };
+            }"""
+        )
+        expect("チャンスラッシュ" in rush_fire_state["message"], "チャンスラッシュ発動メッセージが表示されていません。")
+        expect(rush_fire_state["rush"]["gauge"] == 0, "チャンスラッシュ発動後にゲージが消費されていません。")
+        expect(not rush_fire_state["rush"]["ready"], "チャンスラッシュ発動後もREADY状態が残っています。")
+        expect(rush_fire_state["enemyHp"] < rush_fire_state["enemyMaxHp"], "チャンスラッシュ攻撃で相手HPが減っていません。")
+        rush_audio_ids = await read_recent_se_ids(page)
+        expect("rush" in rush_audio_ids, "チャンスラッシュSEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              if (window.__battleRushMessageAutoAdvance) {
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = window.__battleRushMessageAutoAdvance.ms;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = window.__battleRushMessageAutoAdvance.perChar;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = window.__battleRushMessageAutoAdvance.maxExtra;
+              }
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
               });
             }"""
         )
