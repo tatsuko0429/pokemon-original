@@ -2203,6 +2203,11 @@ select {
       rushDamageMultiplier: 1.55,
       comboMax: 4,
       comboDamageStep: 0.08,
+      styleComboPoint: 1,
+      styleRushPoint: 3,
+      styleStrongHitPoint: 1,
+      styleBonusPerPoint: 0.06,
+      styleMaxBonusRatio: 0.35,
     },
     field: {
       startMapId: "camera_route",
@@ -2319,7 +2324,7 @@ select {
       seDuckBgmRatio: 0.55,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
-      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item", "rush", "combo"],
+      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item", "rush", "combo", "style"],
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -2449,6 +2454,12 @@ select {
           { freq: 587.33, ms: 30, wave: "triangle", volume: 0.34 },
           { freq: 783.99, ms: 42, wave: "triangle", volume: 0.38 },
           { freq: 1046.5, ms: 56, wave: "sine", volume: 0.3 },
+        ],
+        style: [
+          { freq: 659.25, ms: 36, wave: "triangle", volume: 0.34 },
+          { freq: 880, ms: 48, wave: "triangle", volume: 0.36 },
+          { freq: 1174.66, ms: 66, wave: "sine", volume: 0.32 },
+          { freq: 1567.98, ms: 90, wave: "sine", volume: 0.24 },
         ],
         victory: [
           { freq: 523.25, ms: 46, wave: "triangle", volume: 0.48 },
@@ -8949,6 +8960,14 @@ select {
         };
       }
 
+      if (variant === "style") {
+        return {
+          main: palette.white,
+          accent: "#d2b463",
+          shadow: "#426c76",
+        };
+      }
+
       return {
         main: palette.white,
         accent: palette.captureYellow || "#d8b546",
@@ -10276,6 +10295,13 @@ select {
       max: battleConfig.comboMax || 4,
       damageStep: battleConfig.comboDamageStep || 0.08,
     };
+    const styleConfig = {
+      comboPoint: battleConfig.styleComboPoint || 1,
+      rushPoint: battleConfig.styleRushPoint || 3,
+      strongHitPoint: battleConfig.styleStrongHitPoint || 1,
+      bonusPerPoint: battleConfig.styleBonusPerPoint || 0.06,
+      maxBonusRatio: battleConfig.styleMaxBonusRatio || 0.35,
+    };
 
     function getPlayerMonster(state) {
       return state.party[0];
@@ -10530,6 +10556,117 @@ select {
               )
             : null,
       };
+    }
+
+    function createBattleStyleState() {
+      return {
+        points: 0,
+        lastDelta: 0,
+        bestCombo: 0,
+        rushCount: 0,
+        strongHits: 0,
+      };
+    }
+
+    function getBattleStyle(battle) {
+      if (!battle) {
+        return createBattleStyleState();
+      }
+      if (!battle.style) {
+        battle.style = createBattleStyleState();
+      }
+      return battle.style;
+    }
+
+    function addBattleStylePoints(battle, amount) {
+      if (!battle || !Number.isFinite(amount) || amount <= 0) {
+        return 0;
+      }
+
+      const style = getBattleStyle(battle);
+      const added = Math.max(0, Math.round(amount));
+      style.points = (style.points || 0) + added;
+      style.lastDelta = added;
+      return added;
+    }
+
+    function recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost) {
+      if (!battle || !hpTargets || hpTargets.attacker !== "player") {
+        return;
+      }
+
+      let points = 0;
+      const style = getBattleStyle(battle);
+      const combo = getBattleCombo(battle);
+
+      if (combo.count >= 2 && comboBoost && comboBoost.step) {
+        points += styleConfig.comboPoint;
+        style.bestCombo = Math.max(style.bestCombo || 0, combo.count || 0);
+      }
+
+      if (rushBoost) {
+        points += styleConfig.rushPoint;
+        style.rushCount = (style.rushCount || 0) + 1;
+      }
+
+      if (outcome && outcome.typeMultiplier > 1) {
+        points += styleConfig.strongHitPoint;
+        style.strongHits = (style.strongHits || 0) + 1;
+      }
+
+      addBattleStylePoints(battle, points);
+    }
+
+    function getBattleStyleRank(points) {
+      if (points >= 7) {
+        return "S";
+      }
+      if (points >= 5) {
+        return "A";
+      }
+      if (points >= 3) {
+        return "B";
+      }
+      return "C";
+    }
+
+    function calculateBattleStyleBonusExp(battle, baseExp) {
+      const style = getBattleStyle(battle);
+      const points = Math.max(0, Number(style.points) || 0);
+      const maxRatio = Math.max(0, styleConfig.maxBonusRatio);
+      const ratio = Math.min(maxRatio, points * Math.max(0, styleConfig.bonusPerPoint));
+      const bonusExp = points > 0 ? Math.max(1, Math.round(baseExp * ratio)) : 0;
+      return {
+        points,
+        rank: getBattleStyleRank(points),
+        bonusExp,
+      };
+    }
+
+    function createBattleExpReward(battle, enemyMonster) {
+      const baseExp = enemyMonster.level * 15;
+      const styleBonus = calculateBattleStyleBonusExp(battle, baseExp);
+      return {
+        baseExp,
+        bonusExp: styleBonus.bonusExp,
+        rank: styleBonus.rank,
+        points: styleBonus.points,
+        totalExp: baseExp + styleBonus.bonusExp,
+      };
+    }
+
+    function appendStyleBonusStep(steps, reward) {
+      if (!Array.isArray(steps) || !reward || reward.bonusExp <= 0) {
+        return;
+      }
+
+      steps.push(
+        createStep(
+          `STYLE ${reward.rank}！\nスタイルボーナス +${reward.bonusExp} 経験値！`,
+          createResultEffect("style", "player"),
+          "style"
+        )
+      );
     }
 
     function rememberCapturedSpecies(state, speciesId) {
@@ -10791,6 +10928,7 @@ select {
           trainerInfo: isTrainer ? context : null,
           rush: createBattleRushState(),
           combo: createBattleComboState(),
+          style: createBattleStyleState(),
           display: {
             playerHp: playerMonster.currentHp,
             enemyHp: enemyMonster.currentHp,
@@ -10966,6 +11104,10 @@ select {
 
         if (leveledUp && state.battle.isTrainerBattle) {
           message += `\n${playerSpecies.name} は Lv${playerMonster.level} に上がった！`;
+        }
+
+        if ((state.battle.pendingStyleBonusExp || 0) > 0) {
+          message += `\nスタイルボーナス +${state.battle.pendingStyleBonusExp} 経験値！`;
         }
 
         const closeResult = {
@@ -11445,6 +11587,7 @@ select {
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
         const scaledDamage = Math.max(
           Math.round(outcome.damage * (move.damageMultiplier || 2)),
           Math.round(defender.maxHp * (move.minimumDamageRatio || 0))
@@ -11512,6 +11655,7 @@ select {
           damageMultiplier,
           powerOverride: form.power || move.power,
         });
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
         const wallResult = createIceWallResult(attacker, defender, outcome.damage);
         defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
 
@@ -11610,6 +11754,7 @@ select {
 
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
+      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
       const wallResult = createIceWallResult(attacker, defender, outcome.damage);
       defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
 
@@ -11685,8 +11830,10 @@ select {
       steps.push(...enemyTurn.steps);
 
       if (enemyTurn.attackerDefeated) {
-        const expGained = enemyMonster.level * 15;
+        const expReward = createBattleExpReward(state.battle, enemyMonster);
+        const expGained = expReward.totalExp;
         state.battle.pendingExpGain = expGained;
+        state.battle.pendingStyleBonusExp = expReward.bonusExp;
         steps.push(
           createStep(
             `やせいの ${enemySpecies.name} は たおれた！`,
@@ -11697,6 +11844,7 @@ select {
             "faint"
           )
         );
+        appendStyleBonusStep(steps, expReward);
         steps.push(
           createStep(
             `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
@@ -11805,8 +11953,10 @@ select {
         const steps = attack.steps.slice();
 
         if (attack.defeated) {
-          const expGained = enemyMonster.level * 15;
+          const expReward = createBattleExpReward(state.battle, enemyMonster);
+          const expGained = expReward.totalExp;
           state.battle.pendingExpGain = expGained;
+          state.battle.pendingStyleBonusExp = expReward.bonusExp;
           steps.push(
             createStep(
               `${enemyLabel} は たおれた！`,
@@ -11817,6 +11967,7 @@ select {
               "faint"
             )
           );
+          appendStyleBonusStep(steps, expReward);
           steps.push(
             createStep(
               `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,

@@ -1594,6 +1594,107 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0 };
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && !button.disabled)""",
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              window.__battleStyleMessageAutoAdvance = {
+                ms: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs,
+                perChar: window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs,
+                maxExtra: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs
+              };
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 90;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = 0;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = 0;
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0 };
+                state.battle.enemy.currentHp = 1;
+                state.battle.display.enemyHp = 1;
+                state.party[0].moveIds = ["punch", "ice_wall"];
+                state.party[0].currentPp = state.party[0].moveIds
+                  .map((moveId) => runtime.dataRegistry.getMove(moveId).pp);
+              });
+            }"""
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".move-button")]
+              .some((button) => button.textContent.includes("なぐる") && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => [...document.querySelectorAll(".move-button")]
+              .find((button) => button.textContent.includes("なぐる")).click()"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("スタイルボーナス"));
+            }""",
+            {"timeout": 7000},
+        )
+        style_bonus_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              const baseExp = state.battle.enemy.level * 15;
+              return {
+                message: state.battle.currentMessage,
+                style: state.battle.style,
+                pendingExpGain: state.battle.pendingExpGain,
+                pendingStyleBonusExp: state.battle.pendingStyleBonusExp,
+                baseExp
+              };
+            }"""
+        )
+        expect("STYLE" in style_bonus_state["message"], "スタイルボーナスのSTYLE表示がありません。")
+        expect(style_bonus_state["style"]["points"] >= 1, "スタイル点が加算されていません。")
+        expect(style_bonus_state["pendingStyleBonusExp"] > 0, "スタイル経験値ボーナスが発生していません。")
+        expect(
+            style_bonus_state["pendingExpGain"] > style_bonus_state["baseExp"],
+            "スタイルボーナスが獲得経験値へ加算されていません。",
+        )
+        style_audio_ids = await read_recent_se_ids(page)
+        expect("style" in style_audio_ids, "スタイルボーナスSEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              if (window.__battleStyleMessageAutoAdvance) {
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = window.__battleStyleMessageAutoAdvance.ms;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = window.__battleStyleMessageAutoAdvance.perChar;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = window.__battleStyleMessageAutoAdvance.maxExtra;
+              }
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0 };
+                state.battle.pendingExpGain = 0;
+                state.battle.pendingStyleBonusExp = 0;
               });
             }"""
         )
