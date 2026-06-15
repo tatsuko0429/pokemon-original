@@ -802,8 +802,16 @@ select {
   white-space: pre-line;
 }
 
+.battle-status-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .battle-rush-meter {
-  width: min(100%, 230px);
+  width: min(100%, 210px);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -861,6 +869,30 @@ select {
   background:
     linear-gradient(90deg, #d8b546, #f8f4d7 52%, #d8b546);
   animation: battle-rush-ready 720ms ease-in-out infinite alternate;
+}
+
+.battle-combo-badge {
+  min-width: 66px;
+  padding: 3px 7px;
+  border: 2px solid rgba(32, 34, 27, 0.56);
+  border-radius: 999px;
+  background: rgba(248, 244, 215, 0.72);
+  color: rgba(32, 34, 27, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.5rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.battle-combo-badge.is-active {
+  border-color: rgba(81, 92, 42, 0.78);
+  background:
+    linear-gradient(180deg, rgba(222, 239, 203, 0.96), rgba(189, 215, 159, 0.92));
+  color: #31461f;
+  box-shadow: 0 0 0 2px rgba(143, 181, 83, 0.2);
 }
 
 .battle-buttons {
@@ -1959,7 +1991,7 @@ select {
   }
 
   .battle-rush-meter {
-    width: min(100%, 204px);
+    width: min(100%, 184px);
     font-size: 0.48rem;
     gap: 4px;
   }
@@ -1967,6 +1999,12 @@ select {
   .battle-rush-label,
   .battle-rush-value {
     min-width: 38px;
+  }
+
+  .battle-combo-badge {
+    min-width: 58px;
+    padding: 2px 6px;
+    font-size: 0.46rem;
   }
 
   .control-button.face-button {
@@ -2163,6 +2201,8 @@ select {
       rushDamageTakenGain: 30,
       rushPinchGain: 12,
       rushDamageMultiplier: 1.55,
+      comboMax: 4,
+      comboDamageStep: 0.08,
     },
     field: {
       startMapId: "camera_route",
@@ -2279,7 +2319,7 @@ select {
       seDuckBgmRatio: 0.55,
       seDuckBgmMs: 220,
       maxActiveSeTones: 18,
-      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item", "rush"],
+      preloadSeIds: ["confirm", "cancel", "menu", "message", "step", "grass_step", "bump", "hit", "exp", "item", "rush", "combo"],
       bgm: {
         first_grass: {
           src: "./assets/audio/first-grass.mp3",
@@ -2404,6 +2444,11 @@ select {
           { freq: 987.77, ms: 46, wave: "sine", volume: 0.42 },
           { freq: 1318.51, ms: 58, wave: "triangle", volume: 0.34 },
           { freq: 1760, ms: 72, wave: "sine", volume: 0.22 },
+        ],
+        combo: [
+          { freq: 587.33, ms: 30, wave: "triangle", volume: 0.34 },
+          { freq: 783.99, ms: 42, wave: "triangle", volume: 0.38 },
+          { freq: 1046.5, ms: 56, wave: "sine", volume: 0.3 },
         ],
         victory: [
           { freq: 523.25, ms: 46, wave: "triangle", volume: 0.48 },
@@ -8896,6 +8941,14 @@ select {
         };
       }
 
+      if (variant === "combo") {
+        return {
+          main: palette.white,
+          accent: palette.battleEnemyLaneHighlight || "#a8c37b",
+          shadow: "#466833",
+        };
+      }
+
       return {
         main: palette.white,
         accent: palette.captureYellow || "#d8b546",
@@ -9917,6 +9970,31 @@ select {
       return root;
     }
 
+    function createBattleComboBadge(battle) {
+      const combo = (battle && battle.combo) || {};
+      const count = Math.max(0, Number(combo.count) || 0);
+      const root = document.createElement("span");
+      root.className = `battle-combo-badge ${count >= 2 ? "is-active" : ""}`.trim();
+      root.setAttribute("aria-label", `コンボ ${count}`);
+
+      const label = document.createElement("span");
+      label.textContent = "CHAIN";
+      const value = document.createElement("span");
+      value.textContent = count > 0 ? `x${count}` : "0";
+
+      root.appendChild(label);
+      root.appendChild(value);
+      return root;
+    }
+
+    function createBattleStatusRow(battle) {
+      const row = document.createElement("div");
+      row.className = "battle-status-row";
+      row.appendChild(createBattleRushMeter(battle));
+      row.appendChild(createBattleComboBadge(battle));
+      return row;
+    }
+
     function renderBattleMessagePanel(message, battle, text) {
       const tagInfo = getBattleMessageTag(battle);
       const tag = document.createElement("span");
@@ -9929,7 +10007,7 @@ select {
 
       message.innerHTML = "";
       message.appendChild(tag);
-      message.appendChild(createBattleRushMeter(battle));
+      message.appendChild(createBattleStatusRow(battle));
       message.appendChild(messageText);
     }
 
@@ -10113,6 +10191,7 @@ select {
         battleEnemySpecies: state.battle && state.battle.enemy ? state.battle.enemy.speciesId : null,
         battleRushGauge: state.battle && state.battle.rush ? state.battle.rush.gauge : 0,
         battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
+        battleComboCount: state.battle && state.battle.combo ? state.battle.combo.count : 0,
         fullHealCount: state.inventory.fullHealCount,
         masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,
@@ -10192,6 +10271,10 @@ select {
       damageTakenGain: battleConfig.rushDamageTakenGain || 30,
       pinchGain: battleConfig.rushPinchGain || 12,
       damageMultiplier: battleConfig.rushDamageMultiplier || 1.5,
+    };
+    const comboConfig = {
+      max: battleConfig.comboMax || 4,
+      damageStep: battleConfig.comboDamageStep || 0.08,
     };
 
     function getPlayerMonster(state) {
@@ -10389,6 +10472,64 @@ select {
       if (readyStep) {
         steps.push(readyStep);
       }
+    }
+
+    function createBattleComboState() {
+      return {
+        count: 0,
+        lastDelta: 0,
+        lastMultiplier: 1,
+      };
+    }
+
+    function getBattleCombo(battle) {
+      if (!battle) {
+        return createBattleComboState();
+      }
+      if (!battle.combo) {
+        battle.combo = createBattleComboState();
+      }
+      return battle.combo;
+    }
+
+    function resetBattleCombo(battle, actorTarget) {
+      if (actorTarget !== "player" || !battle) {
+        return;
+      }
+
+      const combo = getBattleCombo(battle);
+      combo.count = 0;
+      combo.lastDelta = 0;
+      combo.lastMultiplier = 1;
+    }
+
+    function advanceBattleCombo(battle, actorTarget, move) {
+      if (actorTarget !== "player" || !battle || !move || move.power <= 0) {
+        return {
+          multiplier: 1,
+          step: null,
+        };
+      }
+
+      const combo = getBattleCombo(battle);
+      const previousCount = combo.count || 0;
+      const nextCount = Math.min(comboConfig.max, previousCount + 1);
+      const multiplier = 1 + Math.max(0, nextCount - 1) * comboConfig.damageStep;
+      combo.count = nextCount;
+      combo.lastDelta = nextCount - previousCount;
+      combo.lastMultiplier = multiplier;
+
+      return {
+        multiplier,
+        step:
+          nextCount >= 2
+            ? createStep(
+                `コンボ ${nextCount}！`,
+                createResultEffect("combo", "player"),
+                "combo"
+              )
+            : null,
+      };
     }
 
     function rememberCapturedSpecies(state, speciesId) {
@@ -10649,6 +10790,7 @@ select {
           isTrainerBattle: isTrainer,
           trainerInfo: isTrainer ? context : null,
           rush: createBattleRushState(),
+          combo: createBattleComboState(),
           display: {
             playerHp: playerMonster.currentHp,
             enemyHp: enemyMonster.currentHp,
@@ -11162,6 +11304,7 @@ select {
       if (move.effect === "evasion_up") {
         attacker.evasionUp = true;
         steps.push(createStep(`${attackerLabel}は 身軽になった！`));
+        resetBattleCombo(battle, hpTargets.attacker);
         return { steps, defeated: false };
       }
 
@@ -11177,6 +11320,7 @@ select {
             "ice_wall"
           )
         );
+        resetBattleCombo(battle, hpTargets.attacker);
         return { steps, defeated: false, attackerDefeated: false };
       }
 
@@ -11196,12 +11340,14 @@ select {
             "water_move"
           )
         );
+        resetBattleCombo(battle, hpTargets.attacker);
         return { steps, defeated: false };
       }
 
       if (move.effect === "damage_boost") {
         attacker.nextDamageBoost = 2;
         steps.push(createStep(`${attackerLabel}は 筋肉を いじめぬいている！`));
+        resetBattleCombo(battle, hpTargets.attacker);
         return { steps, defeated: false };
       }
 
@@ -11218,6 +11364,7 @@ select {
             "miss"
           )
         );
+        resetBattleCombo(battle, hpTargets.attacker);
         return {
           steps,
           defeated: false,
@@ -11226,6 +11373,7 @@ select {
 
       if (move.effect === "random_heal") {
         attacker.nextDamageBoost = 1;
+        resetBattleCombo(battle, hpTargets.attacker);
         const fromHp = attacker.currentHp;
         const missingHp = Math.max(0, attacker.maxHp - attacker.currentHp);
         if (missingHp <= 0) {
@@ -11274,6 +11422,7 @@ select {
         const activated = random.chance(move.triggerChance || 0.5, `${move.id}_trigger`);
         if (!activated) {
           steps.push(createStep(move.failText || "しかし うまく きまらなかった。"));
+          resetBattleCombo(battle, hpTargets.attacker);
           return {
             steps,
             defeated: false,
@@ -11285,7 +11434,14 @@ select {
         if (rushBoost) {
           steps.push(rushBoost.step);
         }
-        const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
+        const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
+        if (comboBoost.step) {
+          steps.push(comboBoost.step);
+        }
+        const damageMultiplier =
+          baseDamageMultiplier *
+          (rushBoost ? rushBoost.multiplier : 1) *
+          comboBoost.multiplier;
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
@@ -11342,7 +11498,14 @@ select {
         if (rushBoost) {
           steps.push(rushBoost.step);
         }
-        const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
+        const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
+        if (comboBoost.step) {
+          steps.push(comboBoost.step);
+        }
+        const damageMultiplier =
+          baseDamageMultiplier *
+          (rushBoost ? rushBoost.multiplier : 1) *
+          comboBoost.multiplier;
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, {
@@ -11393,6 +11556,7 @@ select {
 
       if (move.effect === "chance_full_heal") {
         attacker.nextDamageBoost = 1;
+        resetBattleCombo(battle, hpTargets.attacker);
         const activated = random.chance(0.6, `${move.id}_trigger`);
         if (!activated) {
           steps.push(createStep("自分がダメージを受けていたことを忘れて全回復、、、だめだ、やっぱり忘れられない！"));
@@ -11435,7 +11599,14 @@ select {
       if (rushBoost) {
         steps.push(rushBoost.step);
       }
-      const damageMultiplier = baseDamageMultiplier * (rushBoost ? rushBoost.multiplier : 1);
+      const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
+      if (comboBoost.step) {
+        steps.push(comboBoost.step);
+      }
+      const damageMultiplier =
+        baseDamageMultiplier *
+        (rushBoost ? rushBoost.multiplier : 1) *
+        comboBoost.multiplier;
 
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
@@ -11694,6 +11865,7 @@ select {
         const baseChance = (enemySpecies.catchRate / 255) * (1 - healthRatio * 0.65);
         const success = random.chance(baseChance, "capture_roll");
         const shakes = success ? 3 : Math.max(1, Math.min(2, Math.floor(baseChance * 4)));
+        resetBattleCombo(state.battle, "player");
         const steps = [
           createStep("キャプチャーボールを なげた！", {
             kind: "ball",
@@ -11763,6 +11935,7 @@ select {
         const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
         const success = true;
         const shakes = 3;
+        resetBattleCombo(state.battle, "player");
         const steps = [
           createStep("パーフェクトボールを なげた！", {
             kind: "ball",
@@ -11814,6 +11987,7 @@ select {
         const fromHp = playerMonster.currentHp;
         state.inventory.fullHealCount -= 1;
         playerMonster.currentHp = playerMonster.maxHp;
+        resetBattleCombo(state.battle, "player");
 
         const steps = [
           createStep(

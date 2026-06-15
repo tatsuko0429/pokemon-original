@@ -1121,6 +1121,8 @@ async def run_smoke_test(base_url: str) -> None:
               battleRushText: document.querySelector(".battle-rush-meter")?.textContent || "",
               battleRushReady: document.querySelector(".battle-rush-meter")?.classList.contains("is-ready") || false,
               battleRushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || "",
+              battleComboText: document.querySelector(".battle-combo-badge")?.textContent || "",
+              battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -1156,6 +1158,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("CHANCE" in battle_state["battleRushText"], "バトルのチャンスゲージが表示されていません。")
         expect(not battle_state["battleRushReady"], "戦闘開始直後からチャンスゲージがREADYになっています。")
         expect("チャンス" in battle_state["battleRushAria"], "チャンスゲージのアクセシブルラベルがありません。")
+        expect("CHAIN" in battle_state["battleComboText"], "バトルのコンボ表示が出ていません。")
+        expect("コンボ 0" in battle_state["battleComboAria"], "コンボ表示の初期状態が0になっていません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
@@ -1390,6 +1394,100 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && !button.disabled)""",
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              window.__battleComboMessageAutoAdvance = {
+                ms: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs,
+                perChar: window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs,
+                maxExtra: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs
+              };
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 240;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = 0;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = 0;
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
+                state.battle.enemy.currentHp = state.battle.enemy.maxHp;
+                state.battle.display.enemyHp = state.battle.enemy.maxHp;
+                state.party[0].moveIds = ["body_tap", "ice_wall"];
+                state.party[0].currentPp = state.party[0].moveIds
+                  .map((moveId) => runtime.dataRegistry.getMove(moveId).pp);
+              });
+            }"""
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".move-button")]
+              .some((button) => button.textContent.includes("たいあたり") && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => [...document.querySelectorAll(".move-button")]
+              .find((button) => button.textContent.includes("たいあたり")).click()"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("コンボ 2"));
+            }""",
+            {"timeout": 4000},
+        )
+        combo_fire_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                message: state.battle.currentMessage,
+                combo: state.battle.combo,
+                comboText: document.querySelector(".battle-combo-badge")?.textContent || "",
+                enemyHp: state.battle.enemy.currentHp,
+                enemyMaxHp: state.battle.enemy.maxHp
+              };
+            }"""
+        )
+        expect("コンボ 2" in combo_fire_state["message"], "コンボ発動メッセージが表示されていません。")
+        expect(combo_fire_state["combo"]["count"] == 2, "コンボ数が2へ進んでいません。")
+        expect(combo_fire_state["combo"]["lastMultiplier"] > 1, "コンボ倍率が反映されていません。")
+        expect("CHAIN" in combo_fire_state["comboText"] and "x2" in combo_fire_state["comboText"], "コンボ表示がx2になっていません。")
+        expect(combo_fire_state["enemyHp"] < combo_fire_state["enemyMaxHp"], "コンボ攻撃で相手HPが減っていません。")
+        combo_audio_ids = await read_recent_se_ids(page)
+        expect("combo" in combo_audio_ids, "コンボSEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              if (window.__battleComboMessageAutoAdvance) {
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = window.__battleComboMessageAutoAdvance.ms;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = window.__battleComboMessageAutoAdvance.perChar;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = window.__battleComboMessageAutoAdvance.maxExtra;
+              }
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
               });
             }"""
         )
@@ -1418,6 +1516,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: maxGauge, ready: true, lastDelta: maxGauge };
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
                 state.battle.enemy.currentHp = state.battle.enemy.maxHp;
                 state.battle.display.enemyHp = state.battle.enemy.maxHp;
                 state.party[0].moveIds.forEach((moveId, index) => {
@@ -1494,6 +1593,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
               });
             }"""
         )
