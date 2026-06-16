@@ -805,6 +805,7 @@ select {
 .battle-status-row {
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -871,7 +872,8 @@ select {
   animation: battle-rush-ready 720ms ease-in-out infinite alternate;
 }
 
-.battle-combo-badge {
+.battle-combo-badge,
+.battle-style-badge {
   min-width: 66px;
   padding: 3px 7px;
   border: 2px solid rgba(32, 34, 27, 0.56);
@@ -893,6 +895,27 @@ select {
     linear-gradient(180deg, rgba(222, 239, 203, 0.96), rgba(189, 215, 159, 0.92));
   color: #31461f;
   box-shadow: 0 0 0 2px rgba(143, 181, 83, 0.2);
+}
+
+.battle-style-badge {
+  min-width: 76px;
+  background: rgba(233, 240, 220, 0.78);
+  color: rgba(53, 68, 64, 0.76);
+}
+
+.battle-style-badge.is-active {
+  border-color: rgba(87, 111, 111, 0.76);
+  background:
+    linear-gradient(180deg, rgba(230, 244, 241, 0.96), rgba(192, 219, 217, 0.92));
+  color: #284d4d;
+  box-shadow: 0 0 0 2px rgba(95, 157, 192, 0.18);
+}
+
+.battle-style-badge.is-high {
+  border-color: rgba(109, 81, 32, 0.78);
+  background:
+    linear-gradient(180deg, rgba(248, 244, 215, 0.96), rgba(216, 181, 70, 0.82));
+  color: #4f3d13;
 }
 
 .battle-buttons {
@@ -2001,10 +2024,15 @@ select {
     min-width: 38px;
   }
 
-  .battle-combo-badge {
+  .battle-combo-badge,
+  .battle-style-badge {
     min-width: 58px;
     padding: 2px 6px;
     font-size: 0.46rem;
+  }
+
+  .battle-style-badge {
+    min-width: 66px;
   }
 
   .control-button.face-button {
@@ -10006,11 +10034,43 @@ select {
       return root;
     }
 
+    function getBattleStyleDisplayRank(points) {
+      if (points >= 7) {
+        return "S";
+      }
+      if (points >= 5) {
+        return "A";
+      }
+      if (points >= 3) {
+        return "B";
+      }
+      return "C";
+    }
+
+    function createBattleStyleBadge(battle) {
+      const style = (battle && battle.style) || {};
+      const points = Math.max(0, Number(style.points) || 0);
+      const rank = getBattleStyleDisplayRank(points);
+      const root = document.createElement("span");
+      root.className = `battle-style-badge ${points > 0 ? "is-active" : ""} ${points >= 5 ? "is-high" : ""}`.trim();
+      root.setAttribute("aria-label", `スタイル ${rank} ${points}ポイント`);
+
+      const label = document.createElement("span");
+      label.textContent = `STYLE ${rank}`;
+      const value = document.createElement("span");
+      value.textContent = `${points}pt`;
+
+      root.appendChild(label);
+      root.appendChild(value);
+      return root;
+    }
+
     function createBattleStatusRow(battle) {
       const row = document.createElement("div");
       row.className = "battle-status-row";
       row.appendChild(createBattleRushMeter(battle));
       row.appendChild(createBattleComboBadge(battle));
+      row.appendChild(createBattleStyleBadge(battle));
       return row;
     }
 
@@ -10211,6 +10271,7 @@ select {
         battleRushGauge: state.battle && state.battle.rush ? state.battle.rush.gauge : 0,
         battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
         battleComboCount: state.battle && state.battle.combo ? state.battle.combo.count : 0,
+        battleStylePoints: state.battle && state.battle.style ? state.battle.style.points : 0,
         fullHealCount: state.inventory.fullHealCount,
         masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,

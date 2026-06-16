@@ -1123,6 +1123,8 @@ async def run_smoke_test(base_url: str) -> None:
               battleRushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || "",
               battleComboText: document.querySelector(".battle-combo-badge")?.textContent || "",
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
+              battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
+              battleStyleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -1160,6 +1162,9 @@ async def run_smoke_test(base_url: str) -> None:
         expect("チャンス" in battle_state["battleRushAria"], "チャンスゲージのアクセシブルラベルがありません。")
         expect("CHAIN" in battle_state["battleComboText"], "バトルのコンボ表示が出ていません。")
         expect("コンボ 0" in battle_state["battleComboAria"], "コンボ表示の初期状態が0になっていません。")
+        expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
+        expect("0pt" in battle_state["battleStyleText"], "STYLE表示の初期ポイントが0になっていません。")
+        expect("スタイル C 0ポイント" in battle_state["battleStyleAria"], "STYLE表示のアクセシブルラベルがありません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
@@ -1660,6 +1665,7 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 message: state.battle.currentMessage,
                 style: state.battle.style,
+                styleText: document.querySelector(".battle-style-badge")?.textContent || "",
                 pendingExpGain: state.battle.pendingExpGain,
                 pendingStyleBonusExp: state.battle.pendingStyleBonusExp,
                 baseExp
@@ -1668,6 +1674,7 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect("STYLE" in style_bonus_state["message"], "スタイルボーナスのSTYLE表示がありません。")
         expect(style_bonus_state["style"]["points"] >= 1, "スタイル点が加算されていません。")
+        expect("STYLE" in style_bonus_state["styleText"] and "pt" in style_bonus_state["styleText"], "STYLEバッジが加点後のポイントを表示していません。")
         expect(style_bonus_state["pendingStyleBonusExp"] > 0, "スタイル経験値ボーナスが発生していません。")
         expect(
             style_bonus_state["pendingExpGain"] > style_bonus_state["baseExp"],
