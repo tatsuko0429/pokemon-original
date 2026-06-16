@@ -918,6 +918,15 @@ select {
   color: #4f3d13;
 }
 
+.battle-style-badge.has-delta {
+  animation: battle-style-pop 420ms ease-out;
+}
+
+.battle-style-delta {
+  color: #8a5d16;
+  font-size: 0.46rem;
+}
+
 .battle-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1968,6 +1977,20 @@ select {
 
   to {
     filter: brightness(1.22);
+  }
+}
+
+@keyframes battle-style-pop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  45% {
+    transform: translateY(-1px) scale(1.04);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -10050,10 +10073,14 @@ select {
     function createBattleStyleBadge(battle) {
       const style = (battle && battle.style) || {};
       const points = Math.max(0, Number(style.points) || 0);
+      const lastDelta = Math.max(0, Number(style.lastDelta) || 0);
       const rank = getBattleStyleDisplayRank(points);
       const root = document.createElement("span");
-      root.className = `battle-style-badge ${points > 0 ? "is-active" : ""} ${points >= 5 ? "is-high" : ""}`.trim();
-      root.setAttribute("aria-label", `スタイル ${rank} ${points}ポイント`);
+      root.className = `battle-style-badge ${points > 0 ? "is-active" : ""} ${points >= 5 ? "is-high" : ""} ${lastDelta > 0 ? "has-delta" : ""}`.trim();
+      root.setAttribute(
+        "aria-label",
+        `スタイル ${rank} ${points}ポイント${lastDelta > 0 ? ` 直近+${lastDelta}` : ""}`
+      );
 
       const label = document.createElement("span");
       label.textContent = `STYLE ${rank}`;
@@ -10062,6 +10089,12 @@ select {
 
       root.appendChild(label);
       root.appendChild(value);
+      if (lastDelta > 0) {
+        const delta = document.createElement("span");
+        delta.className = "battle-style-delta";
+        delta.textContent = `+${lastDelta}`;
+        root.appendChild(delta);
+      }
       return root;
     }
 
@@ -10272,6 +10305,7 @@ select {
         battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
         battleComboCount: state.battle && state.battle.combo ? state.battle.combo.count : 0,
         battleStylePoints: state.battle && state.battle.style ? state.battle.style.points : 0,
+        battleStyleLastDelta: state.battle && state.battle.style ? state.battle.style.lastDelta : 0,
         fullHealCount: state.inventory.fullHealCount,
         masterBallCount: state.inventory.masterBallCount,
         playerHp: state.party[0] ? state.party[0].currentHp : 0,

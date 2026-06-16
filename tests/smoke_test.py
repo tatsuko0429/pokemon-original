@@ -1666,6 +1666,7 @@ async def run_smoke_test(base_url: str) -> None:
                 message: state.battle.currentMessage,
                 style: state.battle.style,
                 styleText: document.querySelector(".battle-style-badge")?.textContent || "",
+                styleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
                 pendingExpGain: state.battle.pendingExpGain,
                 pendingStyleBonusExp: state.battle.pendingStyleBonusExp,
                 baseExp
@@ -1675,6 +1676,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("STYLE" in style_bonus_state["message"], "スタイルボーナスのSTYLE表示がありません。")
         expect(style_bonus_state["style"]["points"] >= 1, "スタイル点が加算されていません。")
         expect("STYLE" in style_bonus_state["styleText"] and "pt" in style_bonus_state["styleText"], "STYLEバッジが加点後のポイントを表示していません。")
+        expect("+" in style_bonus_state["styleText"], "STYLEバッジに直近の加点が表示されていません。")
+        expect("直近+" in style_bonus_state["styleAria"], "STYLEバッジの加点アクセシブルラベルがありません。")
         expect(style_bonus_state["pendingStyleBonusExp"] > 0, "スタイル経験値ボーナスが発生していません。")
         expect(
             style_bonus_state["pendingExpGain"] > style_bonus_state["baseExp"],
