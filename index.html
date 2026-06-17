@@ -9499,17 +9499,49 @@ select {
       return reasons.slice(0, 3);
     }
 
+    function getMovePressureLabel(move, enemySpecies, options) {
+      if (!move) {
+        return "";
+      }
+
+      const settings = options || {};
+      if (move.power <= 0) {
+        return "補助";
+      }
+
+      const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+      const rushMultiplier = settings.rushReady ? 1.5 : 1;
+      const chainMultiplier = (settings.comboCount || 0) >= 1 ? 1.08 : 1;
+      const pressure = move.power * typeMultiplier * rushMultiplier * chainMultiplier;
+      const enemyHpRatio = Number(settings.enemyHpRatio) || 1;
+
+      if (enemyHpRatio <= 0.25 && pressure >= 55) {
+        return "決定打";
+      }
+      if (pressure >= 120) {
+        return "大ダメ";
+      }
+      if (pressure >= 70) {
+        return "安定";
+      }
+      if (typeMultiplier < 1 || pressure < 45) {
+        return "軽め";
+      }
+      return "標準";
+    }
+
     function getMoveLongDescription(move, currentPp, options) {
       const settings = options || {};
       const effectText = getMoveEffectText(move) || "相手にダメージを与える。";
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
       const accuracyText = move.accuracy > 0 ? `命中 ${move.accuracy}` : "命中 -";
+      const pressureText = getMovePressureLabel(move, settings.enemySpecies, settings);
       const pickReasons =
         settings.recommended && currentPp > 0
           ? getMoveRecommendationReasons(move, settings.enemySpecies, settings)
           : [];
       const pickText = pickReasons.length ? ` おすすめ: ${pickReasons.join(" / ")}` : "";
-      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp}${pickText}`;
+      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp} / 手応え ${pressureText}${pickText}`;
     }
 
     function getMoveTypeMultiplier(move, enemySpecies) {
@@ -9579,8 +9611,10 @@ select {
       }
 
       const reasons = getMoveRecommendationReasons(move, enemySpecies, options);
-      const reasonText = reasons.length ? ` / ${reasons.slice(0, 2).join("・")}` : "";
-      return `PICK: ${move.name}${reasonText}`;
+      const pressureText = getMovePressureLabel(move, enemySpecies, options);
+      const detailParts = [pressureText, ...reasons.slice(0, 2)].filter(Boolean);
+      const detailText = detailParts.length ? ` / ${detailParts.join("・")}` : "";
+      return `PICK: ${move.name}${detailText}`;
     }
 
     function getMoveAdviceChips(move, currentPp, enemySpecies, options) {

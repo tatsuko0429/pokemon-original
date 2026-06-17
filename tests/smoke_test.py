@@ -1338,6 +1338,10 @@ async def run_smoke_test(base_url: str) -> None:
             any(reason in move_pick_message_state["message"] for reason in ("CHANCE", "CHAIN", "弱点", "押し切り", "高火力", "補助")),
             "おすすめ技の理由が技選択メッセージに表示されていません。",
         )
+        expect(
+            any(label in move_pick_message_state["message"] for label in ("決定打", "大ダメ", "安定", "標準", "軽め", "補助")),
+            "おすすめ技の手応えが技選択メッセージに表示されていません。",
+        )
         expect("CHANCE" not in advice_labels, "準備前の技にCHANCEチップが表示されています。")
         move_tag = await page.evaluate(
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """
@@ -1377,6 +1381,7 @@ async def run_smoke_test(base_url: str) -> None:
             "威力" in move_hold_state["tipText"] or "補助" in move_hold_state["tipText"],
             "技長押し説明に効果情報が表示されていません。",
         )
+        expect("手応え" in move_hold_state["tipText"], "技長押し説明に手応え情報が表示されていません。")
         expect("おすすめ:" in move_hold_state["tipText"], "おすすめ技の長押し説明にPICK理由が表示されていません。")
         expect("おすすめ理由" in move_hold_state["label"], "おすすめ技のラベルにPICK理由が反映されていません。")
         expect(move_hold_state["phase"] == "moveSelect", "技長押し中に技選択フェーズから外れています。")
