@@ -1369,6 +1369,24 @@ select {
   color: #5d4212;
 }
 
+.move-advice-chip.is-finish {
+  border-color: rgba(93, 66, 18, 0.72);
+  background: rgba(248, 244, 215, 0.92);
+  color: #5d4212;
+}
+
+.move-advice-chip.is-chain {
+  border-color: rgba(81, 92, 42, 0.72);
+  background: rgba(222, 239, 203, 0.84);
+  color: #31461f;
+}
+
+.move-advice-chip.is-style {
+  border-color: rgba(51, 87, 94, 0.68);
+  background: rgba(213, 237, 247, 0.84);
+  color: #255464;
+}
+
 .move-pp-row {
   display: grid;
   grid-template-columns: auto minmax(32px, 1fr) auto;
@@ -9453,14 +9471,26 @@ select {
       return enemySpecies.types.reduce((product, type) => product * (chart[type] || 1), 1);
     }
 
-    function getMoveAdviceChips(move, currentPp, enemySpecies) {
+    function getMoveAdviceChips(move, currentPp, enemySpecies, options) {
+      const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
       const chips = [];
+      const tacticalChips = [];
 
       if (move.power <= 0) {
         chips.push({ label: "補助", className: "is-support" });
       } else {
         const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+        if (settings.enemyHpRatio > 0 && settings.enemyHpRatio <= 0.25) {
+          tacticalChips.push({ label: "押せる", className: "is-finish" });
+        }
+        if ((settings.comboCount || 0) >= 1) {
+          tacticalChips.push({ label: "CHAIN", className: "is-chain" });
+        }
+        if (typeMultiplier > 1) {
+          tacticalChips.push({ label: "STYLE+", className: "is-style" });
+        }
+
         if (typeMultiplier > 1) {
           chips.push({ label: "有効", className: "is-strong" });
         } else if (typeMultiplier < 1) {
@@ -9482,18 +9512,18 @@ select {
         chips.push({ label: "命中注意", className: "is-risk" });
       }
 
-      return chips.slice(0, 2);
+      return [...tacticalChips, ...chips].slice(0, 3);
     }
 
     function createMoveButton(move, currentPp, onHover, options) {
       const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
-      let adviceChips = getMoveAdviceChips(move, currentPp, settings.enemySpecies);
+      let adviceChips = getMoveAdviceChips(move, currentPp, settings.enemySpecies, settings);
       if (settings.rushReady && move.power > 0 && currentPp > 0) {
         adviceChips = [
           { label: "CHANCE", className: "is-rush" },
           ...adviceChips,
-        ].slice(0, 2);
+        ].slice(0, 3);
       }
       const classNames = [
         "move-button",
@@ -10394,12 +10424,15 @@ select {
         wrapper.className = "battle-buttons is-move-select";
         const playerMonster = state.party[0];
         const enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
+        const enemyHpRatio = battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp);
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
           const currentPp = playerMonster.currentPp[index];
           const button = createMoveButton(move, currentPp, battleScene.hoverMove, {
             previewed: battle.hoveredMoveId === moveId,
             enemySpecies,
+            enemyHpRatio,
+            comboCount: battle.combo ? battle.combo.count : 0,
             rushReady: Boolean(battle.rush && battle.rush.ready),
           });
           input.attachLongPressActionButton(button, "battle_select_move", { moveId });

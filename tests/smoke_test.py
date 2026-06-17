@@ -1650,6 +1650,21 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent.includes("なぐる") && !button.disabled)""",
             {"timeout": 1200},
         )
+        move_tactic_state = await page.evaluate(
+            """() => {
+              const button = [...document.querySelectorAll(".move-button")]
+                .find((candidate) => candidate.textContent.includes("なぐる"));
+              return {
+                text: button?.textContent || "",
+                aria: button?.getAttribute("aria-label") || "",
+                finish: Boolean(button?.querySelector(".move-advice-chip.is-finish")),
+                chain: Boolean(button?.querySelector(".move-advice-chip.is-chain"))
+              };
+            }"""
+        )
+        expect(move_tactic_state["finish"], "敵HPが少ない時の押せるチップが表示されていません。")
+        expect(move_tactic_state["chain"], "コンボ継続時のCHAINチップが表示されていません。")
+        expect("押せる" in move_tactic_state["aria"], "押せるチップが技ボタンのラベルに反映されていません。")
         await clear_recent_se_ids(page)
         await page.evaluate(
             """() => [...document.querySelectorAll(".move-button")]
