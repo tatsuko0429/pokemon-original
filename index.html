@@ -873,7 +873,8 @@ select {
 }
 
 .battle-combo-badge,
-.battle-style-badge {
+.battle-style-badge,
+.battle-enemy-intent {
   min-width: 66px;
   padding: 3px 7px;
   border: 2px solid rgba(32, 34, 27, 0.56);
@@ -925,6 +926,29 @@ select {
 .battle-style-delta {
   color: #8a5d16;
   font-size: 0.46rem;
+}
+
+.battle-enemy-intent {
+  min-width: 82px;
+  background: rgba(244, 234, 214, 0.82);
+  color: #5f4630;
+}
+
+.battle-enemy-intent.is-danger {
+  border-color: rgba(119, 61, 46, 0.72);
+  background: rgba(244, 212, 201, 0.86);
+  color: #6b2c22;
+}
+
+.battle-enemy-intent.is-heal {
+  border-color: rgba(68, 105, 53, 0.7);
+  background: rgba(222, 239, 203, 0.84);
+  color: #365f28;
+}
+
+.battle-enemy-intent.is-safe {
+  background: rgba(213, 237, 247, 0.82);
+  color: #255464;
 }
 
 .battle-buttons {
@@ -10098,12 +10122,120 @@ select {
       return root;
     }
 
+    function getBattleEnemyIntentInfo(battle) {
+      const enemy = battle && battle.enemy;
+      if (!enemy || !Array.isArray(enemy.moveIds)) {
+        return null;
+      }
+
+      if (enemy.charging) {
+        return {
+          value: "溜め中",
+          className: "is-danger",
+          aria: "相手の気配 溜め技を継続",
+        };
+      }
+
+      const currentPp = Array.isArray(enemy.currentPp) ? enemy.currentPp : [];
+      const usableMoves = enemy.moveIds
+        .map((moveId, index) => ({
+          move: dataRegistry.getMove(moveId),
+          pp: Number(currentPp[index]) || 0,
+        }))
+        .filter((entry) => entry.move && entry.pp > 0);
+
+      if (!usableMoves.length) {
+        return {
+          value: "息切れ",
+          className: "is-safe",
+          aria: "相手の気配 技を出せない",
+        };
+      }
+
+      const hpRatio = enemy.currentHp / Math.max(1, enemy.maxHp);
+      const healMove = usableMoves.find(({ move }) =>
+        ["random_heal", "swimming_regen", "chance_full_heal"].includes(move.effect)
+      );
+      if (healMove && enemy.currentHp < enemy.maxHp && hpRatio <= 0.4) {
+        return {
+          value: "回復注意",
+          className: "is-heal",
+          aria: "相手の気配 回復に注意",
+        };
+      }
+
+      const heavyMove = usableMoves.reduce((strongest, entry) => {
+        if (!strongest || (entry.move.power || 0) > (strongest.move.power || 0)) {
+          return entry;
+        }
+        return strongest;
+      }, null);
+      if (heavyMove && (heavyMove.move.power || 0) >= 80) {
+        return {
+          value: "大技注意",
+          className: "is-danger",
+          aria: `相手の気配 ${heavyMove.move.name}に注意`,
+        };
+      }
+
+      if (usableMoves.some(({ move }) => move.effect === "chance_big_damage")) {
+        return {
+          value: "一発注意",
+          className: "is-danger",
+          aria: "相手の気配 一発技に注意",
+        };
+      }
+
+      if (usableMoves.every(({ move }) => !move.power || move.power <= 0)) {
+        return {
+          value: "補助気配",
+          className: "",
+          aria: "相手の気配 補助技の可能性",
+        };
+      }
+
+      if (hpRatio <= 0.25) {
+        return {
+          value: "押し切れる",
+          className: "is-safe",
+          aria: "相手の気配 残りHPが少ない",
+        };
+      }
+
+      return {
+        value: "攻撃気配",
+        className: "",
+        aria: "相手の気配 攻撃に注意",
+      };
+    }
+
+    function createBattleEnemyIntentBadge(battle) {
+      const intent = getBattleEnemyIntentInfo(battle);
+      if (!intent) {
+        return document.createDocumentFragment();
+      }
+
+      const root = document.createElement("span");
+      root.className = `battle-enemy-intent ${intent.className || ""}`.trim();
+      root.setAttribute("aria-label", intent.aria);
+
+      const label = document.createElement("span");
+      label.textContent = "NEXT";
+      const value = document.createElement("span");
+      value.textContent = intent.value;
+
+      root.appendChild(label);
+      root.appendChild(value);
+      return root;
+    }
+
     function createBattleStatusRow(battle) {
       const row = document.createElement("div");
       row.className = "battle-status-row";
       row.appendChild(createBattleRushMeter(battle));
       row.appendChild(createBattleComboBadge(battle));
       row.appendChild(createBattleStyleBadge(battle));
+      row.appendChild(createBattleEnemyIntentBadge(battle));
       return row;
     }
 
@@ -10301,6 +10433,9 @@ select {
         battleAnimation: state.battle ? state.battle.animation && state.battle.animation.kind : null,
         battleHoveredMove: state.battle ? state.battle.hoveredMoveId : null,
         battleEnemySpecies: state.battle && state.battle.enemy ? state.battle.enemy.speciesId : null,
+        battleEnemyHp: state.battle && state.battle.enemy ? state.battle.enemy.currentHp : 0,
+        battleEnemyPp: state.battle && state.battle.enemy ? state.battle.enemy.currentPp : [],
+        battleEnemyCharging: state.battle && state.battle.enemy ? state.battle.enemy.charging || "" : "",
         battleRushGauge: state.battle && state.battle.rush ? state.battle.rush.gauge : 0,
         battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
         battleComboCount: state.battle && state.battle.combo ? state.battle.combo.count : 0,

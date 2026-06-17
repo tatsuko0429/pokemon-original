@@ -1125,6 +1125,8 @@ async def run_smoke_test(base_url: str) -> None:
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
               battleStyleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
+              battleEnemyIntentText: document.querySelector(".battle-enemy-intent")?.textContent || "",
+              battleEnemyIntentAria: document.querySelector(".battle-enemy-intent")?.getAttribute("aria-label") || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -1165,6 +1167,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
         expect("0pt" in battle_state["battleStyleText"], "STYLE表示の初期ポイントが0になっていません。")
         expect("スタイル C 0ポイント" in battle_state["battleStyleAria"], "STYLE表示のアクセシブルラベルがありません。")
+        expect("NEXT" in battle_state["battleEnemyIntentText"], "相手の気配表示が出ていません。")
+        expect("相手の気配" in battle_state["battleEnemyIntentAria"], "相手の気配表示のアクセシブルラベルがありません。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
