@@ -1253,6 +1253,14 @@ select {
     inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
+.control-button.move-button.is-recommended:not([disabled]) {
+  border-color: rgba(93, 66, 18, 0.86);
+  box-shadow:
+    0 5px 0 rgba(8, 10, 12, 0.26),
+    0 0 0 3px rgba(216, 181, 70, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
 .move-hold-tip {
   position: absolute;
   left: 7px;
@@ -1367,6 +1375,13 @@ select {
   border-color: rgba(93, 66, 18, 0.72);
   background: rgba(248, 238, 171, 0.92);
   color: #5d4212;
+}
+
+.move-advice-chip.is-pick {
+  border-color: rgba(93, 66, 18, 0.8);
+  background:
+    linear-gradient(180deg, rgba(248, 244, 215, 0.96), rgba(216, 181, 70, 0.82));
+  color: #4f3d13;
 }
 
 .move-advice-chip.is-finish {
@@ -9471,6 +9486,40 @@ select {
       return enemySpecies.types.reduce((product, type) => product * (chart[type] || 1), 1);
     }
 
+    function getMoveRecommendationScore(move, currentPp, enemySpecies, options) {
+      if (!move || currentPp <= 0) {
+        return Number.NEGATIVE_INFINITY;
+      }
+
+      const settings = options || {};
+      const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+      const ppRatio = currentPp / Math.max(1, move.pp);
+      let score = move.power > 0 ? move.power / 18 : 0.6;
+
+      if (move.power > 0 && settings.rushReady) {
+        score += 5;
+      }
+      if (move.power > 0 && (settings.comboCount || 0) >= 1) {
+        score += 3;
+      }
+      if (move.power > 0 && settings.enemyHpRatio > 0 && settings.enemyHpRatio <= 0.25) {
+        score += 2.5;
+      }
+      if (typeMultiplier > 1) {
+        score += 4;
+      } else if (typeMultiplier < 1) {
+        score -= 3;
+      }
+      if (move.accuracy > 0 && move.accuracy < 90) {
+        score -= 1.5;
+      }
+      if (ppRatio <= 0.25) {
+        score -= 0.75;
+      }
+
+      return score;
+    }
+
     function getMoveAdviceChips(move, currentPp, enemySpecies, options) {
       const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
@@ -9481,6 +9530,9 @@ select {
         chips.push({ label: "補助", className: "is-support" });
       } else {
         const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+        if (settings.recommended) {
+          tacticalChips.push({ label: "PICK", className: "is-pick" });
+        }
         if (settings.enemyHpRatio > 0 && settings.enemyHpRatio <= 0.25) {
           tacticalChips.push({ label: "押せる", className: "is-finish" });
         }
@@ -9506,6 +9558,10 @@ select {
         }
       }
 
+      if (move.power <= 0 && settings.recommended) {
+        tacticalChips.push({ label: "PICK", className: "is-pick" });
+      }
+
       if (currentPp > 0 && ppRatio <= 0.25) {
         chips.push({ label: "PP少", className: "is-risk" });
       } else if (move.accuracy > 0 && move.accuracy < 90) {
@@ -9528,6 +9584,7 @@ select {
       const classNames = [
         "move-button",
         getMoveTypeClass(move.type),
+        settings.recommended ? "is-recommended" : "",
         settings.previewed ? "is-previewed" : "",
         currentPp <= 0 ? "is-empty" : "",
         currentPp > 0 && ppRatio <= 0.25 ? "is-low-pp" : "",
@@ -10425,15 +10482,29 @@ select {
         const playerMonster = state.party[0];
         const enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
         const enemyHpRatio = battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp);
+        const moveContext = {
+          enemySpecies,
+          enemyHpRatio,
+          comboCount: battle.combo ? battle.combo.count : 0,
+          rushReady: Boolean(battle.rush && battle.rush.ready),
+        };
+        const recommendedMoveId = playerMonster.moveIds.reduce((bestMoveId, moveId, index) => {
+          const move = dataRegistry.getMove(moveId);
+          const currentPp = playerMonster.currentPp[index];
+          const bestIndex = playerMonster.moveIds.indexOf(bestMoveId);
+          const bestMove = bestMoveId ? dataRegistry.getMove(bestMoveId) : null;
+          const bestPp = bestIndex >= 0 ? playerMonster.currentPp[bestIndex] : 0;
+          const score = getMoveRecommendationScore(move, currentPp, enemySpecies, moveContext);
+          const bestScore = getMoveRecommendationScore(bestMove, bestPp, enemySpecies, moveContext);
+          return score > bestScore ? moveId : bestMoveId;
+        }, "");
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
           const currentPp = playerMonster.currentPp[index];
           const button = createMoveButton(move, currentPp, battleScene.hoverMove, {
+            ...moveContext,
             previewed: battle.hoveredMoveId === moveId,
-            enemySpecies,
-            enemyHpRatio,
-            comboCount: battle.combo ? battle.combo.count : 0,
-            rushReady: Boolean(battle.rush && battle.rush.ready),
+            recommended: moveId === recommendedMoveId,
           });
           input.attachLongPressActionButton(button, "battle_select_move", { moveId });
           wrapper.appendChild(button);

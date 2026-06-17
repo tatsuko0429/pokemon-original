@@ -1314,6 +1314,11 @@ async def run_smoke_test(base_url: str) -> None:
         advice_labels = [label for entry in move_ui_state for label in entry["advice"]]
         expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
         expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
+        expect(advice_labels.count("PICK") == 1, "おすすめ技のPICKチップが1つだけ表示されていません。")
+        expect(
+            any("PICK" in entry["label"] for entry in move_ui_state),
+            "PICKチップが技ボタンのラベルに反映されていません。",
+        )
         expect("CHANCE" not in advice_labels, "準備前の技にCHANCEチップが表示されています。")
         move_tag = await page.evaluate(
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """
