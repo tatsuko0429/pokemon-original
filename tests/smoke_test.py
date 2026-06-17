@@ -1308,6 +1308,15 @@ async def run_smoke_test(base_url: str) -> None:
               label: button.getAttribute("aria-label") || ""
             }))"""
         )
+        move_pick_message_state = await page.evaluate(
+            """() => {
+              const recommended = document.querySelector(".move-button.is-recommended:not(:disabled)");
+              return {
+                message: document.querySelector(".battle-message-text")?.textContent || "",
+                recommendedName: recommended?.querySelector(".move-name")?.textContent || ""
+              };
+            }"""
+        )
         expect(any(entry["name"] for entry in move_ui_state), "技名が技ボタン内に表示されていません。")
         expect(any("PP" in entry["meta"] for entry in move_ui_state), "技ボタン内にPPが表示されていません。")
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
@@ -1318,6 +1327,16 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             any("PICK" in entry["label"] for entry in move_ui_state),
             "PICKチップが技ボタンのラベルに反映されていません。",
+        )
+        expect("PICK:" in move_pick_message_state["message"], "技選択中におすすめ技の短い案内が表示されていません。")
+        expect(
+            move_pick_message_state["recommendedName"]
+            and move_pick_message_state["recommendedName"] in move_pick_message_state["message"],
+            "おすすめ技名が技選択メッセージに表示されていません。",
+        )
+        expect(
+            any(reason in move_pick_message_state["message"] for reason in ("CHANCE", "CHAIN", "弱点", "押し切り", "高火力", "補助")),
+            "おすすめ技の理由が技選択メッセージに表示されていません。",
         )
         expect("CHANCE" not in advice_labels, "準備前の技にCHANCEチップが表示されています。")
         move_tag = await page.evaluate(

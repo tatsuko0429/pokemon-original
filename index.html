@@ -9555,6 +9555,34 @@ select {
       return score;
     }
 
+    function getRecommendedMoveId(monster, enemySpecies, options) {
+      if (!monster || !Array.isArray(monster.moveIds)) {
+        return "";
+      }
+
+      const settings = options || {};
+      return monster.moveIds.reduce((bestMoveId, moveId, index) => {
+        const move = dataRegistry.getMove(moveId);
+        const currentPp = monster.currentPp[index];
+        const bestIndex = monster.moveIds.indexOf(bestMoveId);
+        const bestMove = bestMoveId ? dataRegistry.getMove(bestMoveId) : null;
+        const bestPp = bestIndex >= 0 ? monster.currentPp[bestIndex] : 0;
+        const score = getMoveRecommendationScore(move, currentPp, enemySpecies, settings);
+        const bestScore = getMoveRecommendationScore(bestMove, bestPp, enemySpecies, settings);
+        return score > bestScore ? moveId : bestMoveId;
+      }, "");
+    }
+
+    function getRecommendedMoveMessage(move, enemySpecies, options) {
+      if (!move) {
+        return "";
+      }
+
+      const reasons = getMoveRecommendationReasons(move, enemySpecies, options);
+      const reasonText = reasons.length ? ` / ${reasons.slice(0, 2).join("・")}` : "";
+      return `PICK: ${move.name}${reasonText}`;
+    }
+
     function getMoveAdviceChips(move, currentPp, enemySpecies, options) {
       const settings = options || {};
       const ppRatio = currentPp / Math.max(1, move.pp);
@@ -10469,6 +10497,22 @@ select {
       message.className = "battle-message-panel";
       message.setAttribute("aria-live", "polite");
 
+      let moveContext = null;
+      let recommendedMoveId = "";
+      let recommendedMove = null;
+      let enemySpecies = null;
+      if (battle.phase === "moveSelect") {
+        enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
+        moveContext = {
+          enemySpecies,
+          enemyHpRatio: battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp),
+          comboCount: battle.combo ? battle.combo.count : 0,
+          rushReady: Boolean(battle.rush && battle.rush.ready),
+        };
+        recommendedMoveId = getRecommendedMoveId(playerMonster, enemySpecies, moveContext);
+        recommendedMove = recommendedMoveId ? dataRegistry.getMove(recommendedMoveId) : null;
+      }
+
       let currentMessage = battle.currentMessage;
       if (!currentMessage && battle.phase === "moveSelect" && battle.hoveredMoveId) {
         const move = dataRegistry.getMove(battle.hoveredMoveId);
@@ -10478,6 +10522,9 @@ select {
           const effectText = getMoveEffectText(move);
           currentMessage = `${powerText} ${accuracyText} ${effectText}`.trim();
         }
+      }
+      if (!currentMessage && battle.phase === "moveSelect" && recommendedMove) {
+        currentMessage = getRecommendedMoveMessage(recommendedMove, enemySpecies, moveContext);
       }
 
       const messageText =
@@ -10518,25 +10565,6 @@ select {
         // hoverMoveは説明文表示だけでなく状態を更新するため、panelKeyへhoveredMoveIdを足す必要がある場合がある。
         const wrapper = document.createElement("div");
         wrapper.className = "battle-buttons is-move-select";
-        const playerMonster = state.party[0];
-        const enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
-        const enemyHpRatio = battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp);
-        const moveContext = {
-          enemySpecies,
-          enemyHpRatio,
-          comboCount: battle.combo ? battle.combo.count : 0,
-          rushReady: Boolean(battle.rush && battle.rush.ready),
-        };
-        const recommendedMoveId = playerMonster.moveIds.reduce((bestMoveId, moveId, index) => {
-          const move = dataRegistry.getMove(moveId);
-          const currentPp = playerMonster.currentPp[index];
-          const bestIndex = playerMonster.moveIds.indexOf(bestMoveId);
-          const bestMove = bestMoveId ? dataRegistry.getMove(bestMoveId) : null;
-          const bestPp = bestIndex >= 0 ? playerMonster.currentPp[bestIndex] : 0;
-          const score = getMoveRecommendationScore(move, currentPp, enemySpecies, moveContext);
-          const bestScore = getMoveRecommendationScore(bestMove, bestPp, enemySpecies, moveContext);
-          return score > bestScore ? moveId : bestMoveId;
-        }, "");
         playerMonster.moveIds.forEach((moveId, index) => {
           const move = dataRegistry.getMove(moveId);
           const currentPp = playerMonster.currentPp[index];
