@@ -1326,10 +1326,9 @@ async def run_smoke_test(base_url: str) -> None:
         expect(move_tag == "MOVE", "技選択中のメッセージタグがMOVEになっていません。")
         move_button_center = await page.evaluate(
             """() => {
-              const button = [...document.querySelectorAll(".move-button")]
-                .find((candidate) => !candidate.disabled);
+              const button = document.querySelector(".move-button.is-recommended:not(:disabled)");
               if (!button) {
-                throw new Error("使用可能な技ボタンが見つかりません。");
+                throw new Error("おすすめ技ボタンが見つかりません。");
               }
               const rect = button.getBoundingClientRect();
               return {
@@ -1348,6 +1347,7 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 previewed: Boolean(button),
                 tipText: button?.querySelector(".move-hold-tip")?.textContent || "",
+                label: button?.getAttribute("aria-label") || "",
                 phase: state.battle?.phase || ""
               };
             }"""
@@ -1358,6 +1358,8 @@ async def run_smoke_test(base_url: str) -> None:
             "威力" in move_hold_state["tipText"] or "補助" in move_hold_state["tipText"],
             "技長押し説明に効果情報が表示されていません。",
         )
+        expect("おすすめ:" in move_hold_state["tipText"], "おすすめ技の長押し説明にPICK理由が表示されていません。")
+        expect("おすすめ理由" in move_hold_state["label"], "おすすめ技のラベルにPICK理由が反映されていません。")
         expect(move_hold_state["phase"] == "moveSelect", "技長押し中に技選択フェーズから外れています。")
         await page.mouse.up()
         await asyncio.sleep(0.2)

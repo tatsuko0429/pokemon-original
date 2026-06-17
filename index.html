@@ -9470,11 +9470,46 @@ select {
       }
     }
 
-    function getMoveLongDescription(move, currentPp) {
+    function getMoveRecommendationReasons(move, enemySpecies, options) {
+      if (!move) {
+        return [];
+      }
+
+      const settings = options || {};
+      const reasons = [];
+      const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
+      if (move.power > 0 && settings.rushReady) {
+        reasons.push("CHANCE");
+      }
+      if (move.power > 0 && (settings.comboCount || 0) >= 1) {
+        reasons.push("CHAIN");
+      }
+      if (typeMultiplier > 1) {
+        reasons.push("弱点");
+      }
+      if (move.power > 0 && settings.enemyHpRatio > 0 && settings.enemyHpRatio <= 0.25) {
+        reasons.push("押し切り");
+      }
+      if (move.power >= 80) {
+        reasons.push("高火力");
+      }
+      if (move.power <= 0 && !reasons.length) {
+        reasons.push("補助");
+      }
+      return reasons.slice(0, 3);
+    }
+
+    function getMoveLongDescription(move, currentPp, options) {
+      const settings = options || {};
       const effectText = getMoveEffectText(move) || "相手にダメージを与える。";
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
       const accuracyText = move.accuracy > 0 ? `命中 ${move.accuracy}` : "命中 -";
-      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp}`;
+      const pickReasons =
+        settings.recommended && currentPp > 0
+          ? getMoveRecommendationReasons(move, settings.enemySpecies, settings)
+          : [];
+      const pickText = pickReasons.length ? ` おすすめ: ${pickReasons.join(" / ")}` : "";
+      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp}${pickText}`;
     }
 
     function getMoveTypeMultiplier(move, enemySpecies) {
@@ -9591,9 +9626,13 @@ select {
       ].filter(Boolean).join(" ");
       const button = createButton("", classNames, null, currentPp <= 0);
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
+      const pickReasons =
+        settings.recommended && currentPp > 0
+          ? getMoveRecommendationReasons(move, settings.enemySpecies, settings)
+          : [];
       button.setAttribute(
         "aria-label",
-        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
+        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")}${pickReasons.length ? ` おすすめ理由 ${pickReasons.join(" ")}` : ""} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
       );
 
       if (onHover) {
@@ -9669,7 +9708,7 @@ select {
       button.appendChild(detail);
       const holdTip = document.createElement("span");
       holdTip.className = "move-hold-tip";
-      holdTip.textContent = getMoveLongDescription(move, currentPp);
+      holdTip.textContent = getMoveLongDescription(move, currentPp, settings);
       button.appendChild(holdTip);
       return button;
     }
