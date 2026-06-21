@@ -2389,6 +2389,7 @@ select {
       styleComboPoint: 1,
       styleRushPoint: 3,
       styleStrongHitPoint: 1,
+      styleCriticalPoint: 2,
       styleBonusPerPoint: 0.06,
       styleMaxBonusRatio: 0.35,
     },
@@ -10860,6 +10861,7 @@ select {
       comboPoint: battleConfig.styleComboPoint || 1,
       rushPoint: battleConfig.styleRushPoint || 3,
       strongHitPoint: battleConfig.styleStrongHitPoint || 1,
+      criticalPoint: battleConfig.styleCriticalPoint || 2,
       bonusPerPoint: battleConfig.styleBonusPerPoint || 0.06,
       maxBonusRatio: battleConfig.styleMaxBonusRatio || 0.35,
     };
@@ -11126,6 +11128,7 @@ select {
         bestCombo: 0,
         rushCount: 0,
         strongHits: 0,
+        criticalHits: 0,
       };
     }
 
@@ -11173,6 +11176,11 @@ select {
       if (outcome && outcome.typeMultiplier > 1) {
         points += styleConfig.strongHitPoint;
         style.strongHits = (style.strongHits || 0) + 1;
+      }
+
+      if (outcome && outcome.isCritical) {
+        points += styleConfig.criticalPoint;
+        style.criticalHits = (style.criticalHits || 0) + 1;
       }
 
       addBattleStylePoints(battle, points);
