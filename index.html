@@ -279,6 +279,13 @@ select {
   width: 44%;
 }
 
+.battle-card.is-finish-ready {
+  border-color: #7e3828;
+  box-shadow:
+    0 4px 0 rgba(22, 32, 15, 0.14),
+    0 0 0 2px rgba(199, 114, 83, 0.28);
+}
+
 .battle-card-top {
   display: flex;
   align-items: baseline;
@@ -316,11 +323,31 @@ select {
   gap: 3px;
 }
 
+.battle-hp-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-height: 10px;
+}
+
 .battle-hp-label {
   font-size: 0.55rem;
   font-weight: 900;
   color: var(--muted);
   letter-spacing: 0.08em;
+}
+
+.battle-finish-cue {
+  padding: 1px 4px;
+  border: 1px solid #7e3828;
+  border-radius: 4px;
+  background: #f2c5b4;
+  color: #6a241b;
+  font-size: 0.44rem;
+  font-weight: 900;
+  line-height: 1;
+  animation: battle-finish-cue 620ms steps(2, end) infinite;
 }
 
 .battle-hp-track {
@@ -339,6 +366,10 @@ select {
 
 .battle-hp-fill.is-low {
   background: linear-gradient(90deg, #8b422c, #c77253);
+}
+
+.battle-card.is-finish-ready .battle-hp-track {
+  box-shadow: 0 0 0 2px rgba(199, 114, 83, 0.24);
 }
 
 .battle-hp-value {
@@ -2024,6 +2055,16 @@ select {
   100% {
     opacity: 0;
     transform: translateY(-8px) scale(0.96);
+  }
+}
+
+@keyframes battle-finish-cue {
+  from {
+    filter: brightness(0.92);
+  }
+
+  to {
+    filter: brightness(1.14);
   }
 }
 
@@ -9955,7 +9996,10 @@ select {
 
     function createBattleCard(options) {
       const card = document.createElement("div");
-      card.className = `battle-card ${options.className}`.trim();
+      card.className = `battle-card ${options.className} ${options.finishReady ? "is-finish-ready" : ""}`.trim();
+      if (options.finishReady) {
+        card.setAttribute("aria-label", `${options.name} 残りHPわずか フィニッシュチャンス`);
+      }
 
       const top = document.createElement("div");
       top.className = "battle-card-top";
@@ -9985,9 +10029,19 @@ select {
 
       const hpRow = document.createElement("div");
       hpRow.className = "battle-hp-row";
+      const hpHeading = document.createElement("div");
+      hpHeading.className = "battle-hp-heading";
       const label = document.createElement("div");
       label.className = "battle-hp-label";
       label.textContent = "HP";
+      hpHeading.appendChild(label);
+      if (options.finishReady) {
+        const finishCue = document.createElement("span");
+        finishCue.className = "battle-finish-cue";
+        finishCue.textContent = "FINISH";
+        finishCue.setAttribute("aria-hidden", "true");
+        hpHeading.appendChild(finishCue);
+      }
       const track = document.createElement("div");
       track.className = "battle-hp-track";
       const fill = document.createElement("div");
@@ -9997,7 +10051,7 @@ select {
       }
       fill.style.width = `${Math.max(0, Math.min(100, options.hpRatio * 100))}%`;
       track.appendChild(fill);
-      hpRow.appendChild(label);
+      hpRow.appendChild(hpHeading);
       hpRow.appendChild(track);
 
       if (options.hpText) {
@@ -10459,6 +10513,8 @@ select {
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const playerShownHp = formatShownHp(state.battle.display.playerHp);
       const enemyShownHp = formatShownHp(state.battle.display.enemyHp);
+      const enemyHpRatio = enemyShownHp / Math.max(1, enemyMonster.maxHp);
+      const enemyFinishReady = enemyShownHp > 0 && enemyHpRatio <= 0.25;
       const shownExp =
         typeof state.battle.display.playerExp === "number"
           ? state.battle.display.playerExp
@@ -10473,6 +10529,7 @@ select {
       const overlayKey = JSON.stringify({
         playerShownHp,
         enemyShownHp,
+        enemyFinishReady,
         playerShownExp: Math.round(shownExp * 10) / 10,
         expActive,
         playerName: playerSpecies.name,
@@ -10498,7 +10555,8 @@ select {
           name: enemySpecies.name,
           type: enemySpecies.types.join(" / "),
           level: enemyMonster.level,
-          hpRatio: enemyShownHp / enemyMonster.maxHp,
+          hpRatio: enemyHpRatio,
+          finishReady: enemyFinishReady,
           feedback: enemyFeedback,
         })
       );
