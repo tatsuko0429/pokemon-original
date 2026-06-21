@@ -457,6 +457,68 @@ async def run_smoke_test(base_url: str) -> None:
             "試作用の説明文が画面に残っています。",
         )
 
+        critical_damage_state = await page.evaluate(
+            """() => {
+              const app = window.MonsterPrototype;
+              const createRegistry = (critical) => {
+                const labels = [];
+                const random = {
+                  integer(min, max, label) {
+                    labels.push(label);
+                    return Math.floor((min + max) / 2);
+                  },
+                  chance(probability, label) {
+                    labels.push(label);
+                    return critical;
+                  },
+                  range(min) {
+                    return min;
+                  },
+                  token() {
+                    return critical ? "criticaltest" : "normaltest";
+                  }
+                };
+                return {
+                  labels,
+                  registry: app.core.createDataRegistry(random)
+                };
+              };
+              const normal = createRegistry(false);
+              const critical = createRegistry(true);
+              const normalResult = normal.registry.computeDamage(
+                normal.registry.createMonsterInstance("dummy_flare", 5),
+                normal.registry.createMonsterInstance("aribou", 5),
+                "punch"
+              );
+              const criticalResult = critical.registry.computeDamage(
+                critical.registry.createMonsterInstance("dummy_flare", 5),
+                critical.registry.createMonsterInstance("aribou", 5),
+                "punch"
+              );
+              return {
+                multiplier: app.config.game.battle.criticalDamageMultiplier,
+                normalDamage: normalResult.damage,
+                criticalDamage: criticalResult.damage,
+                normalCritical: normalResult.isCritical,
+                criticalCritical: criticalResult.isCritical,
+                normalLabels: normal.labels,
+                criticalLabels: critical.labels
+              };
+            }"""
+        )
+        expect(abs(critical_damage_state["multiplier"] - 1.5) < 0.0001, "急所ダメージ倍率が想定値ではありません。")
+        expect(not critical_damage_state["normalCritical"], "通常ダメージが急所扱いになっています。")
+        expect(critical_damage_state["criticalCritical"], "固定急所判定が急所結果へ反映されていません。")
+        expect(
+            critical_damage_state["criticalDamage"] > critical_damage_state["normalDamage"],
+            "急所ダメージが通常ダメージより大きくなっていません。",
+        )
+        expect(
+            critical_damage_state["normalLabels"] == ["damage_roll", "critical_roll"]
+            and critical_damage_state["criticalLabels"] == ["damage_roll", "critical_roll"],
+            "急所対応でダメージ乱数の呼び出し順が変わっています。",
+        )
+
         audio_state = await page.evaluate(
             """async () => {
               const app = window.MonsterPrototype;
@@ -1224,6 +1286,52 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
               });
             }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "アイテム" && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                state.battle.phase = "message";
+                state.battle.currentMessage = "会心表示確認";
+                state.battle.animation = {
+                  kind: "damage",
+                  target: "enemy",
+                  fromHp: 24,
+                  toHp: 8,
+                  moveType: "ノーマル",
+                  typeMultiplier: 1,
+                  isCritical: true,
+                  elapsedMs: 0,
+                  durationMs: 520
+                };
+                state.battle.display.enemyHp = 24;
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-critical")]
+              .some((badge) => badge.textContent.includes("-16") && badge.textContent.includes("CRIT"))""",
+            {"timeout": 1200},
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && !state.battle.animation);
+            }""",
+            {"timeout": 4000},
+        )
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.display.enemyHp = state.battle.enemy.currentHp;
+            })"""
         )
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]

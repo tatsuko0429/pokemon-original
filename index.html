@@ -489,6 +489,15 @@ select {
   text-shadow: none;
 }
 
+.battle-feedback-badge.is-critical {
+  background: linear-gradient(180deg, #fff4c7, #d26b4f);
+  color: #451d18;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(72, 28, 20, 0.24),
+    0 0 0 2px rgba(248, 214, 118, 0.72);
+}
+
 .battle-feedback-badge.is-heal {
   background: linear-gradient(180deg, #e2f0cf, #7fbf75);
   color: #1e3f25;
@@ -512,6 +521,7 @@ select {
 }
 
 .battle-feedback-badge.is-strong .battle-feedback-note,
+.battle-feedback-badge.is-critical .battle-feedback-note,
 .battle-feedback-badge.is-weak .battle-feedback-note,
 .battle-feedback-badge.is-heal .battle-feedback-note,
 .battle-feedback-badge.is-exp .battle-feedback-note,
@@ -2375,6 +2385,7 @@ select {
       rushDamageMultiplier: 1.55,
       comboMax: 4,
       comboDamageStep: 0.08,
+      criticalDamageMultiplier: 1.5,
       styleComboPoint: 1,
       styleRushPoint: 3,
       styleStrongHitPoint: 1,
@@ -5405,6 +5416,10 @@ select {
       const stab = attackerSpecies.types.includes(move.type) ? 1.5 : 1;
       const typeMultiplier = getTypeMultiplier(move.type, defenderSpecies.types);
       const randomFactor = 217 + random.integer(0, 38, "damage_roll");
+      const isCritical = random.chance(0.0625, "critical_roll");
+      const criticalMultiplier = isCritical
+        ? Math.max(1, Number(App.config.game.battle.criticalDamageMultiplier) || 1.5)
+        : 1;
       const multiplier = settings.damageMultiplier || 1;
       const movePower =
         typeof settings.powerOverride === "number" ? settings.powerOverride : move.power;
@@ -5416,7 +5431,7 @@ select {
           50 +
         2;
       const damage = clamp(
-        Math.floor(base * stab * typeMultiplier * (randomFactor / 255)),
+        Math.floor(base * stab * typeMultiplier * (randomFactor / 255) * criticalMultiplier),
         1,
         999
       );
@@ -5425,7 +5440,7 @@ select {
         move,
         damage,
         typeMultiplier,
-        isCritical: random.chance(0.0625, "critical_roll"),
+        isCritical,
       };
     }
 
@@ -8946,18 +8961,20 @@ select {
       const colors = getMoveEffectPalette(animation.moveType);
       const alpha = 1 - burstProgress;
       const radius = 5 + burstProgress * 15;
+      const critical = Boolean(animation.isCritical);
       const angleOffset = target === "enemy" ? -0.18 : 0.28;
       const centerY = position.y + (target === "enemy" ? 0 : -2);
 
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = colors.accent || palette.white;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = critical ? 3 : 2;
       ctx.lineCap = "square";
-      for (let index = 0; index < 6; index += 1) {
-        const angle = angleOffset + (Math.PI * 2 * index) / 6;
+      const rayCount = critical ? 10 : 6;
+      for (let index = 0; index < rayCount; index += 1) {
+        const angle = angleOffset + (Math.PI * 2 * index) / rayCount;
         const inner = radius * 0.42;
-        const outer = radius;
+        const outer = radius * (critical ? 1.28 : 1);
         ctx.beginPath();
         ctx.moveTo(
           Math.round(position.x + Math.cos(angle) * inner),
@@ -8972,6 +8989,10 @@ select {
 
       drawMoveTypeAccents(animation, position, target, centerY, burstProgress, alpha * 0.86);
       drawEffectivenessAccent(animation, position, centerY, burstProgress, alpha);
+      if (critical) {
+        drawPixelSparkle(position.x - 15, centerY - 11, 2, palette.white);
+        drawPixelSparkle(position.x + 16, centerY - 8, 2, palette.captureYellow || "#d8b546");
+      }
 
       ctx.globalAlpha = alpha * 0.78;
       ctx.fillStyle = colors.main || palette.warning;
@@ -10152,13 +10173,20 @@ select {
           typeof animation.typeMultiplier === "number" ? animation.typeMultiplier : 1;
         const className = [
           "is-damage",
+          animation.isCritical ? "is-critical" : "",
           typeMultiplier > 1 ? "is-strong" : "",
           typeMultiplier < 1 ? "is-weak" : "",
         ].filter(Boolean).join(" ");
 
         return {
           main: `-${damage}`,
-          note: typeMultiplier > 1 ? "WEAK" : typeMultiplier < 1 ? "RESIST" : "HIT",
+          note: animation.isCritical
+            ? "CRIT"
+            : typeMultiplier > 1
+              ? "WEAK"
+              : typeMultiplier < 1
+                ? "RESIST"
+                : "HIT",
           className,
         };
       }
@@ -11236,6 +11264,7 @@ select {
           moveType: effect.moveType || "ノーマル",
           typeMultiplier:
             typeof effect.typeMultiplier === "number" ? effect.typeMultiplier : 1,
+          isCritical: Boolean(effect.isCritical),
           elapsedMs: 0,
           durationMs: animationConfig.damage.durationMs,
         };
@@ -11932,6 +11961,23 @@ select {
       return (move && typeSoundIds[move.type]) || "move";
     }
 
+    function createDamageMessage(defenderLabel, damage, outcome) {
+      const criticalText = outcome && outcome.isCritical ? "会心の一撃！\n" : "";
+      return `${criticalText}${defenderLabel} に ${damage} ダメージ！`;
+    }
+
+    function createDamageEffect(target, fromHp, toHp, move, outcome) {
+      return {
+        kind: "damage",
+        target,
+        fromHp,
+        toHp,
+        moveType: move.type,
+        typeMultiplier: outcome.typeMultiplier,
+        isCritical: Boolean(outcome.isCritical),
+      };
+    }
+
     function buildAttackSequence(
       attacker,
       defender,
@@ -12131,15 +12177,8 @@ select {
 
         steps.push(
           createStep(
-            `${defenderLabel} に ${appliedDamage} ダメージ！`,
-            {
-              kind: "damage",
-              target: hpTargets.defender,
-              fromHp,
-              toHp: defender.currentHp,
-              moveType: move.type,
-              typeMultiplier: outcome.typeMultiplier,
-            },
+            createDamageMessage(defenderLabel, appliedDamage, outcome),
+            createDamageEffect(hpTargets.defender, fromHp, defender.currentHp, move, outcome),
             "hit"
           )
         );
@@ -12194,15 +12233,8 @@ select {
 
         steps.push(
           createStep(
-            `${defenderLabel} に ${wallResult.damage} ダメージ！`,
-            {
-              kind: "damage",
-              target: hpTargets.defender,
-              fromHp,
-              toHp: defender.currentHp,
-              moveType: move.type,
-              typeMultiplier: outcome.typeMultiplier,
-            },
+            createDamageMessage(defenderLabel, wallResult.damage, outcome),
+            createDamageEffect(hpTargets.defender, fromHp, defender.currentHp, move, outcome),
             "hit"
           )
         );
@@ -12293,15 +12325,8 @@ select {
 
       steps.push(
         createStep(
-          `${defenderLabel} に ${wallResult.damage} ダメージ！`,
-          {
-            kind: "damage",
-            target: hpTargets.defender,
-            fromHp,
-            toHp: defender.currentHp,
-            moveType: move.type,
-            typeMultiplier: outcome.typeMultiplier,
-          },
+          createDamageMessage(defenderLabel, wallResult.damage, outcome),
+          createDamageEffect(hpTargets.defender, fromHp, defender.currentHp, move, outcome),
           "hit"
         )
       );
