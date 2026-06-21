@@ -1128,6 +1128,7 @@ async def run_smoke_test(base_url: str) -> None:
               battleEnemyIntentText: document.querySelector(".battle-enemy-intent")?.textContent || "",
               battleEnemyIntentAria: document.querySelector(".battle-enemy-intent")?.getAttribute("aria-label") || "",
               enemyFinishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || "",
+              playerDangerCue: document.querySelector(".battle-card.is-player .battle-danger-cue")?.textContent || "",
               battleVisible: !document.querySelector("#battle-overlay")?.classList.contains("is-hidden"),
               actions: [...document.querySelectorAll("#action-panel button")].map((el) => el.textContent),
               hpFillBackground: getComputedStyle(document.querySelector(".battle-card.is-enemy .battle-hp-fill")).backgroundImage,
@@ -1171,6 +1172,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("NEXT" in battle_state["battleEnemyIntentText"], "相手の気配表示が出ていません。")
         expect("相手の気配" in battle_state["battleEnemyIntentAria"], "相手の気配表示のアクセシブルラベルがありません。")
         expect(not battle_state["enemyFinishCue"], "戦闘開始直後からFINISH表示が出ています。")
+        expect(not battle_state["playerDangerCue"], "戦闘開始直後からDANGER表示が出ています。")
         expect(battle_state["battleVisible"], "戦闘オーバーレイが表示されていません。")
         expect("つづける" not in battle_state["actions"], "バトル中に不要なつづけるボタンが表示されています。")
         expect(
@@ -1668,6 +1670,8 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0 };
                 state.battle.enemy.currentHp = 1;
                 state.battle.display.enemyHp = 1;
+                state.party[0].currentHp = 1;
+                state.battle.display.playerHp = 1;
                 state.party[0].moveIds = ["punch", "ice_wall"];
                 state.party[0].currentPp = state.party[0].moveIds
                   .map((moveId) => runtime.dataRegistry.getMove(moveId).pp);
@@ -1694,7 +1698,10 @@ async def run_smoke_test(base_url: str) -> None:
                 chain: Boolean(button?.querySelector(".move-advice-chip.is-chain")),
                 finishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || "",
                 finishCard: document.querySelector(".battle-card.is-enemy")?.classList.contains("is-finish-ready") || false,
-                finishAria: document.querySelector(".battle-card.is-enemy")?.getAttribute("aria-label") || ""
+                finishAria: document.querySelector(".battle-card.is-enemy")?.getAttribute("aria-label") || "",
+                dangerCue: document.querySelector(".battle-card.is-player .battle-danger-cue")?.textContent || "",
+                dangerCard: document.querySelector(".battle-card.is-player")?.classList.contains("is-danger-ready") || false,
+                dangerAria: document.querySelector(".battle-card.is-player")?.getAttribute("aria-label") || ""
               };
             }"""
         )
@@ -1704,22 +1711,30 @@ async def run_smoke_test(base_url: str) -> None:
         expect(move_tactic_state["finishCue"] == "FINISH", "敵HPが少ない時にFINISH表示が出ていません。")
         expect(move_tactic_state["finishCard"], "敵HPカードがフィニッシュ状態になっていません。")
         expect("フィニッシュチャンス" in move_tactic_state["finishAria"], "FINISH表示のアクセシブルラベルがありません。")
+        expect(move_tactic_state["dangerCue"] == "DANGER", "味方HPが少ない時にDANGER表示が出ていません。")
+        expect(move_tactic_state["dangerCard"], "味方HPカードがピンチ状態になっていません。")
+        expect("ピンチ" in move_tactic_state["dangerAria"], "DANGER表示のアクセシブルラベルがありません。")
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.battle.display.enemyHp = 0;
+              state.battle.display.playerHp = 0;
             })"""
         )
         await page.waitForFunction(
-            """() => !document.querySelector(".battle-card.is-enemy .battle-finish-cue")""",
+            """() => !document.querySelector(".battle-card.is-enemy .battle-finish-cue")
+              && !document.querySelector(".battle-card.is-player .battle-danger-cue")""",
             {"timeout": 1200},
         )
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.battle.display.enemyHp = 1;
+              state.party[0].currentHp = state.party[0].maxHp;
+              state.battle.display.playerHp = state.party[0].maxHp;
             })"""
         )
         await page.waitForFunction(
-            """() => document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent === "FINISH" """,
+            """() => document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent === "FINISH"
+              && !document.querySelector(".battle-card.is-player .battle-danger-cue")""",
             {"timeout": 1200},
         )
         await clear_recent_se_ids(page)

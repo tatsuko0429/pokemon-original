@@ -286,6 +286,13 @@ select {
     0 0 0 2px rgba(199, 114, 83, 0.28);
 }
 
+.battle-card.is-danger-ready {
+  border-color: #315d69;
+  box-shadow:
+    0 4px 0 rgba(22, 32, 15, 0.14),
+    0 0 0 2px rgba(59, 126, 142, 0.28);
+}
+
 .battle-card-top {
   display: flex;
   align-items: baseline;
@@ -350,6 +357,18 @@ select {
   animation: battle-finish-cue 620ms steps(2, end) infinite;
 }
 
+.battle-danger-cue {
+  padding: 1px 4px;
+  border: 1px solid #315d69;
+  border-radius: 4px;
+  background: #c7e2e5;
+  color: #184652;
+  font-size: 0.44rem;
+  font-weight: 900;
+  line-height: 1;
+  animation: battle-finish-cue 620ms steps(2, end) infinite;
+}
+
 .battle-hp-track {
   width: 100%;
   height: 7px;
@@ -370,6 +389,10 @@ select {
 
 .battle-card.is-finish-ready .battle-hp-track {
   box-shadow: 0 0 0 2px rgba(199, 114, 83, 0.24);
+}
+
+.battle-card.is-danger-ready .battle-hp-track {
+  box-shadow: 0 0 0 2px rgba(59, 126, 142, 0.24);
 }
 
 .battle-hp-value {
@@ -9996,9 +10019,16 @@ select {
 
     function createBattleCard(options) {
       const card = document.createElement("div");
-      card.className = `battle-card ${options.className} ${options.finishReady ? "is-finish-ready" : ""}`.trim();
+      card.className = [
+        "battle-card",
+        options.className,
+        options.finishReady ? "is-finish-ready" : "",
+        options.dangerReady ? "is-danger-ready" : "",
+      ].filter(Boolean).join(" ");
       if (options.finishReady) {
         card.setAttribute("aria-label", `${options.name} 残りHPわずか フィニッシュチャンス`);
+      } else if (options.dangerReady) {
+        card.setAttribute("aria-label", `${options.name} 残りHPわずか ピンチ`);
       }
 
       const top = document.createElement("div");
@@ -10041,6 +10071,12 @@ select {
         finishCue.textContent = "FINISH";
         finishCue.setAttribute("aria-hidden", "true");
         hpHeading.appendChild(finishCue);
+      } else if (options.dangerReady) {
+        const dangerCue = document.createElement("span");
+        dangerCue.className = "battle-danger-cue";
+        dangerCue.textContent = "DANGER";
+        dangerCue.setAttribute("aria-hidden", "true");
+        hpHeading.appendChild(dangerCue);
       }
       const track = document.createElement("div");
       track.className = "battle-hp-track";
@@ -10513,7 +10549,9 @@ select {
       const enemySpecies = dataRegistry.getSpecies(enemyMonster.speciesId);
       const playerShownHp = formatShownHp(state.battle.display.playerHp);
       const enemyShownHp = formatShownHp(state.battle.display.enemyHp);
+      const playerHpRatio = playerShownHp / Math.max(1, playerMonster.maxHp);
       const enemyHpRatio = enemyShownHp / Math.max(1, enemyMonster.maxHp);
+      const playerDangerReady = playerShownHp > 0 && playerHpRatio <= 0.25;
       const enemyFinishReady = enemyShownHp > 0 && enemyHpRatio <= 0.25;
       const shownExp =
         typeof state.battle.display.playerExp === "number"
@@ -10529,6 +10567,7 @@ select {
       const overlayKey = JSON.stringify({
         playerShownHp,
         enemyShownHp,
+        playerDangerReady,
         enemyFinishReady,
         playerShownExp: Math.round(shownExp * 10) / 10,
         expActive,
@@ -10566,10 +10605,11 @@ select {
           name: playerSpecies.name,
           type: playerSpecies.types.join(" / "),
           level: playerMonster.level,
-          hpRatio: playerShownHp / playerMonster.maxHp,
+          hpRatio: playerHpRatio,
           hpText: `${playerShownHp}/${playerMonster.maxHp}`,
           expRatio: expRatio,
           expActive,
+          dangerReady: playerDangerReady,
           feedback: playerFeedback,
         })
       );
