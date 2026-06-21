@@ -498,6 +498,8 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 multiplier: app.config.game.battle.criticalDamageMultiplier,
                 stylePoint: app.config.game.battle.styleCriticalPoint,
+                finishPoint: app.config.game.battle.styleFinishPoint,
+                finishHpRatio: app.config.game.battle.finishHpRatio,
                 normalDamage: normalResult.damage,
                 criticalDamage: criticalResult.damage,
                 normalCritical: normalResult.isCritical,
@@ -509,6 +511,8 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(abs(critical_damage_state["multiplier"] - 1.5) < 0.0001, "急所ダメージ倍率が想定値ではありません。")
         expect(critical_damage_state["stylePoint"] == 2, "会心のSTYLE加点が想定値ではありません。")
+        expect(critical_damage_state["finishPoint"] == 2, "フィニッシュのSTYLE加点が想定値ではありません。")
+        expect(abs(critical_damage_state["finishHpRatio"] - 0.25) < 0.0001, "フィニッシュ判定HPが想定値ではありません。")
         expect(not critical_damage_state["normalCritical"], "通常ダメージが急所扱いになっています。")
         expect(critical_damage_state["criticalCritical"], "固定急所判定が急所結果へ反映されていません。")
         expect(
@@ -1748,7 +1752,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
               });
             }"""
         )
@@ -1777,7 +1781,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = 1;
                 state.battle.display.enemyHp = 1;
                 state.party[0].currentHp = 1;
@@ -1867,6 +1871,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle
                 && state.battle.currentMessage.includes("スタイルボーナス")
                 && state.battle.style?.criticalHits === 1
+                && state.battle.style?.finishes === 1
               );
             }""",
             {"timeout": 7000},
@@ -1887,6 +1892,7 @@ async def run_smoke_test(base_url: str) -> None:
                 style: state.battle.style,
                 styleText: document.querySelector(".battle-style-badge")?.textContent || "",
                 styleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
+                enemyIntentText: document.querySelector(".battle-enemy-intent")?.textContent || "",
                 pendingExpGain: state.battle.pendingExpGain,
                 pendingStyleBonusExp: state.battle.pendingStyleBonusExp,
                 baseExp
@@ -1894,17 +1900,20 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         expect("STYLE" in style_bonus_state["message"], "スタイルボーナスのSTYLE表示がありません。")
-        expect(style_bonus_state["style"]["points"] >= 3, "コンボと会心のSTYLE点が加算されていません。")
+        expect(style_bonus_state["style"]["points"] >= 5, "コンボ・会心・フィニッシュのSTYLE点が加算されていません。")
         expect(style_bonus_state["style"]["criticalHits"] == 1, "会心回数がSTYLE状態へ記録されていません。")
+        expect(style_bonus_state["style"]["finishes"] == 1, "フィニッシュ回数がSTYLE状態へ記録されていません。")
         expect("STYLE" in style_bonus_state["styleText"] and "pt" in style_bonus_state["styleText"], "STYLEバッジが加点後のポイントを表示していません。")
         expect("+" in style_bonus_state["styleText"], "STYLEバッジに直近の加点が表示されていません。")
         expect("直近+" in style_bonus_state["styleAria"], "STYLEバッジの加点アクセシブルラベルがありません。")
+        expect(not style_bonus_state["enemyIntentText"], "撃破後も敵の次行動予告が表示されています。")
         expect(style_bonus_state["pendingStyleBonusExp"] > 0, "スタイル経験値ボーナスが発生していません。")
         expect(
             style_bonus_state["pendingExpGain"] > style_bonus_state["baseExp"],
             "スタイルボーナスが獲得経験値へ加算されていません。",
         )
         style_audio_ids = await read_recent_se_ids(page)
+        expect("finish" in style_audio_ids, "フィニッシュSEが再生されていません。")
         expect("style" in style_audio_ids, "スタイルボーナスSEが再生されていません。")
         await page.evaluate(
             """() => {
@@ -1923,7 +1932,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
                 state.battle.pendingExpGain = 0;
                 state.battle.pendingStyleBonusExp = 0;
               });

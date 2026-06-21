@@ -2390,6 +2390,8 @@ select {
       styleRushPoint: 3,
       styleStrongHitPoint: 1,
       styleCriticalPoint: 2,
+      styleFinishPoint: 2,
+      finishHpRatio: 0.25,
       styleBonusPerPoint: 0.06,
       styleMaxBonusRatio: 0.35,
     },
@@ -2644,6 +2646,12 @@ select {
           { freq: 880, ms: 48, wave: "triangle", volume: 0.36 },
           { freq: 1174.66, ms: 66, wave: "sine", volume: 0.32 },
           { freq: 1567.98, ms: 90, wave: "sine", volume: 0.24 },
+        ],
+        finish: [
+          { freq: 523.25, ms: 34, wave: "triangle", volume: 0.42 },
+          { freq: 783.99, ms: 46, wave: "triangle", volume: 0.44 },
+          { freq: 1174.66, ms: 62, wave: "sine", volume: 0.36 },
+          { freq: 1567.98, ms: 88, wave: "sine", volume: 0.26 },
         ],
         victory: [
           { freq: 523.25, ms: 46, wave: "triangle", volume: 0.48 },
@@ -9162,6 +9170,14 @@ select {
         };
       }
 
+      if (variant === "finish") {
+        return {
+          main: palette.white,
+          accent: "#d8b546",
+          shadow: "#8f4735",
+        };
+      }
+
       return {
         main: palette.white,
         accent: palette.captureYellow || "#d8b546",
@@ -10431,7 +10447,7 @@ select {
 
     function getBattleEnemyIntentInfo(battle) {
       const enemy = battle && battle.enemy;
-      if (!enemy || !Array.isArray(enemy.moveIds)) {
+      if (!enemy || enemy.currentHp <= 0 || !Array.isArray(enemy.moveIds)) {
         return null;
       }
 
@@ -10862,6 +10878,8 @@ select {
       rushPoint: battleConfig.styleRushPoint || 3,
       strongHitPoint: battleConfig.styleStrongHitPoint || 1,
       criticalPoint: battleConfig.styleCriticalPoint || 2,
+      finishPoint: battleConfig.styleFinishPoint || 2,
+      finishHpRatio: battleConfig.finishHpRatio || 0.25,
       bonusPerPoint: battleConfig.styleBonusPerPoint || 0.06,
       maxBonusRatio: battleConfig.styleMaxBonusRatio || 0.35,
     };
@@ -11129,6 +11147,7 @@ select {
         rushCount: 0,
         strongHits: 0,
         criticalHits: 0,
+        finishes: 0,
       };
     }
 
@@ -11154,7 +11173,26 @@ select {
       return added;
     }
 
-    function recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost) {
+    function isBattleFinisher(hpTargets, fromHp, defender) {
+      return Boolean(
+        hpTargets &&
+        hpTargets.attacker === "player" &&
+        hpTargets.defender === "enemy" &&
+        defender &&
+        defender.currentHp <= 0 &&
+        fromHp > 0 &&
+        fromHp / Math.max(1, defender.maxHp) <= styleConfig.finishHpRatio
+      );
+    }
+
+    function recordBattleStyleHit(
+      battle,
+      hpTargets,
+      outcome,
+      comboBoost,
+      rushBoost,
+      finisher
+    ) {
       if (!battle || !hpTargets || hpTargets.attacker !== "player") {
         return;
       }
@@ -11181,6 +11219,11 @@ select {
       if (outcome && outcome.isCritical) {
         points += styleConfig.criticalPoint;
         style.criticalHits = (style.criticalHits || 0) + 1;
+      }
+
+      if (finisher) {
+        points += styleConfig.finishPoint;
+        style.finishes = (style.finishes || 0) + 1;
       }
 
       addBattleStylePoints(battle, points);
@@ -12174,7 +12217,6 @@ select {
 
         const fromHp = defender.currentHp;
         const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
         const scaledDamage = Math.max(
           Math.round(outcome.damage * (move.damageMultiplier || 2)),
           Math.round(defender.maxHp * (move.minimumDamageRatio || 0))
@@ -12182,6 +12224,8 @@ select {
         const wallResult = createIceWallResult(attacker, defender, scaledDamage);
         const appliedDamage = Math.max(1, Math.min(defender.currentHp, wallResult.damage));
         defender.currentHp = Math.max(0, defender.currentHp - appliedDamage);
+        const finisher = isBattleFinisher(hpTargets, fromHp, defender);
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
 
         steps.push(
           createStep(
@@ -12205,6 +12249,7 @@ select {
           steps,
           defeated: defender.currentHp <= 0,
           attackerDefeated: attacker.currentHp <= 0,
+          finisher,
         };
       }
 
@@ -12235,9 +12280,10 @@ select {
           damageMultiplier,
           powerOverride: form.power || move.power,
         });
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
         const wallResult = createIceWallResult(attacker, defender, outcome.damage);
         defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
+        const finisher = isBattleFinisher(hpTargets, fromHp, defender);
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
 
         steps.push(
           createStep(
@@ -12268,6 +12314,7 @@ select {
           steps,
           defeated: defender.currentHp <= 0,
           attackerDefeated: attacker.currentHp <= 0,
+          finisher,
         };
       }
 
@@ -12327,9 +12374,10 @@ select {
 
       const fromHp = defender.currentHp;
       const outcome = dataRegistry.computeDamage(attacker, defender, move.id, { damageMultiplier });
-      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost);
       const wallResult = createIceWallResult(attacker, defender, outcome.damage);
       defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
+      const finisher = isBattleFinisher(hpTargets, fromHp, defender);
+      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
 
       steps.push(
         createStep(
@@ -12360,6 +12408,7 @@ select {
         steps,
         defeated: defender.currentHp <= 0,
         attackerDefeated: attacker.currentHp <= 0,
+        finisher,
       };
     }
 
@@ -12523,6 +12572,15 @@ select {
           const expGained = expReward.totalExp;
           state.battle.pendingExpGain = expGained;
           state.battle.pendingStyleBonusExp = expReward.bonusExp;
+          if (attack.finisher) {
+            steps.push(
+              createStep(
+                "フィニッシュ！",
+                createResultEffect("finish", "enemy"),
+                "finish"
+              )
+            );
+          }
           steps.push(
             createStep(
               `${enemyLabel} は たおれた！`,
