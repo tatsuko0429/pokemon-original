@@ -499,6 +499,7 @@ async def run_smoke_test(base_url: str) -> None:
                 multiplier: app.config.game.battle.criticalDamageMultiplier,
                 stylePoint: app.config.game.battle.styleCriticalPoint,
                 maxComboPoint: app.config.game.battle.styleMaxComboPoint,
+                dodgeGain: app.config.game.battle.rushDodgeGain,
                 finishPoint: app.config.game.battle.styleFinishPoint,
                 finishHpRatio: app.config.game.battle.finishHpRatio,
                 normalDamage: normalResult.damage,
@@ -513,6 +514,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(abs(critical_damage_state["multiplier"] - 1.5) < 0.0001, "急所ダメージ倍率が想定値ではありません。")
         expect(critical_damage_state["stylePoint"] == 2, "会心のSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["maxComboPoint"] == 2, "最大コンボのSTYLE加点が想定値ではありません。")
+        expect(critical_damage_state["dodgeGain"] == 24, "回避時のRUSH加算量が想定値ではありません。")
         expect(critical_damage_state["finishPoint"] == 2, "フィニッシュのSTYLE加点が想定値ではありません。")
         expect(abs(critical_damage_state["finishHpRatio"] - 0.25) < 0.0001, "フィニッシュ判定HPが想定値ではありません。")
         expect(not critical_damage_state["normalCritical"], "通常ダメージが急所扱いになっています。")
@@ -1289,6 +1291,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.inventory.masterBallCount = 1;
                 state.party[0].currentHp = Math.max(1, state.party[0].currentHp - 6);
                 state.battle.display.playerHp = state.party[0].currentHp;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.phase = "command";
                 state.battle.currentMessage = "";
                 state.battle.animation = null;
@@ -1397,6 +1400,30 @@ async def run_smoke_test(base_url: str) -> None:
               }
             }"""
         )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("見切った"));
+            }""",
+            {"timeout": 7000},
+        )
+        dodge_rush_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                message: state.battle.currentMessage,
+                rush: state.battle.rush,
+                dodgeGain: window.MonsterPrototype.config.game.battle.rushDodgeGain,
+                rushText: document.querySelector(".battle-rush-meter")?.textContent || "",
+                rushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || ""
+              };
+            }"""
+        )
+        expect("見切った" in dodge_rush_state["message"], "敵攻撃回避時のRUSH予兆メッセージが表示されていません。")
+        expect(dodge_rush_state["rush"]["gauge"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時にRUSHゲージが加算されていません。")
+        expect(dodge_rush_state["rush"]["lastDelta"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時のRUSH増分が記録されていません。")
+        expect(not dodge_rush_state["rush"]["ready"], "1回の回避でRUSH READYになっています。")
+        expect(str(dodge_rush_state["dodgeGain"]) in dodge_rush_state["rushText"], "RUSHメーターに回避加算後の値が表示されていません。")
 
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]
@@ -1800,13 +1827,14 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 message: state.battle.currentMessage,
                 rush: state.battle.rush,
+                dodgeGain: window.MonsterPrototype.config.game.battle.rushDodgeGain,
                 enemyHp: state.battle.enemy.currentHp,
                 enemyMaxHp: state.battle.enemy.maxHp
               };
             }"""
         )
         expect("チャンスラッシュ" in rush_fire_state["message"], "チャンスラッシュ発動メッセージが表示されていません。")
-        expect(rush_fire_state["rush"]["gauge"] == 0, "チャンスラッシュ発動後にゲージが消費されていません。")
+        expect(rush_fire_state["rush"]["gauge"] <= rush_fire_state["dodgeGain"], "チャンスラッシュ発動後にゲージが消費されていません。")
         expect(not rush_fire_state["rush"]["ready"], "チャンスラッシュ発動後もREADY状態が残っています。")
         expect(rush_fire_state["enemyHp"] < rush_fire_state["enemyMaxHp"], "チャンスラッシュ攻撃で相手HPが減っていません。")
         rush_audio_ids = await read_recent_se_ids(page)

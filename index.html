@@ -2391,6 +2391,7 @@ select {
       rushAttackGain: 34,
       rushStrongGain: 18,
       rushDamageTakenGain: 30,
+      rushDodgeGain: 24,
       rushPinchGain: 12,
       rushDamageMultiplier: 1.55,
       comboMax: 4,
@@ -10879,6 +10880,7 @@ select {
       attackGain: battleConfig.rushAttackGain || 34,
       strongGain: battleConfig.rushStrongGain || 18,
       damageTakenGain: battleConfig.rushDamageTakenGain || 30,
+      dodgeGain: battleConfig.rushDodgeGain || 24,
       pinchGain: battleConfig.rushPinchGain || 12,
       damageMultiplier: battleConfig.rushDamageMultiplier || 1.5,
     };
@@ -11090,6 +11092,25 @@ select {
       }
 
       const readyStep = chargeBattleRush(battle, gain);
+      if (readyStep) {
+        steps.push(readyStep);
+      }
+    }
+
+    function appendBattleRushDodgeStep(steps, battle, hpTargets) {
+      if (!battle || !hpTargets || !Array.isArray(steps) || hpTargets.attacker !== "enemy" || hpTargets.defender !== "player") {
+        return;
+      }
+
+      const rush = getBattleRush(battle);
+      if (rush.ready) {
+        return;
+      }
+
+      const readyStep = chargeBattleRush(battle, rushConfig.dodgeGain);
+      if (rush.lastDelta > 0) {
+        steps.push(createStep("見切った！", createResultEffect("rush", "player")));
+      }
       if (readyStep) {
         steps.push(readyStep);
       }
@@ -12162,6 +12183,7 @@ select {
             "miss"
           )
         );
+        appendBattleRushDodgeStep(steps, battle, hpTargets);
         resetBattleCombo(battle, hpTargets.attacker);
         return {
           steps,
