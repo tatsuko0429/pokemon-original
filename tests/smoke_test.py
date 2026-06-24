@@ -498,6 +498,7 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 multiplier: app.config.game.battle.criticalDamageMultiplier,
                 stylePoint: app.config.game.battle.styleCriticalPoint,
+                maxComboPoint: app.config.game.battle.styleMaxComboPoint,
                 finishPoint: app.config.game.battle.styleFinishPoint,
                 finishHpRatio: app.config.game.battle.finishHpRatio,
                 normalDamage: normalResult.damage,
@@ -511,6 +512,7 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect(abs(critical_damage_state["multiplier"] - 1.5) < 0.0001, "急所ダメージ倍率が想定値ではありません。")
         expect(critical_damage_state["stylePoint"] == 2, "会心のSTYLE加点が想定値ではありません。")
+        expect(critical_damage_state["maxComboPoint"] == 2, "最大コンボのSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["finishPoint"] == 2, "フィニッシュのSTYLE加点が想定値ではありません。")
         expect(abs(critical_damage_state["finishHpRatio"] - 0.25) < 0.0001, "フィニッシュ判定HPが想定値ではありません。")
         expect(not critical_damage_state["normalCritical"], "通常ダメージが急所扱いになっています。")
@@ -1581,6 +1583,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = state.battle.enemy.maxHp;
                 state.battle.display.enemyHp = state.battle.enemy.maxHp;
                 state.party[0].moveIds = ["body_tap", "ice_wall"];
@@ -1629,6 +1632,79 @@ async def run_smoke_test(base_url: str) -> None:
         expect(combo_fire_state["enemyHp"] < combo_fire_state["enemyMaxHp"], "コンボ攻撃で相手HPが減っていません。")
         combo_audio_ids = await read_recent_se_ids(page)
         expect("combo" in combo_audio_ids, "コンボSEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.combo = { count: 3, lastDelta: 1, lastMultiplier: 1.16 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
+                state.battle.enemy.currentHp = state.battle.enemy.maxHp;
+                state.battle.display.enemyHp = state.battle.enemy.maxHp;
+                state.party[0].moveIds = ["body_tap", "ice_wall"];
+                state.party[0].currentPp = state.party[0].moveIds
+                  .map((moveId) => runtime.dataRegistry.getMove(moveId).pp);
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && !button.disabled)""",
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".move-button")]
+              .some((button) => button.textContent.includes("たいあたり") && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => [...document.querySelectorAll(".move-button")]
+              .find((button) => button.textContent.includes("たいあたり")).click()"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("MAXコンボ 4"));
+            }""",
+            {"timeout": 4000},
+        )
+        max_combo_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              const badge = document.querySelector(".battle-combo-badge");
+              return {
+                message: state.battle.currentMessage,
+                combo: state.battle.combo,
+                style: state.battle.style,
+                comboText: badge?.textContent || "",
+                comboAria: badge?.getAttribute("aria-label") || "",
+                comboIsMax: badge?.classList.contains("is-max") || false,
+                styleText: document.querySelector(".battle-style-badge")?.textContent || "",
+                enemyHp: state.battle.enemy.currentHp,
+                enemyMaxHp: state.battle.enemy.maxHp
+              };
+            }"""
+        )
+        expect("MAXコンボ 4" in max_combo_state["message"], "最大コンボ到達メッセージが表示されていません。")
+        expect(max_combo_state["combo"]["count"] == 4, "コンボ数が最大値の4へ進んでいません。")
+        expect(max_combo_state["comboIsMax"], "最大コンボ表示の強調クラスが付いていません。")
+        expect("最大コンボ" in max_combo_state["comboAria"], "最大コンボ表示のアクセシブルラベルがありません。")
+        expect(max_combo_state["style"]["maxCombos"] == 1, "最大コンボ回数がSTYLE状態へ記録されていません。")
+        expect(max_combo_state["style"]["points"] >= 3, "最大コンボのSTYLE加点が反映されていません。")
+        expect("STYLE" in max_combo_state["styleText"] and "pt" in max_combo_state["styleText"], "最大コンボ後のSTYLE表示が更新されていません。")
+        max_combo_audio_ids = await read_recent_se_ids(page)
+        expect("combo" in max_combo_audio_ids, "最大コンボSEが再生されていません。")
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;
@@ -1752,7 +1828,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
               });
             }"""
         )
@@ -1781,7 +1857,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = 1;
                 state.battle.display.enemyHp = 1;
                 state.party[0].currentHp = 1;
@@ -1932,7 +2008,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, criticalHits: 0, finishes: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.pendingExpGain = 0;
                 state.battle.pendingStyleBonusExp = 0;
               });

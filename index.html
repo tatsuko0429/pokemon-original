@@ -962,6 +962,16 @@ select {
   box-shadow: 0 0 0 2px rgba(143, 181, 83, 0.2);
 }
 
+.battle-combo-badge.is-max {
+  border-color: rgba(136, 83, 38, 0.8);
+  background:
+    linear-gradient(180deg, rgba(255, 240, 194, 0.98), rgba(222, 177, 92, 0.92));
+  color: #5a3513;
+  box-shadow:
+    0 0 0 2px rgba(222, 177, 92, 0.24),
+    0 3px 10px rgba(136, 83, 38, 0.18);
+}
+
 .battle-style-badge {
   min-width: 76px;
   background: rgba(233, 240, 220, 0.78);
@@ -2387,6 +2397,7 @@ select {
       comboDamageStep: 0.08,
       criticalDamageMultiplier: 1.5,
       styleComboPoint: 1,
+      styleMaxComboPoint: 2,
       styleRushPoint: 3,
       styleStrongHitPoint: 1,
       styleCriticalPoint: 2,
@@ -10390,9 +10401,11 @@ select {
     function createBattleComboBadge(battle) {
       const combo = (battle && battle.combo) || {};
       const count = Math.max(0, Number(combo.count) || 0);
+      const maxCombo = Math.max(2, Number(App.config.game.battle.comboMax) || 4);
+      const isMax = count >= maxCombo;
       const root = document.createElement("span");
-      root.className = `battle-combo-badge ${count >= 2 ? "is-active" : ""}`.trim();
-      root.setAttribute("aria-label", `コンボ ${count}`);
+      root.className = `battle-combo-badge ${count >= 2 ? "is-active" : ""} ${isMax ? "is-max" : ""}`.trim();
+      root.setAttribute("aria-label", isMax ? `最大コンボ ${count}` : `コンボ ${count}`);
 
       const label = document.createElement("span");
       label.textContent = "CHAIN";
@@ -10875,6 +10888,7 @@ select {
     };
     const styleConfig = {
       comboPoint: battleConfig.styleComboPoint || 1,
+      maxComboPoint: battleConfig.styleMaxComboPoint || 2,
       rushPoint: battleConfig.styleRushPoint || 3,
       strongHitPoint: battleConfig.styleStrongHitPoint || 1,
       criticalPoint: battleConfig.styleCriticalPoint || 2,
@@ -11115,12 +11129,16 @@ select {
         return {
           multiplier: 1,
           step: null,
+          isMax: false,
+          reachedMax: false,
         };
       }
 
       const combo = getBattleCombo(battle);
       const previousCount = combo.count || 0;
       const nextCount = Math.min(comboConfig.max, previousCount + 1);
+      const isMax = nextCount >= comboConfig.max;
+      const reachedMax = isMax && previousCount < comboConfig.max;
       const multiplier = 1 + Math.max(0, nextCount - 1) * comboConfig.damageStep;
       combo.count = nextCount;
       combo.lastDelta = nextCount - previousCount;
@@ -11131,11 +11149,13 @@ select {
         step:
           nextCount >= 2
             ? createStep(
-                `コンボ ${nextCount}！`,
+                `${isMax ? "MAXコンボ" : "コンボ"} ${nextCount}！`,
                 createResultEffect("combo", "player"),
                 "combo"
               )
             : null,
+        isMax,
+        reachedMax,
       };
     }
 
@@ -11146,6 +11166,7 @@ select {
         bestCombo: 0,
         rushCount: 0,
         strongHits: 0,
+        maxCombos: 0,
         criticalHits: 0,
         finishes: 0,
       };
@@ -11204,6 +11225,11 @@ select {
       if (combo.count >= 2 && comboBoost && comboBoost.step) {
         points += styleConfig.comboPoint;
         style.bestCombo = Math.max(style.bestCombo || 0, combo.count || 0);
+      }
+
+      if (comboBoost && comboBoost.reachedMax) {
+        points += styleConfig.maxComboPoint;
+        style.maxCombos = (style.maxCombos || 0) + 1;
       }
 
       if (rushBoost) {
