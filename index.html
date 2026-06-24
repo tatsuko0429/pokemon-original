@@ -2438,6 +2438,7 @@ select {
       styleComboPoint: 1,
       styleMaxComboPoint: 2,
       styleRushPoint: 3,
+      styleCounterPoint: 1,
       styleStrongHitPoint: 1,
       styleCriticalPoint: 2,
       styleFinishPoint: 2,
@@ -10997,6 +10998,7 @@ select {
       comboPoint: battleConfig.styleComboPoint || 1,
       maxComboPoint: battleConfig.styleMaxComboPoint || 2,
       rushPoint: battleConfig.styleRushPoint || 3,
+      counterPoint: battleConfig.styleCounterPoint || 1,
       strongHitPoint: battleConfig.styleStrongHitPoint || 1,
       criticalPoint: battleConfig.styleCriticalPoint || 2,
       finishPoint: battleConfig.styleFinishPoint || 2,
@@ -11308,6 +11310,7 @@ select {
         lastDelta: 0,
         bestCombo: 0,
         rushCount: 0,
+        counters: 0,
         strongHits: 0,
         maxCombos: 0,
         criticalHits: 0,
@@ -11355,6 +11358,7 @@ select {
       outcome,
       comboBoost,
       rushBoost,
+      counterBoost,
       finisher
     ) {
       if (!battle || !hpTargets || hpTargets.attacker !== "player") {
@@ -11378,6 +11382,11 @@ select {
       if (rushBoost) {
         points += styleConfig.rushPoint;
         style.rushCount = (style.rushCount || 0) + 1;
+      }
+
+      if (counterBoost) {
+        points += styleConfig.counterPoint;
+        style.counters = (style.counters || 0) + 1;
       }
 
       if (outcome && outcome.typeMultiplier > 1) {
@@ -12401,7 +12410,7 @@ select {
         const appliedDamage = Math.max(1, Math.min(defender.currentHp, wallResult.damage));
         defender.currentHp = Math.max(0, defender.currentHp - appliedDamage);
         const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
         steps.push(
           createStep(
@@ -12464,7 +12473,7 @@ select {
         const wallResult = createIceWallResult(attacker, defender, outcome.damage);
         defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
         const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
+        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
         steps.push(
           createStep(
@@ -12563,7 +12572,7 @@ select {
       const wallResult = createIceWallResult(attacker, defender, outcome.damage);
       defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
       const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, finisher);
+      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
       steps.push(
         createStep(

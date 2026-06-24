@@ -499,6 +499,7 @@ async def run_smoke_test(base_url: str) -> None:
                 multiplier: app.config.game.battle.criticalDamageMultiplier,
                 stylePoint: app.config.game.battle.styleCriticalPoint,
                 maxComboPoint: app.config.game.battle.styleMaxComboPoint,
+                counterPoint: app.config.game.battle.styleCounterPoint,
                 dodgeGain: app.config.game.battle.rushDodgeGain,
                 nearReadyRatio: app.config.game.battle.rushNearReadyRatio,
                 finishPoint: app.config.game.battle.styleFinishPoint,
@@ -515,6 +516,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(abs(critical_damage_state["multiplier"] - 1.5) < 0.0001, "急所ダメージ倍率が想定値ではありません。")
         expect(critical_damage_state["stylePoint"] == 2, "会心のSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["maxComboPoint"] == 2, "最大コンボのSTYLE加点が想定値ではありません。")
+        expect(critical_damage_state["counterPoint"] == 1, "反撃チャンスのSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["dodgeGain"] == 24, "回避時のRUSH加算量が想定値ではありません。")
         expect(abs(critical_damage_state["nearReadyRatio"] - 0.7) < 0.0001, "RUSH接近表示のしきい値が想定値ではありません。")
         expect(critical_damage_state["finishPoint"] == 2, "フィニッシュのSTYLE加点が想定値ではありません。")
@@ -1674,7 +1676,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
                 state.battle.counterReady = true;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
-                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, counters: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = 1;
                 state.battle.display.enemyHp = 1;
                 state.party[0].moveIds = ["body_tap", "ice_wall"];
@@ -1712,6 +1714,10 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 message: state.battle.currentMessage,
                 counterReady: Boolean(state.battle.counterReady),
+                style: state.battle.style,
+                counterPoint: window.MonsterPrototype.config.game.battle.styleCounterPoint,
+                styleText: document.querySelector(".battle-style-badge")?.textContent || "",
+                styleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
                 enemyHp: state.battle.enemy.currentHp,
                 enemyMaxHp: state.battle.enemy.maxHp
               };
@@ -1719,6 +1725,13 @@ async def run_smoke_test(base_url: str) -> None:
         )
         expect("カウンターチャンス" in counter_fire_state["message"], "反撃チャンス発動メッセージが表示されていません。")
         expect(not counter_fire_state["counterReady"], "反撃チャンスが攻撃後も消費されていません。")
+        expect(counter_fire_state["style"]["counters"] == 1, "反撃チャンス回数がSTYLE状態へ記録されていません。")
+        expect(
+            counter_fire_state["style"]["points"] >= counter_fire_state["counterPoint"],
+            "反撃チャンスのSTYLE点が加算されていません。",
+        )
+        expect("STYLE" in counter_fire_state["styleText"] and "pt" in counter_fire_state["styleText"], "反撃チャンス後のSTYLE表示が更新されていません。")
+        expect("直近+" in counter_fire_state["styleAria"], "反撃チャンス後のSTYLEアクセシブルラベルに直近加点がありません。")
         expect(counter_fire_state["enemyHp"] < counter_fire_state["enemyMaxHp"], "反撃チャンス攻撃で相手HPが減っていません。")
         counter_audio_ids = await read_recent_se_ids(page)
         expect("combo" in counter_audio_ids, "反撃チャンスSEが再生されていません。")
