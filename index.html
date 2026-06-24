@@ -1481,6 +1481,12 @@ select {
   color: #5d4212;
 }
 
+.move-advice-chip.is-counter {
+  border-color: rgba(119, 61, 46, 0.74);
+  background: rgba(244, 212, 201, 0.9);
+  color: #6b2c22;
+}
+
 .move-advice-chip.is-pick {
   border-color: rgba(93, 66, 18, 0.8);
   background:
@@ -2425,6 +2431,7 @@ select {
       rushPinchGain: 12,
       rushDamageMultiplier: 1.55,
       rushNearReadyRatio: 0.7,
+      counterDamageMultiplier: 1.18,
       comboMax: 4,
       comboDamageStep: 0.08,
       criticalDamageMultiplier: 1.5,
@@ -9626,6 +9633,9 @@ select {
       if (move.power > 0 && settings.rushReady) {
         reasons.push("CHANCE");
       }
+      if (move.power > 0 && settings.counterReady) {
+        reasons.push("反撃");
+      }
       if (move.power > 0 && (settings.comboCount || 0) >= 1) {
         reasons.push("CHAIN");
       }
@@ -9656,8 +9666,12 @@ select {
 
       const typeMultiplier = getMoveTypeMultiplier(move, enemySpecies);
       const rushMultiplier = settings.rushReady ? 1.5 : 1;
+      const counterMultiplier =
+        settings.counterReady
+          ? ((App.config.game.battle && App.config.game.battle.counterDamageMultiplier) || 1.18)
+          : 1;
       const chainMultiplier = (settings.comboCount || 0) >= 1 ? 1.08 : 1;
-      const pressure = move.power * typeMultiplier * rushMultiplier * chainMultiplier;
+      const pressure = move.power * typeMultiplier * rushMultiplier * counterMultiplier * chainMultiplier;
       const enemyHpRatio = Number(settings.enemyHpRatio) || 1;
 
       if (enemyHpRatio <= 0.25 && pressure >= 55) {
@@ -9710,6 +9724,9 @@ select {
 
       if (move.power > 0 && settings.rushReady) {
         score += 5;
+      }
+      if (move.power > 0 && settings.counterReady) {
+        score += 4;
       }
       if (move.power > 0 && (settings.comboCount || 0) >= 1) {
         score += 3;
@@ -9777,6 +9794,9 @@ select {
         }
         if (settings.enemyHpRatio > 0 && settings.enemyHpRatio <= 0.25) {
           tacticalChips.push({ label: "押せる", className: "is-finish" });
+        }
+        if (settings.counterReady) {
+          tacticalChips.push({ label: "COUNTER", className: "is-counter" });
         }
         if ((settings.comboCount || 0) >= 1) {
           tacticalChips.push({ label: "CHAIN", className: "is-chain" });
@@ -10316,14 +10336,22 @@ select {
       const itemCount = fullHealCount + masterBallCount;
 
       const fight = createButton("たたかう", "battle-command-button is-fight", null, settings.disabledAll);
-      fight.dataset.commandHint = settings.rushReady ? "CHANCE" : settings.rushNearReady ? "あと少し" : "技";
+      fight.dataset.commandHint = settings.rushReady
+        ? "CHANCE"
+        : settings.counterReady
+          ? "COUNTER"
+          : settings.rushNearReady
+            ? "あと少し"
+            : "技";
       fight.setAttribute(
         "aria-label",
         settings.rushReady
           ? "たたかう チャンス攻撃を選ぶ"
-          : settings.rushNearReady
-            ? "たたかう チャンスまであと少し"
-            : "たたかう 技を選ぶ"
+          : settings.counterReady
+            ? "たたかう 反撃できる技を選ぶ"
+            : settings.rushNearReady
+              ? "たたかう チャンスまであと少し"
+              : "たたかう 技を選ぶ"
       );
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
       ball.dataset.commandHint = "捕獲";
@@ -10767,6 +10795,7 @@ select {
           enemyHpRatio: battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp),
           comboCount: battle.combo ? battle.combo.count : 0,
           rushReady: rushUiState.ready,
+          counterReady: Boolean(battle.counterReady),
         };
         recommendedMoveId = getRecommendedMoveId(playerMonster, enemySpecies, moveContext);
         recommendedMove = recommendedMoveId ? dataRegistry.getMove(recommendedMoveId) : null;
@@ -10804,6 +10833,7 @@ select {
           masterBallCount: state.inventory.masterBallCount,
           rushReady: rushUiState.ready,
           rushNearReady: rushUiState.nearReady,
+          counterReady: Boolean(battle.counterReady),
         }));
         return panel;
       }
@@ -10817,6 +10847,7 @@ select {
             masterBallCount: state.inventory.masterBallCount,
             rushReady: rushUiState.ready,
             rushNearReady: rushUiState.nearReady,
+            counterReady: Boolean(battle.counterReady),
           })
         );
         return panel;
@@ -10870,6 +10901,7 @@ select {
         battleEnemyCharging: state.battle && state.battle.enemy ? state.battle.enemy.charging || "" : "",
         battleRushGauge: state.battle && state.battle.rush ? state.battle.rush.gauge : 0,
         battleRushReady: state.battle && state.battle.rush ? state.battle.rush.ready : false,
+        battleCounterReady: state.battle ? Boolean(state.battle.counterReady) : false,
         battleComboCount: state.battle && state.battle.combo ? state.battle.combo.count : 0,
         battleStylePoints: state.battle && state.battle.style ? state.battle.style.points : 0,
         battleStyleLastDelta: state.battle && state.battle.style ? state.battle.style.lastDelta : 0,
@@ -10957,6 +10989,9 @@ select {
     const comboConfig = {
       max: battleConfig.comboMax || 4,
       damageStep: battleConfig.comboDamageStep || 0.08,
+    };
+    const counterConfig = {
+      damageMultiplier: battleConfig.counterDamageMultiplier || 1.18,
     };
     const styleConfig = {
       comboPoint: battleConfig.styleComboPoint || 1,
@@ -11140,6 +11175,22 @@ select {
       };
     }
 
+    function consumeBattleCounter(battle, attackerTarget, move) {
+      if (attackerTarget !== "player" || !move || move.power <= 0 || !battle || !battle.counterReady) {
+        return null;
+      }
+
+      battle.counterReady = false;
+      return {
+        multiplier: counterConfig.damageMultiplier,
+        step: createStep(
+          "カウンターチャンス！",
+          createResultEffect("combo", "player"),
+          "combo"
+        ),
+      };
+    }
+
     function appendBattleRushChargeStep(steps, battle, hpTargets, outcome, damage, defender) {
       if (!battle || !hpTargets || !Array.isArray(steps)) {
         return;
@@ -11179,6 +11230,7 @@ select {
 
       const readyStep = chargeBattleRush(battle, rushConfig.dodgeGain);
       if (rush.lastDelta > 0) {
+        battle.counterReady = true;
         steps.push(createStep("見切った！", createResultEffect("rush", "player")));
       }
       if (readyStep) {
@@ -11657,6 +11709,7 @@ select {
           isTrainerBattle: isTrainer,
           trainerInfo: isTrainer ? context : null,
           rush: createBattleRushState(),
+          counterReady: false,
           combo: createBattleComboState(),
           style: createBattleStyleState(),
           display: {
@@ -12324,6 +12377,10 @@ select {
         if (rushBoost) {
           steps.push(rushBoost.step);
         }
+        const counterBoost = consumeBattleCounter(battle, hpTargets.attacker, move);
+        if (counterBoost) {
+          steps.push(counterBoost.step);
+        }
         const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
         if (comboBoost.step) {
           steps.push(comboBoost.step);
@@ -12331,6 +12388,7 @@ select {
         const damageMultiplier =
           baseDamageMultiplier *
           (rushBoost ? rushBoost.multiplier : 1) *
+          (counterBoost ? counterBoost.multiplier : 1) *
           comboBoost.multiplier;
 
         const fromHp = defender.currentHp;
@@ -12384,6 +12442,10 @@ select {
         if (rushBoost) {
           steps.push(rushBoost.step);
         }
+        const counterBoost = consumeBattleCounter(battle, hpTargets.attacker, move);
+        if (counterBoost) {
+          steps.push(counterBoost.step);
+        }
         const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
         if (comboBoost.step) {
           steps.push(comboBoost.step);
@@ -12391,6 +12453,7 @@ select {
         const damageMultiplier =
           baseDamageMultiplier *
           (rushBoost ? rushBoost.multiplier : 1) *
+          (counterBoost ? counterBoost.multiplier : 1) *
           comboBoost.multiplier;
 
         const fromHp = defender.currentHp;
@@ -12481,6 +12544,10 @@ select {
       if (rushBoost) {
         steps.push(rushBoost.step);
       }
+      const counterBoost = consumeBattleCounter(battle, hpTargets.attacker, move);
+      if (counterBoost) {
+        steps.push(counterBoost.step);
+      }
       const comboBoost = advanceBattleCombo(battle, hpTargets.attacker, move);
       if (comboBoost.step) {
         steps.push(comboBoost.step);
@@ -12488,6 +12555,7 @@ select {
       const damageMultiplier =
         baseDamageMultiplier *
         (rushBoost ? rushBoost.multiplier : 1) *
+        (counterBoost ? counterBoost.multiplier : 1) *
         comboBoost.multiplier;
 
       const fromHp = defender.currentHp;

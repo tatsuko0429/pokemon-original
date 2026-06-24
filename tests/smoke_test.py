@@ -1288,6 +1288,7 @@ async def run_smoke_test(base_url: str) -> None:
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.battle.rush = { gauge: 72, ready: false, lastDelta: 0 };
+              state.battle.counterReady = false;
               state.battle.phase = "command";
               state.battle.currentMessage = "";
               state.battle.animation = null;
@@ -1338,6 +1339,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.party[0].currentHp = Math.max(1, state.party[0].currentHp - 6);
                 state.battle.display.playerHp = state.party[0].currentHp;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.phase = "command";
                 state.battle.currentMessage = "";
                 state.battle.animation = null;
@@ -1459,6 +1461,7 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 message: state.battle.currentMessage,
                 rush: state.battle.rush,
+                counterReady: Boolean(state.battle.counterReady),
                 dodgeGain: window.MonsterPrototype.config.game.battle.rushDodgeGain,
                 rushText: document.querySelector(".battle-rush-meter")?.textContent || "",
                 rushDeltaText: document.querySelector(".battle-rush-delta")?.textContent || "",
@@ -1470,6 +1473,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(dodge_rush_state["rush"]["gauge"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時にRUSHゲージが加算されていません。")
         expect(dodge_rush_state["rush"]["lastDelta"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時のRUSH増分が記録されていません。")
         expect(not dodge_rush_state["rush"]["ready"], "1回の回避でRUSH READYになっています。")
+        expect(dodge_rush_state["counterReady"], "敵攻撃回避後に反撃チャンスが準備されていません。")
         expect(str(dodge_rush_state["dodgeGain"]) in dodge_rush_state["rushText"], "RUSHメーターに回避加算後の値が表示されていません。")
         expect(dodge_rush_state["rushDeltaText"] == f"+{dodge_rush_state['dodgeGain']}", "RUSHメーターに直近増分が表示されていません。")
 
@@ -1478,6 +1482,11 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "ボール" && !button.disabled)""",
             {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
         )
+        counter_command_hint = await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう")?.getAttribute("data-command-hint") || "" """
+        )
+        expect(counter_command_hint == "COUNTER", "反撃チャンス中のたたかうボタンにCOUNTERヒントが表示されていません。")
         no_direct_master_button = await page.evaluate(
             """() => [...document.querySelectorAll("#action-panel button")]
               .every((button) => button.textContent !== "Pボール")"""
@@ -1519,9 +1528,14 @@ async def run_smoke_test(base_url: str) -> None:
         expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
         expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
         expect(advice_labels.count("PICK") == 1, "おすすめ技のPICKチップが1つだけ表示されていません。")
+        expect("COUNTER" in advice_labels, "反撃チャンス中の技にCOUNTERチップが表示されていません。")
         expect(
             any("PICK" in entry["label"] for entry in move_ui_state),
             "PICKチップが技ボタンのラベルに反映されていません。",
+        )
+        expect(
+            any("COUNTER" in entry["label"] for entry in move_ui_state),
+            "COUNTERチップが技ボタンのラベルに反映されていません。",
         )
         expect("PICK:" in move_pick_message_state["message"], "技選択中におすすめ技の短い案内が表示されていません。")
         expect(
@@ -1530,7 +1544,7 @@ async def run_smoke_test(base_url: str) -> None:
             "おすすめ技名が技選択メッセージに表示されていません。",
         )
         expect(
-            any(reason in move_pick_message_state["message"] for reason in ("CHANCE", "CHAIN", "弱点", "押し切り", "高火力", "補助")),
+            any(reason in move_pick_message_state["message"] for reason in ("CHANCE", "反撃", "CHAIN", "弱点", "押し切り", "高火力", "補助")),
             "おすすめ技の理由が技選択メッセージに表示されていません。",
         )
         expect(
@@ -1629,6 +1643,102 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
+              });
+            }"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && !button.disabled)""",
+            {"timeout": BATTLE_COMMAND_RETURN_TIMEOUT_MS},
+        )
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              window.__battleCounterMessageAutoAdvance = {
+                ms: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs,
+                perChar: window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs,
+                maxExtra: window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs
+              };
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = 90;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = 0;
+              window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = 0;
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = true;
+                state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
+                state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
+                state.battle.enemy.currentHp = 1;
+                state.battle.display.enemyHp = 1;
+                state.party[0].moveIds = ["body_tap", "ice_wall"];
+                state.party[0].currentPp = state.party[0].moveIds
+                  .map((moveId) => runtime.dataRegistry.getMove(moveId).pp);
+              });
+            }"""
+        )
+        await page.evaluate(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .find((button) => button.textContent === "たたかう").click()"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".move-button")]
+              .some((button) => button.textContent.includes("たいあたり")
+                && button.querySelector(".move-advice-chip.is-counter")
+                && !button.disabled)""",
+            {"timeout": 1200},
+        )
+        await clear_recent_se_ids(page)
+        await page.evaluate(
+            """() => [...document.querySelectorAll(".move-button")]
+              .find((button) => button.textContent.includes("たいあたり")).click()"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(state.battle && state.battle.currentMessage.includes("カウンターチャンス"));
+            }""",
+            {"timeout": 4000},
+        )
+        counter_fire_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                message: state.battle.currentMessage,
+                counterReady: Boolean(state.battle.counterReady),
+                enemyHp: state.battle.enemy.currentHp,
+                enemyMaxHp: state.battle.enemy.maxHp
+              };
+            }"""
+        )
+        expect("カウンターチャンス" in counter_fire_state["message"], "反撃チャンス発動メッセージが表示されていません。")
+        expect(not counter_fire_state["counterReady"], "反撃チャンスが攻撃後も消費されていません。")
+        expect(counter_fire_state["enemyHp"] < counter_fire_state["enemyMaxHp"], "反撃チャンス攻撃で相手HPが減っていません。")
+        counter_audio_ids = await read_recent_se_ids(page)
+        expect("combo" in counter_audio_ids, "反撃チャンスSEが再生されていません。")
+        await page.evaluate(
+            """() => {
+              const runtime = window.MonsterPrototype.runtime;
+              if (window.__battleCounterMessageAutoAdvance) {
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMs = window.__battleCounterMessageAutoAdvance.ms;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvancePerCharMs = window.__battleCounterMessageAutoAdvance.perChar;
+                window.MonsterPrototype.config.game.battle.messageAutoAdvanceMaxExtraMs = window.__battleCounterMessageAutoAdvance.maxExtra;
+              }
+              runtime.store.update((state) => {
+                state.battle.phase = "command";
+                state.battle.currentMessage = "";
+                state.battle.steps = [];
+                state.battle.nextPhase = "command";
+                state.battle.animation = null;
+                state.battle.captureBall = null;
+                state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
               });
             }"""
@@ -1657,6 +1767,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = state.battle.enemy.maxHp;
@@ -1718,6 +1829,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 3, lastDelta: 1, lastMultiplier: 1.16 };
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = state.battle.enemy.maxHp;
@@ -1796,6 +1908,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
               });
             }"""
@@ -1825,6 +1938,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: maxGauge, ready: true, lastDelta: maxGauge };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
                 state.battle.enemy.currentHp = state.battle.enemy.maxHp;
                 state.battle.display.enemyHp = state.battle.enemy.maxHp;
@@ -1903,6 +2017,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
               });
@@ -1932,6 +2047,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 1, lastDelta: 1, lastMultiplier: 1 };
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.enemy.currentHp = 1;
@@ -2083,6 +2199,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.animation = null;
                 state.battle.captureBall = null;
                 state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+                state.battle.counterReady = false;
                 state.battle.combo = { count: 0, lastDelta: 0, lastMultiplier: 1 };
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.pendingExpGain = 0;
