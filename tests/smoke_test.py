@@ -1461,6 +1461,7 @@ async def run_smoke_test(base_url: str) -> None:
                 rush: state.battle.rush,
                 dodgeGain: window.MonsterPrototype.config.game.battle.rushDodgeGain,
                 rushText: document.querySelector(".battle-rush-meter")?.textContent || "",
+                rushDeltaText: document.querySelector(".battle-rush-delta")?.textContent || "",
                 rushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || ""
               };
             }"""
@@ -1470,6 +1471,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(dodge_rush_state["rush"]["lastDelta"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時のRUSH増分が記録されていません。")
         expect(not dodge_rush_state["rush"]["ready"], "1回の回避でRUSH READYになっています。")
         expect(str(dodge_rush_state["dodgeGain"]) in dodge_rush_state["rushText"], "RUSHメーターに回避加算後の値が表示されていません。")
+        expect(dodge_rush_state["rushDeltaText"] == f"+{dodge_rush_state['dodgeGain']}", "RUSHメーターに直近増分が表示されていません。")
 
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]

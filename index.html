@@ -878,7 +878,7 @@ select {
 .battle-rush-meter {
   width: min(100%, 210px);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 5px;
   font-size: 0.54rem;
@@ -898,6 +898,20 @@ select {
 
 .battle-rush-value {
   text-align: left;
+}
+
+.battle-rush-delta {
+  min-width: 28px;
+  padding: 2px 5px;
+  border: 2px solid rgba(48, 116, 111, 0.58);
+  border-radius: 999px;
+  background: rgba(230, 244, 241, 0.82);
+  color: #2f6461;
+  font-size: 0.46rem;
+  font-weight: 900;
+  text-align: center;
+  line-height: 1;
+  animation: battle-style-pop 420ms ease-out;
 }
 
 .battle-rush-track {
@@ -10275,6 +10289,7 @@ select {
       const maxGauge = (App.config.game.battle && App.config.game.battle.rushGaugeMax) || 100;
       const gauge = Math.max(0, Math.min(maxGauge, Number(rush.gauge) || 0));
       const ready = Boolean(rush.ready);
+      const lastDelta = Math.max(0, Math.round(Number(rush.lastDelta) || 0));
       const ratio = maxGauge > 0 ? gauge / maxGauge : 0;
       const nearReadyRatio = (App.config.game.battle && App.config.game.battle.rushNearReadyRatio) || 0.7;
       const nearReady = !ready && ratio >= nearReadyRatio;
@@ -10283,6 +10298,7 @@ select {
         maxGauge,
         ready,
         nearReady,
+        lastDelta,
         remaining: Math.max(0, Math.ceil(maxGauge - gauge)),
       };
     }
@@ -10441,6 +10457,12 @@ select {
       root.appendChild(label);
       root.appendChild(track);
       root.appendChild(value);
+      if (!rushState.ready && rushState.lastDelta > 0) {
+        const delta = document.createElement("span");
+        delta.className = "battle-rush-delta";
+        delta.textContent = `+${rushState.lastDelta}`;
+        root.appendChild(delta);
+      }
       return root;
     }
 
