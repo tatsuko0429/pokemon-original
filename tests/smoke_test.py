@@ -500,6 +500,7 @@ async def run_smoke_test(base_url: str) -> None:
                 stylePoint: app.config.game.battle.styleCriticalPoint,
                 maxComboPoint: app.config.game.battle.styleMaxComboPoint,
                 dodgeGain: app.config.game.battle.rushDodgeGain,
+                nearReadyRatio: app.config.game.battle.rushNearReadyRatio,
                 finishPoint: app.config.game.battle.styleFinishPoint,
                 finishHpRatio: app.config.game.battle.finishHpRatio,
                 normalDamage: normalResult.damage,
@@ -515,6 +516,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect(critical_damage_state["stylePoint"] == 2, "会心のSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["maxComboPoint"] == 2, "最大コンボのSTYLE加点が想定値ではありません。")
         expect(critical_damage_state["dodgeGain"] == 24, "回避時のRUSH加算量が想定値ではありません。")
+        expect(abs(critical_damage_state["nearReadyRatio"] - 0.7) < 0.0001, "RUSH接近表示のしきい値が想定値ではありません。")
         expect(critical_damage_state["finishPoint"] == 2, "フィニッシュのSTYLE加点が想定値ではありません。")
         expect(abs(critical_damage_state["finishHpRatio"] - 0.25) < 0.0001, "フィニッシュ判定HPが想定値ではありません。")
         expect(not critical_damage_state["normalCritical"], "通常ダメージが急所扱いになっています。")
@@ -1192,7 +1194,12 @@ async def run_smoke_test(base_url: str) -> None:
               battleMessageTag: document.querySelector(".battle-message-tag")?.textContent || "",
               battleRushText: document.querySelector(".battle-rush-meter")?.textContent || "",
               battleRushReady: document.querySelector(".battle-rush-meter")?.classList.contains("is-ready") || false,
+              battleRushNear: document.querySelector(".battle-rush-meter")?.classList.contains("is-near-ready") || false,
               battleRushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || "",
+              battleFightHint: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "たたかう")?.getAttribute("data-command-hint") || "",
+              battleFightAria: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "たたかう")?.getAttribute("aria-label") || "",
               battleComboText: document.querySelector(".battle-combo-badge")?.textContent || "",
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
@@ -1235,7 +1242,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(battle_state["battleMessageTag"] in ("EVENT", "WAIT", "COMMAND"), "バトルメッセージ枠に状態タグが表示されていません。")
         expect("CHANCE" in battle_state["battleRushText"], "バトルのチャンスゲージが表示されていません。")
         expect(not battle_state["battleRushReady"], "戦闘開始直後からチャンスゲージがREADYになっています。")
+        expect(not battle_state["battleRushNear"], "戦闘開始直後からRUSH接近表示になっています。")
         expect("チャンス" in battle_state["battleRushAria"], "チャンスゲージのアクセシブルラベルがありません。")
+        expect(battle_state["battleFightHint"] == "技", "戦闘開始直後のたたかう補助ラベルが通常状態ではありません。")
+        expect("技を選ぶ" in battle_state["battleFightAria"], "戦闘開始直後のたたかうアクセシブルラベルが通常状態ではありません。")
         expect("CHAIN" in battle_state["battleComboText"], "バトルのコンボ表示が出ていません。")
         expect("コンボ 0" in battle_state["battleComboAria"], "コンボ表示の初期状態が0になっていません。")
         expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
@@ -1274,6 +1284,42 @@ async def run_smoke_test(base_url: str) -> None:
             "22, 101, 110" in battle_state["hpFillBackground"] or "32, 166, 179" in battle_state["hpFillBackground"],
             "通常HPゲージの色が高コントラストの青緑系に変わっていません。",
         )
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.battle.rush = { gauge: 72, ready: false, lastDelta: 0 };
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
+        )
+        await page.waitForFunction(
+            """() => document.querySelector(".battle-rush-meter.is-near-ready")
+              && [...document.querySelectorAll("#action-panel button")]
+                .some((button) => button.textContent === "たたかう" && button.getAttribute("data-command-hint") === "あと少し")""",
+            {"timeout": 1200},
+        )
+        near_rush_state = await page.evaluate(
+            """() => {
+              const meter = document.querySelector(".battle-rush-meter");
+              const fight = [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "たたかう");
+              return {
+                text: meter?.textContent || "",
+                aria: meter?.getAttribute("aria-label") || "",
+                ready: meter?.classList.contains("is-ready") || false,
+                near: meter?.classList.contains("is-near-ready") || false,
+                hint: fight?.getAttribute("data-command-hint") || "",
+                fightAria: fight?.getAttribute("aria-label") || ""
+              };
+            }"""
+        )
+        expect(near_rush_state["near"], "RUSHが7割を超えても接近表示になっていません。")
+        expect(not near_rush_state["ready"], "RUSH接近表示がREADY扱いになっています。")
+        expect("あと28" in near_rush_state["text"], "RUSH接近表示に残り量が表示されていません。")
+        expect("あと28" in near_rush_state["aria"], "RUSH接近表示のアクセシブルラベルに残り量がありません。")
+        expect(near_rush_state["hint"] == "あと少し", "RUSH接近時のたたかう補助ラベルが表示されていません。")
+        expect("あと少し" in near_rush_state["fightAria"], "RUSH接近時のたたかうアクセシブルラベルがありません。")
 
         await page.evaluate(
             """() => {

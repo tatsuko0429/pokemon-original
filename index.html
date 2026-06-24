@@ -923,6 +923,22 @@ select {
   color: #5d4212;
 }
 
+.battle-rush-meter.is-near-ready {
+  color: #2f6461;
+}
+
+.battle-rush-meter.is-near-ready .battle-rush-track {
+  border-color: rgba(48, 116, 111, 0.78);
+  box-shadow:
+    0 0 0 2px rgba(95, 157, 192, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.battle-rush-meter.is-near-ready .battle-rush-fill {
+  background:
+    linear-gradient(90deg, #5f9dc0, #6fb7aa 58%, #d8b546);
+}
+
 .battle-rush-meter.is-ready .battle-rush-track {
   border-color: #6a5120;
   box-shadow:
@@ -2394,6 +2410,7 @@ select {
       rushDodgeGain: 24,
       rushPinchGain: 12,
       rushDamageMultiplier: 1.55,
+      rushNearReadyRatio: 0.7,
       comboMax: 4,
       comboDamageStep: 0.08,
       criticalDamageMultiplier: 1.5,
@@ -10253,6 +10270,23 @@ select {
       return null;
     }
 
+    function getBattleRushUiState(battle) {
+      const rush = (battle && battle.rush) || {};
+      const maxGauge = (App.config.game.battle && App.config.game.battle.rushGaugeMax) || 100;
+      const gauge = Math.max(0, Math.min(maxGauge, Number(rush.gauge) || 0));
+      const ready = Boolean(rush.ready);
+      const ratio = maxGauge > 0 ? gauge / maxGauge : 0;
+      const nearReadyRatio = (App.config.game.battle && App.config.game.battle.rushNearReadyRatio) || 0.7;
+      const nearReady = !ready && ratio >= nearReadyRatio;
+      return {
+        gauge,
+        maxGauge,
+        ready,
+        nearReady,
+        remaining: Math.max(0, Math.ceil(maxGauge - gauge)),
+      };
+    }
+
     function createBattleCommandButtons(options) {
       const settings = options || {};
       const wrapper = document.createElement("div");
@@ -10266,8 +10300,15 @@ select {
       const itemCount = fullHealCount + masterBallCount;
 
       const fight = createButton("たたかう", "battle-command-button is-fight", null, settings.disabledAll);
-      fight.dataset.commandHint = settings.rushReady ? "CHANCE" : "技";
-      fight.setAttribute("aria-label", settings.rushReady ? "たたかう チャンス攻撃を選ぶ" : "たたかう 技を選ぶ");
+      fight.dataset.commandHint = settings.rushReady ? "CHANCE" : settings.rushNearReady ? "あと少し" : "技";
+      fight.setAttribute(
+        "aria-label",
+        settings.rushReady
+          ? "たたかう チャンス攻撃を選ぶ"
+          : settings.rushNearReady
+            ? "たたかう チャンスまであと少し"
+            : "たたかう 技を選ぶ"
+      );
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
       ball.dataset.commandHint = "捕獲";
       ball.setAttribute("aria-label", "ボール 捕獲を試す");
@@ -10370,13 +10411,17 @@ select {
     }
 
     function createBattleRushMeter(battle) {
-      const rush = (battle && battle.rush) || {};
-      const maxGauge = (App.config.game.battle && App.config.game.battle.rushGaugeMax) || 100;
-      const gauge = Math.max(0, Math.min(maxGauge, Number(rush.gauge) || 0));
-      const ready = Boolean(rush.ready);
+      const rushState = getBattleRushUiState(battle);
       const root = document.createElement("div");
-      root.className = `battle-rush-meter ${ready ? "is-ready" : ""}`.trim();
-      root.setAttribute("aria-label", ready ? "チャンス 準備完了" : `チャンス ${Math.round(gauge)}%`);
+      root.className = `battle-rush-meter ${rushState.ready ? "is-ready" : ""} ${rushState.nearReady ? "is-near-ready" : ""}`.trim();
+      root.setAttribute(
+        "aria-label",
+        rushState.ready
+          ? "チャンス 準備完了"
+          : rushState.nearReady
+            ? `チャンス あと${rushState.remaining}で準備完了`
+            : `チャンス ${Math.round(rushState.gauge)}%`
+      );
 
       const label = document.createElement("span");
       label.className = "battle-rush-label";
@@ -10386,12 +10431,12 @@ select {
       track.className = "battle-rush-track";
       const fill = document.createElement("span");
       fill.className = "battle-rush-fill";
-      fill.style.width = `${ready ? 100 : (gauge / maxGauge) * 100}%`;
+      fill.style.width = `${rushState.ready ? 100 : (rushState.gauge / rushState.maxGauge) * 100}%`;
       track.appendChild(fill);
 
       const value = document.createElement("span");
       value.className = "battle-rush-value";
-      value.textContent = ready ? "READY" : `${Math.round(gauge)}%`;
+      value.textContent = rushState.ready ? "READY" : rushState.nearReady ? `あと${rushState.remaining}` : `${Math.round(rushState.gauge)}%`;
 
       root.appendChild(label);
       root.appendChild(track);
@@ -10692,13 +10737,14 @@ select {
       let recommendedMoveId = "";
       let recommendedMove = null;
       let enemySpecies = null;
+      const rushUiState = getBattleRushUiState(battle);
       if (battle.phase === "moveSelect") {
         enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
         moveContext = {
           enemySpecies,
           enemyHpRatio: battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp),
           comboCount: battle.combo ? battle.combo.count : 0,
-          rushReady: Boolean(battle.rush && battle.rush.ready),
+          rushReady: rushUiState.ready,
         };
         recommendedMoveId = getRecommendedMoveId(playerMonster, enemySpecies, moveContext);
         recommendedMove = recommendedMoveId ? dataRegistry.getMove(recommendedMoveId) : null;
@@ -10734,7 +10780,8 @@ select {
           itemDisabled: true,
           fullHealCount: state.inventory.fullHealCount,
           masterBallCount: state.inventory.masterBallCount,
-          rushReady: Boolean(battle.rush && battle.rush.ready),
+          rushReady: rushUiState.ready,
+          rushNearReady: rushUiState.nearReady,
         }));
         return panel;
       }
@@ -10746,7 +10793,8 @@ select {
             itemDisabled,
             fullHealCount: state.inventory.fullHealCount,
             masterBallCount: state.inventory.masterBallCount,
-            rushReady: Boolean(battle.rush && battle.rush.ready),
+            rushReady: rushUiState.ready,
+            rushNearReady: rushUiState.nearReady,
           })
         );
         return panel;
