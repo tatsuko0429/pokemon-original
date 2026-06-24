@@ -968,6 +968,7 @@ select {
 
 .battle-combo-badge,
 .battle-style-badge,
+.battle-counter-badge,
 .battle-enemy-intent {
   min-width: 66px;
   padding: 3px 7px;
@@ -1030,6 +1031,16 @@ select {
 .battle-style-delta {
   color: #8a5d16;
   font-size: 0.46rem;
+}
+
+.battle-counter-badge {
+  min-width: 78px;
+  border-color: rgba(119, 61, 46, 0.76);
+  background:
+    linear-gradient(180deg, rgba(244, 212, 201, 0.96), rgba(224, 165, 145, 0.9));
+  color: #6b2c22;
+  box-shadow: 0 0 0 2px rgba(119, 61, 46, 0.16);
+  animation: battle-style-pop 420ms ease-out;
 }
 
 .battle-enemy-intent {
@@ -2225,7 +2236,8 @@ select {
   }
 
   .battle-combo-badge,
-  .battle-style-badge {
+  .battle-style-badge,
+  .battle-counter-badge {
     min-width: 58px;
     padding: 2px 6px;
     font-size: 0.46rem;
@@ -10555,6 +10567,25 @@ select {
       return root;
     }
 
+    function createBattleCounterBadge(battle) {
+      if (!battle || !battle.counterReady) {
+        return document.createDocumentFragment();
+      }
+
+      const root = document.createElement("span");
+      root.className = "battle-counter-badge";
+      root.setAttribute("aria-label", "反撃チャンス 待機中");
+
+      const label = document.createElement("span");
+      label.textContent = "COUNTER";
+      const value = document.createElement("span");
+      value.textContent = "待機";
+
+      root.appendChild(label);
+      root.appendChild(value);
+      return root;
+    }
+
     function getBattleEnemyIntentInfo(battle) {
       const enemy = battle && battle.enemy;
       if (!enemy || enemy.currentHp <= 0 || !Array.isArray(enemy.moveIds)) {
@@ -10666,6 +10697,7 @@ select {
       const row = document.createElement("div");
       row.className = "battle-status-row";
       row.appendChild(createBattleRushMeter(battle));
+      row.appendChild(createBattleCounterBadge(battle));
       row.appendChild(createBattleComboBadge(battle));
       row.appendChild(createBattleStyleBadge(battle));
       row.appendChild(createBattleEnemyIntentBadge(battle));

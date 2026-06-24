@@ -1206,6 +1206,8 @@ async def run_smoke_test(base_url: str) -> None:
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
               battleStyleAria: document.querySelector(".battle-style-badge")?.getAttribute("aria-label") || "",
+              battleCounterText: document.querySelector(".battle-counter-badge")?.textContent || "",
+              battleCounterAria: document.querySelector(".battle-counter-badge")?.getAttribute("aria-label") || "",
               battleEnemyIntentText: document.querySelector(".battle-enemy-intent")?.textContent || "",
               battleEnemyIntentAria: document.querySelector(".battle-enemy-intent")?.getAttribute("aria-label") || "",
               enemyFinishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || "",
@@ -1253,6 +1255,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
         expect("0pt" in battle_state["battleStyleText"], "STYLE表示の初期ポイントが0になっていません。")
         expect("スタイル C 0ポイント" in battle_state["battleStyleAria"], "STYLE表示のアクセシブルラベルがありません。")
+        expect(not battle_state["battleCounterText"], "戦闘開始直後からCOUNTER表示が出ています。")
+        expect(not battle_state["battleCounterAria"], "戦闘開始直後からCOUNTERアクセシブルラベルが出ています。")
         expect("NEXT" in battle_state["battleEnemyIntentText"], "相手の気配表示が出ていません。")
         expect("相手の気配" in battle_state["battleEnemyIntentAria"], "相手の気配表示のアクセシブルラベルがありません。")
         expect(not battle_state["enemyFinishCue"], "戦闘開始直後からFINISH表示が出ています。")
@@ -1467,7 +1471,9 @@ async def run_smoke_test(base_url: str) -> None:
                 dodgeGain: window.MonsterPrototype.config.game.battle.rushDodgeGain,
                 rushText: document.querySelector(".battle-rush-meter")?.textContent || "",
                 rushDeltaText: document.querySelector(".battle-rush-delta")?.textContent || "",
-                rushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || ""
+                rushAria: document.querySelector(".battle-rush-meter")?.getAttribute("aria-label") || "",
+                counterText: document.querySelector(".battle-counter-badge")?.textContent || "",
+                counterAria: document.querySelector(".battle-counter-badge")?.getAttribute("aria-label") || ""
               };
             }"""
         )
@@ -1476,6 +1482,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect(dodge_rush_state["rush"]["lastDelta"] == dodge_rush_state["dodgeGain"], "敵攻撃回避時のRUSH増分が記録されていません。")
         expect(not dodge_rush_state["rush"]["ready"], "1回の回避でRUSH READYになっています。")
         expect(dodge_rush_state["counterReady"], "敵攻撃回避後に反撃チャンスが準備されていません。")
+        expect("COUNTER" in dodge_rush_state["counterText"] and "待機" in dodge_rush_state["counterText"], "敵攻撃回避後にCOUNTER待機表示が出ていません。")
+        expect("反撃チャンス" in dodge_rush_state["counterAria"], "COUNTER待機表示のアクセシブルラベルがありません。")
         expect(str(dodge_rush_state["dodgeGain"]) in dodge_rush_state["rushText"], "RUSHメーターに回避加算後の値が表示されていません。")
         expect(dodge_rush_state["rushDeltaText"] == f"+{dodge_rush_state['dodgeGain']}", "RUSHメーターに直近増分が表示されていません。")
 
