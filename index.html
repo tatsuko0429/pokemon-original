@@ -9707,18 +9707,69 @@ select {
       return "標準";
     }
 
+    function getMoveStylePreview(move, enemySpecies, options) {
+      const settings = options || {};
+      if (!move || move.power <= 0) {
+        return { points: 0, reasons: [], label: "" };
+      }
+
+      const battleConfig = App.config.game.battle || {};
+      const reasons = [];
+      let points = 0;
+      if (settings.rushReady) {
+        points += battleConfig.styleRushPoint || 3;
+        reasons.push("CHANCE");
+      }
+      if (settings.counterReady) {
+        points += battleConfig.styleCounterPoint || 1;
+        reasons.push("COUNTER");
+      }
+      if ((settings.comboCount || 0) >= 1) {
+        points += battleConfig.styleComboPoint || 1;
+        reasons.push("CHAIN");
+        const nextComboCount = Math.min(
+          battleConfig.comboMax || 4,
+          (settings.comboCount || 0) + 1
+        );
+        if (nextComboCount >= (battleConfig.comboMax || 4)) {
+          points += battleConfig.styleMaxComboPoint || 2;
+          reasons.push("MAX");
+        }
+      }
+      if (getMoveTypeMultiplier(move, enemySpecies) > 1) {
+        points += battleConfig.styleStrongHitPoint || 1;
+        reasons.push("弱点");
+      }
+      if (
+        settings.enemyHpRatio > 0 &&
+        settings.enemyHpRatio <= ((battleConfig.finishHpRatio || 0.25))
+      ) {
+        points += battleConfig.styleFinishPoint || 2;
+        reasons.push("FINISH");
+      }
+
+      const uniqueReasons = [...new Set(reasons)];
+      return {
+        points,
+        reasons: uniqueReasons,
+        label: points > 0 ? `STYLE候補 +${points}: ${uniqueReasons.join(" / ")}` : "",
+      };
+    }
+
     function getMoveLongDescription(move, currentPp, options) {
       const settings = options || {};
       const effectText = getMoveEffectText(move) || "相手にダメージを与える。";
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
       const accuracyText = move.accuracy > 0 ? `命中 ${move.accuracy}` : "命中 -";
       const pressureText = getMovePressureLabel(move, settings.enemySpecies, settings);
+      const stylePreview = getMoveStylePreview(move, settings.enemySpecies, settings);
       const pickReasons =
         settings.recommended && currentPp > 0
           ? getMoveRecommendationReasons(move, settings.enemySpecies, settings)
           : [];
       const pickText = pickReasons.length ? ` おすすめ: ${pickReasons.join(" / ")}` : "";
-      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp} / 手応え ${pressureText}${pickText}`;
+      const styleText = stylePreview.label ? ` / ${stylePreview.label}` : "";
+      return `${effectText} ${powerText} / ${accuracyText} / PP ${currentPp}/${move.pp} / 手応え ${pressureText}${pickText}${styleText}`;
     }
 
     function getMoveTypeMultiplier(move, enemySpecies) {
@@ -9871,13 +9922,14 @@ select {
       ].filter(Boolean).join(" ");
       const button = createButton("", classNames, null, currentPp <= 0);
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
+      const stylePreview = getMoveStylePreview(move, settings.enemySpecies, settings);
       const pickReasons =
         settings.recommended && currentPp > 0
           ? getMoveRecommendationReasons(move, settings.enemySpecies, settings)
           : [];
       button.setAttribute(
         "aria-label",
-        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")}${pickReasons.length ? ` おすすめ理由 ${pickReasons.join(" ")}` : ""} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
+        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")}${pickReasons.length ? ` おすすめ理由 ${pickReasons.join(" ")}` : ""}${stylePreview.label ? ` ${stylePreview.label}` : ""} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
       );
 
       if (onHover) {
