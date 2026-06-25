@@ -1902,6 +1902,8 @@ async def run_smoke_test(base_url: str) -> None:
                 comboAria: badge?.getAttribute("aria-label") || "",
                 comboIsMax: badge?.classList.contains("is-max") || false,
                 styleText: document.querySelector(".battle-style-badge")?.textContent || "",
+                pendingMessages: (state.battle.steps || []).map((step) => step.text || "").join("\\n"),
+                pendingSounds: (state.battle.steps || []).map((step) => step.soundId || ""),
                 enemyHp: state.battle.enemy.currentHp,
                 enemyMaxHp: state.battle.enemy.maxHp
               };
@@ -1914,6 +1916,11 @@ async def run_smoke_test(base_url: str) -> None:
         expect(max_combo_state["style"]["maxCombos"] == 1, "最大コンボ回数がSTYLE状態へ記録されていません。")
         expect(max_combo_state["style"]["points"] >= 3, "最大コンボのSTYLE加点が反映されていません。")
         expect("STYLE" in max_combo_state["styleText"] and "pt" in max_combo_state["styleText"], "最大コンボ後のSTYLE表示が更新されていません。")
+        expect(
+            "STYLE B ランクアップ" in max_combo_state["message"] or "STYLE B ランクアップ" in max_combo_state["pendingMessages"],
+            "STYLEランクアップの戦闘メッセージがキューに追加されていません。",
+        )
+        expect("style" in max_combo_state["pendingSounds"], "STYLEランクアップSEがキューに追加されていません。")
         max_combo_audio_ids = await read_recent_se_ids(page)
         expect("combo" in max_combo_audio_ids, "最大コンボSEが再生されていません。")
         await page.evaluate(

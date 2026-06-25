@@ -11429,12 +11429,14 @@ select {
       finisher
     ) {
       if (!battle || !hpTargets || hpTargets.attacker !== "player") {
-        return;
+        return null;
       }
 
       let points = 0;
       const style = getBattleStyle(battle);
       const combo = getBattleCombo(battle);
+      const previousPoints = Math.max(0, Number(style.points) || 0);
+      const previousRank = getBattleStyleRank(previousPoints);
 
       if (combo.count >= 2 && comboBoost && comboBoost.step) {
         points += styleConfig.comboPoint;
@@ -11471,7 +11473,16 @@ select {
         style.finishes = (style.finishes || 0) + 1;
       }
 
-      addBattleStylePoints(battle, points);
+      const added = addBattleStylePoints(battle, points);
+      const nextPoints = Math.max(0, Number(style.points) || 0);
+      const nextRank = getBattleStyleRank(nextPoints);
+      return {
+        added,
+        points: nextPoints,
+        previousRank,
+        rank: nextRank,
+        rankedUp: added > 0 && previousRank !== nextRank,
+      };
     }
 
     function getBattleStyleRank(points) {
@@ -11520,6 +11531,20 @@ select {
       steps.push(
         createStep(
           `STYLE ${reward.rank}！\nスタイルボーナス +${reward.bonusExp} 経験値！`,
+          createResultEffect("style", "player"),
+          "style"
+        )
+      );
+    }
+
+    function appendBattleStyleRankUpStep(steps, styleResult) {
+      if (!Array.isArray(steps) || !styleResult || !styleResult.rankedUp) {
+        return;
+      }
+
+      steps.push(
+        createStep(
+          `STYLE ${styleResult.rank} ランクアップ！`,
           createResultEffect("style", "player"),
           "style"
         )
@@ -12477,7 +12502,7 @@ select {
         const appliedDamage = Math.max(1, Math.min(defender.currentHp, wallResult.damage));
         defender.currentHp = Math.max(0, defender.currentHp - appliedDamage);
         const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
+        const styleResult = recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
         steps.push(
           createStep(
@@ -12487,6 +12512,7 @@ select {
           )
         );
         appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+        appendBattleStyleRankUpStep(steps, styleResult);
         if (!rushBoost) {
           appendBattleRushChargeStep(steps, battle, hpTargets, outcome, appliedDamage, defender);
         }
@@ -12540,7 +12566,7 @@ select {
         const wallResult = createIceWallResult(attacker, defender, outcome.damage);
         defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
         const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-        recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
+        const styleResult = recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
         steps.push(
           createStep(
@@ -12550,6 +12576,7 @@ select {
           )
         );
         appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+        appendBattleStyleRankUpStep(steps, styleResult);
         if (!rushBoost) {
           appendBattleRushChargeStep(
             steps,
@@ -12639,7 +12666,7 @@ select {
       const wallResult = createIceWallResult(attacker, defender, outcome.damage);
       defender.currentHp = Math.max(0, defender.currentHp - wallResult.damage);
       const finisher = isBattleFinisher(hpTargets, fromHp, defender);
-      recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
+      const styleResult = recordBattleStyleHit(battle, hpTargets, outcome, comboBoost, rushBoost, counterBoost, finisher);
 
       steps.push(
         createStep(
@@ -12649,6 +12676,7 @@ select {
         )
       );
       appendIceWallReflectSteps(steps, attacker, wallResult, hpTargets);
+      appendBattleStyleRankUpStep(steps, styleResult);
       if (!rushBoost) {
         appendBattleRushChargeStep(
           steps,
