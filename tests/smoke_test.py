@@ -1529,7 +1529,8 @@ async def run_smoke_test(base_url: str) -> None:
               const recommended = document.querySelector(".move-button.is-recommended:not(:disabled)");
               return {
                 message: document.querySelector(".battle-message-text")?.textContent || "",
-                recommendedName: recommended?.querySelector(".move-name")?.textContent || ""
+                recommendedName: recommended?.querySelector(".move-name")?.textContent || "",
+                recommendedStyle: recommended?.querySelector(".move-style-preview")?.textContent || ""
               };
             }"""
         )
@@ -1563,6 +1564,11 @@ async def run_smoke_test(base_url: str) -> None:
             any(label in move_pick_message_state["message"] for label in ("決定打", "大ダメ", "安定", "標準", "軽め", "補助")),
             "おすすめ技の手応えが技選択メッセージに表示されていません。",
         )
+        if move_pick_message_state["recommendedStyle"]:
+            expect(
+                move_pick_message_state["recommendedStyle"] in move_pick_message_state["message"],
+                "おすすめ技のSTYLE候補が技選択メッセージに表示されていません。",
+            )
         expect("CHANCE" not in advice_labels, "準備前の技にCHANCEチップが表示されています。")
         move_tag = await page.evaluate(
             """() => document.querySelector(".battle-message-tag")?.textContent || "" """

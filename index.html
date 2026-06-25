@@ -9854,7 +9854,9 @@ select {
 
       const reasons = getMoveRecommendationReasons(move, enemySpecies, options);
       const pressureText = getMovePressureLabel(move, enemySpecies, options);
-      const detailParts = [pressureText, ...reasons.slice(0, 2)].filter(Boolean);
+      const stylePreview = getMoveStylePreview(move, enemySpecies, options);
+      const styleText = stylePreview.points > 0 ? `STYLE+${stylePreview.points}` : "";
+      const detailParts = [pressureText, ...reasons.slice(0, 2), styleText].filter(Boolean);
       const detailText = detailParts.length ? ` / ${detailParts.join("・")}` : "";
       return `PICK: ${move.name}${detailText}`;
     }
