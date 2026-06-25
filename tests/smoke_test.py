@@ -1725,6 +1725,11 @@ async def run_smoke_test(base_url: str) -> None:
             }""",
             {"timeout": 4000},
         )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-combo")]
+              .some((badge) => badge.textContent.includes("CHAIN") && badge.textContent.includes("UP"))""",
+            {"timeout": 1200},
+        )
         counter_fire_state = await page.evaluate(
             """() => {
               const state = window.MonsterPrototype.runtime.store.snapshot();
@@ -1831,6 +1836,11 @@ async def run_smoke_test(base_url: str) -> None:
               return Boolean(state.battle && state.battle.currentMessage.includes("コンボ 2"));
             }""",
             {"timeout": 4000},
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-combo")]
+              .some((badge) => badge.textContent.includes("CHAIN") && badge.textContent.includes("UP"))""",
+            {"timeout": 1200},
         )
         combo_fire_state = await page.evaluate(
             """() => {
@@ -2023,6 +2033,11 @@ async def run_smoke_test(base_url: str) -> None:
             }""",
             {"timeout": 4000},
         )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-rush")]
+              .some((badge) => badge.textContent.includes("CHANCE") && badge.textContent.includes("GO"))""",
+            {"timeout": 1200},
+        )
         rush_fire_state = await page.evaluate(
             """() => {
               const state = window.MonsterPrototype.runtime.store.snapshot();
@@ -2194,6 +2209,11 @@ async def run_smoke_test(base_url: str) -> None:
               );
             }""",
             {"timeout": 7000},
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-style")]
+              .some((badge) => badge.textContent.includes("STYLE") && badge.textContent.includes("UP"))""",
+            {"timeout": 1200},
         )
         await page.evaluate(
             """() => {

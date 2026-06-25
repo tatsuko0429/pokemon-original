@@ -498,6 +498,33 @@ select {
     0 0 0 2px rgba(248, 214, 118, 0.72);
 }
 
+.battle-feedback-badge.is-rush {
+  background: linear-gradient(180deg, #f8f4d7, #6fb5dc);
+  color: #173d53;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(24, 59, 81, 0.22),
+    0 0 0 2px rgba(216, 181, 70, 0.46);
+}
+
+.battle-feedback-badge.is-combo {
+  background: linear-gradient(180deg, #f3f6dc, #a8c37b);
+  color: #31461f;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(49, 70, 31, 0.22),
+    0 0 0 2px rgba(143, 181, 83, 0.46);
+}
+
+.battle-feedback-badge.is-style {
+  background: linear-gradient(180deg, #e6f4f1, #d2b463);
+  color: #284d4d;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(40, 77, 77, 0.22),
+    0 0 0 2px rgba(95, 157, 192, 0.36);
+}
+
 .battle-feedback-badge.is-finish {
   background: linear-gradient(180deg, #fff4c7, #8f4735);
   color: #fff8dc;
@@ -535,6 +562,9 @@ select {
 
 .battle-feedback-badge.is-strong .battle-feedback-note,
 .battle-feedback-badge.is-critical .battle-feedback-note,
+.battle-feedback-badge.is-rush .battle-feedback-note,
+.battle-feedback-badge.is-combo .battle-feedback-note,
+.battle-feedback-badge.is-style .battle-feedback-note,
 .battle-feedback-badge.is-weak .battle-feedback-note,
 .battle-feedback-badge.is-heal .battle-feedback-note,
 .battle-feedback-badge.is-exp .battle-feedback-note,
@@ -10348,6 +10378,21 @@ select {
       return badge;
     }
 
+    function getBattleResultFeedback(variant) {
+      switch (variant) {
+        case "rush":
+          return { main: "CHANCE", note: "GO", className: "is-rush" };
+        case "combo":
+          return { main: "CHAIN", note: "UP", className: "is-combo" };
+        case "style":
+          return { main: "STYLE", note: "UP", className: "is-style" };
+        case "finish":
+          return { main: "FINISH", note: "KO", className: "is-finish" };
+        default:
+          return null;
+      }
+    }
+
     function getBattleFeedback(state, target) {
       const animation = state.battle && state.battle.animation;
       if (!animation) {
@@ -10399,12 +10444,8 @@ select {
         };
       }
 
-      if (animation.kind === "result" && animation.target === target && animation.variant === "finish") {
-        return {
-          main: "FINISH",
-          note: "KO",
-          className: "is-finish",
-        };
+      if (animation.kind === "result" && animation.target === target) {
+        return getBattleResultFeedback(animation.variant);
       }
 
       if (animation.kind === "exp" && target === "player") {
