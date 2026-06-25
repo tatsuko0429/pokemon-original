@@ -1296,6 +1296,56 @@ async def run_smoke_test(base_url: str) -> None:
 
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
+              window.__battleIntentOriginalEnemy = {
+                moveIds: [...state.battle.enemy.moveIds],
+                currentPp: [...state.battle.enemy.currentPp],
+                currentHp: state.battle.enemy.currentHp
+              };
+              state.battle.enemy.moveIds = ["wind_up"];
+              state.battle.enemy.currentPp = [1];
+              state.battle.enemy.currentHp = state.battle.enemy.maxHp;
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
+        )
+        await page.waitForFunction(
+            """() => {
+              const intent = document.querySelector(".battle-enemy-intent.is-danger");
+              return Boolean(intent && intent.textContent.includes("大技注意") && intent.textContent.includes("ネジまき"));
+            }""",
+            {"timeout": 1200},
+        )
+        enemy_intent_detail_state = await page.evaluate(
+            """() => {
+              const intent = document.querySelector(".battle-enemy-intent");
+              return {
+                text: intent?.textContent || "",
+                detail: intent?.querySelector(".battle-enemy-intent-detail")?.textContent || "",
+                aria: intent?.getAttribute("aria-label") || "",
+                danger: intent?.classList.contains("is-danger") || false
+              };
+            }"""
+        )
+        expect(enemy_intent_detail_state["danger"], "大技予兆が危険表示になっていません。")
+        expect(enemy_intent_detail_state["detail"] == "ネジまき", "敵の気配に根拠となる技名が表示されていません。")
+        expect("ネジまき" in enemy_intent_detail_state["aria"], "敵の気配のアクセシブルラベルに技名がありません。")
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              const original = window.__battleIntentOriginalEnemy;
+              if (original) {
+                state.battle.enemy.moveIds = original.moveIds;
+                state.battle.enemy.currentPp = original.currentPp;
+                state.battle.enemy.currentHp = original.currentHp;
+              }
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
+        )
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.battle.rush = { gauge: 72, ready: false, lastDelta: 0 };
               state.battle.counterReady = false;
               state.battle.phase = "command";

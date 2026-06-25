@@ -1142,6 +1142,16 @@ select {
   color: #5f4630;
 }
 
+.battle-enemy-intent-detail {
+  max-width: 72px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 0.44rem;
+  opacity: 0.72;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .battle-enemy-intent.is-danger {
   border-color: rgba(119, 61, 46, 0.72);
   background: rgba(244, 212, 201, 0.86);
@@ -10833,10 +10843,12 @@ select {
       }
 
       if (enemy.charging) {
+        const chargingMove = dataRegistry.getMove(enemy.charging);
         return {
           value: "溜め中",
+          detail: chargingMove ? chargingMove.name : "",
           className: "is-danger",
-          aria: "相手の気配 溜め技を継続",
+          aria: `相手の気配 溜め技を継続${chargingMove ? ` ${chargingMove.name}` : ""}`,
         };
       }
 
@@ -10851,6 +10863,7 @@ select {
       if (!usableMoves.length) {
         return {
           value: "息切れ",
+          detail: "PP 0",
           className: "is-safe",
           aria: "相手の気配 技を出せない",
         };
@@ -10863,8 +10876,9 @@ select {
       if (healMove && enemy.currentHp < enemy.maxHp && hpRatio <= 0.4) {
         return {
           value: "回復注意",
+          detail: healMove.move.name,
           className: "is-heal",
-          aria: "相手の気配 回復に注意",
+          aria: `相手の気配 回復に注意 ${healMove.move.name}`,
         };
       }
 
@@ -10877,30 +10891,35 @@ select {
       if (heavyMove && (heavyMove.move.power || 0) >= 80) {
         return {
           value: "大技注意",
+          detail: heavyMove.move.name,
           className: "is-danger",
           aria: `相手の気配 ${heavyMove.move.name}に注意`,
         };
       }
 
-      if (usableMoves.some(({ move }) => move.effect === "chance_big_damage")) {
+      const chanceMove = usableMoves.find(({ move }) => move.effect === "chance_big_damage");
+      if (chanceMove) {
         return {
           value: "一発注意",
+          detail: chanceMove.move.name,
           className: "is-danger",
-          aria: "相手の気配 一発技に注意",
+          aria: `相手の気配 一発技に注意 ${chanceMove.move.name}`,
         };
       }
 
       if (usableMoves.every(({ move }) => !move.power || move.power <= 0)) {
         return {
           value: "補助気配",
+          detail: usableMoves[0].move.name,
           className: "",
-          aria: "相手の気配 補助技の可能性",
+          aria: `相手の気配 補助技の可能性 ${usableMoves[0].move.name}`,
         };
       }
 
       if (hpRatio <= 0.25) {
         return {
           value: "押し切れる",
+          detail: "HP少",
           className: "is-safe",
           aria: "相手の気配 残りHPが少ない",
         };
@@ -10908,8 +10927,9 @@ select {
 
       return {
         value: "攻撃気配",
+        detail: heavyMove ? heavyMove.move.name : "",
         className: "",
-        aria: "相手の気配 攻撃に注意",
+        aria: `相手の気配 攻撃に注意${heavyMove ? ` ${heavyMove.move.name}` : ""}`,
       };
     }
 
@@ -10930,6 +10950,12 @@ select {
 
       root.appendChild(label);
       root.appendChild(value);
+      if (intent.detail) {
+        const detail = document.createElement("span");
+        detail.className = "battle-enemy-intent-detail";
+        detail.textContent = intent.detail;
+        root.appendChild(detail);
+      }
       return root;
     }
 
