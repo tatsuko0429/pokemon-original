@@ -2179,6 +2179,11 @@ async def run_smoke_test(base_url: str) -> None:
             }"""
         )
         await page.waitForFunction(
+            """() => [...document.querySelectorAll(".battle-feedback-badge.is-finish")]
+              .some((badge) => badge.textContent.includes("FINISH") && badge.textContent.includes("KO"))""",
+            {"timeout": 7000},
+        )
+        await page.waitForFunction(
             """() => {
               const state = window.MonsterPrototype.runtime.store.snapshot();
               return Boolean(
