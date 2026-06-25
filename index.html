@@ -525,6 +525,42 @@ select {
     0 0 0 2px rgba(95, 157, 192, 0.36);
 }
 
+.battle-feedback-badge.is-victory {
+  background: linear-gradient(180deg, #fff6cf, #d8b546);
+  color: #4f3d13;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(79, 61, 19, 0.22),
+    0 0 0 2px rgba(216, 181, 70, 0.54);
+}
+
+.battle-feedback-badge.is-level {
+  background: linear-gradient(180deg, #f8f4d7, #7fbf75);
+  color: #1e3f25;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(30, 63, 37, 0.22),
+    0 0 0 2px rgba(127, 191, 117, 0.42);
+}
+
+.battle-feedback-badge.is-reward {
+  background: linear-gradient(180deg, #f0e9ff, #b8a0e8);
+  color: #35235f;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(53, 35, 95, 0.2),
+    0 0 0 2px rgba(155, 109, 232, 0.34);
+}
+
+.battle-feedback-badge.is-capture {
+  background: linear-gradient(180deg, #f8f4d7, #9cbcdb);
+  color: #173d53;
+  text-shadow: none;
+  box-shadow:
+    0 3px 0 rgba(23, 61, 83, 0.22),
+    0 0 0 2px rgba(156, 188, 219, 0.42);
+}
+
 .battle-feedback-badge.is-finish {
   background: linear-gradient(180deg, #fff4c7, #8f4735);
   color: #fff8dc;
@@ -565,6 +601,10 @@ select {
 .battle-feedback-badge.is-rush .battle-feedback-note,
 .battle-feedback-badge.is-combo .battle-feedback-note,
 .battle-feedback-badge.is-style .battle-feedback-note,
+.battle-feedback-badge.is-victory .battle-feedback-note,
+.battle-feedback-badge.is-level .battle-feedback-note,
+.battle-feedback-badge.is-reward .battle-feedback-note,
+.battle-feedback-badge.is-capture .battle-feedback-note,
 .battle-feedback-badge.is-weak .battle-feedback-note,
 .battle-feedback-badge.is-heal .battle-feedback-note,
 .battle-feedback-badge.is-exp .battle-feedback-note,
@@ -10386,6 +10426,14 @@ select {
           return { main: "CHAIN", note: "UP", className: "is-combo" };
         case "style":
           return { main: "STYLE", note: "UP", className: "is-style" };
+        case "victory":
+          return { main: "WIN", note: "OK", className: "is-victory" };
+        case "level":
+          return { main: "LEVEL", note: "UP", className: "is-level" };
+        case "reward":
+          return { main: "ITEM", note: "GET", className: "is-reward" };
+        case "capture":
+          return { main: "GET", note: "JOIN", className: "is-capture" };
         case "finish":
           return { main: "FINISH", note: "KO", className: "is-finish" };
         default:

@@ -2349,6 +2349,41 @@ async def run_smoke_test(base_url: str) -> None:
         )
         exp_audio_ids = await read_recent_se_ids(page)
         expect("exp_tick" in exp_audio_ids, "経験値バー増加SEが再生されていません。")
+        for result_variant, badge_class, main_text, note_text in (
+            ("victory", "is-victory", "WIN", "OK"),
+            ("level", "is-level", "LEVEL", "UP"),
+            ("reward", "is-reward", "ITEM", "GET"),
+            ("capture", "is-capture", "GET", "JOIN"),
+        ):
+            await page.evaluate(
+                """(variant) => {
+                  const runtime = window.MonsterPrototype.runtime;
+                  runtime.store.update((state) => {
+                    state.battle.phase = "message";
+                    state.battle.currentMessage = `result ${variant}`;
+                    state.battle.animation = {
+                      kind: "result",
+                      variant,
+                      target: "player",
+                      elapsedMs: 0,
+                      durationMs: 520
+                    };
+                  });
+                }""",
+                result_variant,
+            )
+            await page.waitForFunction(
+                f"""() => [...document.querySelectorAll(".battle-feedback-badge.{badge_class}")]
+                  .some((badge) => badge.textContent.includes("{main_text}") && badge.textContent.includes("{note_text}"))""",
+                {"timeout": 1200},
+            )
+            await page.waitForFunction(
+                """() => {
+                  const state = window.MonsterPrototype.runtime.store.snapshot();
+                  return Boolean(state.battle && !state.battle.animation);
+                }""",
+                {"timeout": 4000},
+            )
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;
