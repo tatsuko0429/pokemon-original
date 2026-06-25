@@ -11537,6 +11537,14 @@ select {
       );
     }
 
+    function formatBattleStyleVictorySummary(reward) {
+      if (!reward || reward.points <= 0) {
+        return "";
+      }
+
+      return `戦績: STYLE ${reward.rank} / ${reward.points}pt`;
+    }
+
     function appendBattleStyleRankUpStep(steps, styleResult) {
       if (!Array.isArray(steps) || !styleResult || !styleResult.rankedUp) {
         return;
@@ -11806,6 +11814,7 @@ select {
           messageElapsedMs: 0,
           captureBall: null,
           pendingCloseResult: null,
+          pendingStyleSummary: "",
           enemy: enemyMonster,
           isTrainerBattle: isTrainer,
           trainerInfo: isTrainer ? context : null,
@@ -11992,6 +12001,10 @@ select {
 
         if ((state.battle.pendingStyleBonusExp || 0) > 0) {
           message += `\nスタイルボーナス +${state.battle.pendingStyleBonusExp} 経験値！`;
+        }
+        const styleSummary = state.battle.pendingStyleSummary || "";
+        if (styleSummary) {
+          message += `\n${styleSummary}`;
         }
 
         const closeResult = {
@@ -12739,6 +12752,7 @@ select {
         const expGained = expReward.totalExp;
         state.battle.pendingExpGain = expGained;
         state.battle.pendingStyleBonusExp = expReward.bonusExp;
+        state.battle.pendingStyleSummary = formatBattleStyleVictorySummary(expReward);
         steps.push(
           createStep(
             `やせいの ${enemySpecies.name} は たおれた！`,
@@ -12862,6 +12876,7 @@ select {
           const expGained = expReward.totalExp;
           state.battle.pendingExpGain = expGained;
           state.battle.pendingStyleBonusExp = expReward.bonusExp;
+          state.battle.pendingStyleSummary = formatBattleStyleVictorySummary(expReward);
           if (attack.finisher) {
             steps.push(
               createStep(

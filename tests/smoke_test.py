@@ -2194,6 +2194,7 @@ async def run_smoke_test(base_url: str) -> None:
                 enemyIntentText: document.querySelector(".battle-enemy-intent")?.textContent || "",
                 pendingExpGain: state.battle.pendingExpGain,
                 pendingStyleBonusExp: state.battle.pendingStyleBonusExp,
+                pendingStyleSummary: state.battle.pendingStyleSummary || "",
                 baseExp
               };
             }"""
@@ -2212,6 +2213,8 @@ async def run_smoke_test(base_url: str) -> None:
             style_bonus_state["pendingExpGain"] > style_bonus_state["baseExp"],
             "スタイルボーナスが獲得経験値へ加算されていません。",
         )
+        expect("STYLE" in style_bonus_state["pendingStyleSummary"], "勝利サマリーにSTYLEランクが記録されていません。")
+        expect("pt" in style_bonus_state["pendingStyleSummary"], "勝利サマリーにSTYLEポイントが記録されていません。")
         style_audio_ids = await read_recent_se_ids(page)
         expect("finish" in style_audio_ids, "フィニッシュSEが再生されていません。")
         expect("style" in style_audio_ids, "スタイルボーナスSEが再生されていません。")
@@ -2236,6 +2239,7 @@ async def run_smoke_test(base_url: str) -> None:
                 state.battle.style = { points: 0, lastDelta: 0, bestCombo: 0, rushCount: 0, strongHits: 0, maxCombos: 0, criticalHits: 0, finishes: 0 };
                 state.battle.pendingExpGain = 0;
                 state.battle.pendingStyleBonusExp = 0;
+                state.battle.pendingStyleSummary = "";
               });
             }"""
         )
