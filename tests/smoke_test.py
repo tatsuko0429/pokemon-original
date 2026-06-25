@@ -2108,6 +2108,7 @@ async def run_smoke_test(base_url: str) -> None:
                 text: button?.textContent || "",
                 aria: button?.getAttribute("aria-label") || "",
                 styleTip: button?.querySelector(".move-hold-tip")?.textContent || "",
+                stylePill: button?.querySelector(".move-style-preview")?.textContent || "",
                 finish: Boolean(button?.querySelector(".move-advice-chip.is-finish")),
                 chain: Boolean(button?.querySelector(".move-advice-chip.is-chain")),
                 finishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || "",
@@ -2125,6 +2126,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("STYLE候補" in move_tactic_state["styleTip"], "技長押し説明にSTYLE候補が表示されていません。")
         expect("CHAIN" in move_tactic_state["styleTip"] and "FINISH" in move_tactic_state["styleTip"], "技長押し説明にSTYLE候補の理由が表示されていません。")
         expect("STYLE候補" in move_tactic_state["aria"], "STYLE候補が技ボタンのアクセシブルラベルに反映されていません。")
+        expect(move_tactic_state["stylePill"].startswith("STYLE+"), "技ボタンにSTYLE候補の数値表示がありません。")
         expect(move_tactic_state["finishCue"] == "FINISH", "敵HPが少ない時にFINISH表示が出ていません。")
         expect(move_tactic_state["finishCard"], "敵HPカードがフィニッシュ状態になっていません。")
         expect("フィニッシュチャンス" in move_tactic_state["finishAria"], "FINISH表示のアクセシブルラベルがありません。")

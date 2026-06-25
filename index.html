@@ -1576,7 +1576,8 @@ select {
 .move-type,
 .move-pp,
 .move-power,
-.move-accuracy {
+.move-accuracy,
+.move-style-preview {
   min-width: 46px;
   padding: 3px 6px;
   border: 2px solid rgba(32, 34, 27, 0.7);
@@ -1599,6 +1600,16 @@ select {
   padding-block: 2px;
   border-color: rgba(32, 34, 27, 0.42);
   color: rgba(32, 34, 27, 0.72);
+}
+
+.move-style-preview {
+  flex: 1 1 64px;
+  min-width: 58px;
+  padding-block: 2px;
+  border-color: rgba(51, 87, 94, 0.58);
+  background: rgba(213, 237, 247, 0.72);
+  color: #255464;
+  font-weight: 900;
 }
 
 .control-button.move-button.is-type-grass {
@@ -9988,6 +9999,9 @@ select {
       const accuracy = document.createElement("span");
       accuracy.className = "move-accuracy";
       accuracy.textContent = `命中 ${move.accuracy}`;
+      const style = document.createElement("span");
+      style.className = "move-style-preview";
+      style.textContent = `STYLE+${stylePreview.points}`;
 
       meta.appendChild(type);
       meta.appendChild(pp);
@@ -9999,6 +10013,9 @@ select {
       ppRow.appendChild(ppValue);
       detail.appendChild(power);
       detail.appendChild(accuracy);
+      if (stylePreview.points > 0) {
+        detail.appendChild(style);
+      }
       button.appendChild(main);
       button.appendChild(advice);
       button.appendChild(ppRow);
