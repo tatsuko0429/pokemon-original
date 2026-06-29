@@ -1238,6 +1238,33 @@ select {
   line-height: 1;
 }
 
+.control-button.battle-command-button[data-command-hint="CHANCE"]::after,
+.control-button.battle-command-button[data-command-hint="COUNTER"]::after,
+.control-button.battle-command-button[data-command-hint="FINISH"]::after {
+  border-color: rgba(108, 74, 20, 0.82);
+  background: linear-gradient(180deg, rgba(255, 240, 194, 0.96), rgba(216, 181, 70, 0.88));
+  color: #4f3512;
+  box-shadow: 0 0 0 2px rgba(216, 181, 70, 0.22);
+}
+
+.control-button.battle-command-button[data-command-hint="高め"]::after,
+.control-button.battle-command-button[data-command-hint="好機"]::after,
+.control-button.battle-command-button[data-command-hint="回復"]::after,
+.control-button.battle-command-button[data-command-hint="急回復"]::after {
+  border-color: rgba(59, 103, 67, 0.76);
+  background: linear-gradient(180deg, rgba(222, 239, 203, 0.96), rgba(137, 184, 107, 0.88));
+  color: #274f2e;
+  box-shadow: 0 0 0 2px rgba(137, 184, 107, 0.18);
+}
+
+.control-button.battle-command-button[data-command-hint="不可"]::after,
+.control-button.battle-command-button[data-command-hint="在庫0"]::after,
+.control-button.battle-command-button[data-command-hint="使用不可"]::after {
+  border-color: rgba(94, 64, 64, 0.72);
+  background: rgba(221, 212, 204, 0.84);
+  color: #5d4040;
+}
+
 .control-button.battle-command-button:not([disabled]):hover:not(:active):not(.is-active),
 .control-button.battle-command-button:not([disabled]):focus-visible:not(:active):not(.is-active) {
   transform: translateY(-1px);

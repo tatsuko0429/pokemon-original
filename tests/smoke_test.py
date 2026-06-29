@@ -1325,12 +1325,14 @@ async def run_smoke_test(base_url: str) -> None:
                 .find((button) => button.textContent === "にげる");
               return {
                 hint: run?.getAttribute("data-command-hint") || "",
-                aria: run?.getAttribute("aria-label") || ""
+                aria: run?.getAttribute("aria-label") || "",
+                unavailableHintBackground: run ? getComputedStyle(run, "::after").backgroundColor : ""
               };
             }"""
         )
         expect(trainer_run_state["hint"] == "不可", "トレーナー戦のにげる補助ラベルが不可になっていません。")
         expect("逃げられない" in trainer_run_state["aria"], "トレーナー戦のにげるアクセシブルラベルがありません。")
+        expect("221, 212, 204" in trainer_run_state["unavailableHintBackground"], "使用不可ヒントが抑えた表示になっていません。")
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
               state.battle.isTrainerBattle = false;
@@ -1422,17 +1424,21 @@ async def run_smoke_test(base_url: str) -> None:
               return {
                 hint: fight?.getAttribute("data-command-hint") || "",
                 aria: fight?.getAttribute("aria-label") || "",
+                hintBackground: fight ? getComputedStyle(fight, "::after").backgroundImage : "",
                 ballHint: ball?.getAttribute("data-command-hint") || "",
                 ballAria: ball?.getAttribute("aria-label") || "",
+                ballHintBackground: ball ? getComputedStyle(ball, "::after").backgroundImage : "",
                 enemyFinishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || ""
               };
             }"""
         )
         expect(finish_command_state["hint"] == "FINISH", "敵HP低下時のたたかう補助ラベルがFINISHになっていません。")
         expect("フィニッシュ" in finish_command_state["aria"], "FINISH時のたたかうアクセシブルラベルがありません。")
+        expect("linear-gradient" in finish_command_state["hintBackground"], "FINISHヒントが強調表示になっていません。")
         expect(finish_command_state["enemyFinishCue"] == "FINISH", "敵HPカードのFINISH表示とコマンドヒントが揃っていません。")
         expect(finish_command_state["ballHint"] == "高め", "捕まえやすい状態でボール補助ラベルが高めになっていません。")
         expect("捕獲の手応え 高め" in finish_command_state["ballAria"], "ボールの捕獲目安がアクセシブルラベルに反映されていません。")
+        expect("linear-gradient" in finish_command_state["ballHintBackground"], "捕獲好機ヒントが強調表示になっていません。")
 
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
@@ -1512,13 +1518,15 @@ async def run_smoke_test(base_url: str) -> None:
                 .find((button) => button.textContent === "アイテム");
               return {
                 hint: item?.getAttribute("data-command-hint") || "",
-                aria: item?.getAttribute("aria-label") || ""
+                aria: item?.getAttribute("aria-label") || "",
+                hintBackground: item ? getComputedStyle(item, "::after").backgroundImage : ""
               };
             }"""
         )
         expect(item_command_state["hint"] in ("回復", "急回復"), "HPが減っている時のアイテム補助ラベルが回復系になっていません。")
         expect("回復薬 1個" in item_command_state["aria"], "アイテム補助ラベルのアクセシブル情報に回復薬数がありません。")
         expect("HP" in item_command_state["aria"], "アイテム補助ラベルのアクセシブル情報にHP状況がありません。")
+        expect("linear-gradient" in item_command_state["hintBackground"], "回復ヒントが強調表示になっていません。")
         await clear_recent_se_ids(page)
         await page.evaluate(
             """() => {
