@@ -10569,6 +10569,45 @@ select {
       };
     }
 
+    function getBattleItemHint(state) {
+      const inventory = (state && state.inventory) || {};
+      const playerMonster = state && state.party ? state.party[0] : null;
+      const fullHealCount = Math.max(0, Number(inventory.fullHealCount) || 0);
+      const masterBallCount = Math.max(0, Number(inventory.masterBallCount) || 0);
+      const itemCount = fullHealCount + masterBallCount;
+      if (itemCount <= 0) {
+        return { label: "在庫0", aria: "アイテム 在庫なし" };
+      }
+
+      const hpRatio = playerMonster
+        ? playerMonster.currentHp / Math.max(1, playerMonster.maxHp)
+        : 1;
+      const canHeal = Boolean(
+        playerMonster &&
+        fullHealCount > 0 &&
+        playerMonster.currentHp < playerMonster.maxHp
+      );
+      if (canHeal) {
+        const label = hpRatio <= 0.35 ? "急回復" : "回復";
+        return {
+          label,
+          aria: `アイテム 回復薬 ${fullHealCount}個 HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
+        };
+      }
+
+      if (masterBallCount > 0) {
+        return {
+          label: "Pボール",
+          aria: `アイテム パーフェクトボール ${masterBallCount}個`,
+        };
+      }
+
+      return {
+        label: `道具 x${itemCount}`,
+        aria: `アイテム 回復薬 ${fullHealCount}個 パーフェクトボール ${masterBallCount}個`,
+      };
+    }
+
     function createBattleCommandButtons(options) {
       const settings = options || {};
       const wrapper = document.createElement("div");
@@ -10615,10 +10654,10 @@ select {
         null,
         settings.disabledAll || settings.itemDisabled
       );
-      item.dataset.commandHint = settings.itemDisabled ? "在庫0" : `道具 x${itemCount}`;
+      item.dataset.commandHint = settings.itemHint || (settings.itemDisabled ? "在庫0" : `道具 x${itemCount}`);
       item.setAttribute(
         "aria-label",
-        `アイテム 回復薬 ${fullHealCount}個 パーフェクトボール ${masterBallCount}個`
+        settings.itemAria || `アイテム 回復薬 ${fullHealCount}個 パーフェクトボール ${masterBallCount}個`
       );
 
       if (!settings.disabledAll) {
@@ -11128,6 +11167,7 @@ select {
         ? battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp)
         : 1;
       const captureHint = getBattleCaptureHint(battle);
+      const itemHint = getBattleItemHint(state);
       const enemyFinishReady =
         Boolean(battle.enemy) &&
         battle.enemy.currentHp > 0 &&
@@ -11181,6 +11221,8 @@ select {
           finishReady: enemyFinishReady,
           ballHint: captureHint.label,
           ballAria: captureHint.aria,
+          itemHint: itemHint.label,
+          itemAria: itemHint.aria,
         }));
         return panel;
       }
@@ -11198,6 +11240,8 @@ select {
             finishReady: enemyFinishReady,
             ballHint: captureHint.label,
             ballAria: captureHint.aria,
+            itemHint: itemHint.label,
+            itemAria: itemHint.aria,
           })
         );
         return panel;

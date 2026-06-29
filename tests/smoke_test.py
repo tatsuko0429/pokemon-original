@@ -1466,6 +1466,19 @@ async def run_smoke_test(base_url: str) -> None:
               .some((button) => button.textContent === "アイテム" && !button.disabled)""",
             {"timeout": 1200},
         )
+        item_command_state = await page.evaluate(
+            """() => {
+              const item = [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "アイテム");
+              return {
+                hint: item?.getAttribute("data-command-hint") || "",
+                aria: item?.getAttribute("aria-label") || ""
+              };
+            }"""
+        )
+        expect(item_command_state["hint"] in ("回復", "急回復"), "HPが減っている時のアイテム補助ラベルが回復系になっていません。")
+        expect("回復薬 1個" in item_command_state["aria"], "アイテム補助ラベルのアクセシブル情報に回復薬数がありません。")
+        expect("HP" in item_command_state["aria"], "アイテム補助ラベルのアクセシブル情報にHP状況がありません。")
         await clear_recent_se_ids(page)
         await page.evaluate(
             """() => {
