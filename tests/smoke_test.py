@@ -1206,6 +1206,10 @@ async def run_smoke_test(base_url: str) -> None:
                 .find((button) => button.textContent === "ボール")?.getAttribute("data-command-hint") || "",
               battleBallAria: [...document.querySelectorAll("#action-panel button")]
                 .find((button) => button.textContent === "ボール")?.getAttribute("aria-label") || "",
+              battleRunHint: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "にげる")?.getAttribute("data-command-hint") || "",
+              battleRunAria: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "にげる")?.getAttribute("aria-label") || "",
               battleComboText: document.querySelector(".battle-combo-badge")?.textContent || "",
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
@@ -1256,6 +1260,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("技を選ぶ" in battle_state["battleFightAria"], "戦闘開始直後のたたかうアクセシブルラベルが通常状態ではありません。")
         expect(battle_state["battleBallHint"] in ("高め", "好機", "狙える", "低め"), "ボールボタンに捕獲目安が表示されていません。")
         expect("捕獲の手応え" in battle_state["battleBallAria"], "ボールボタンのアクセシブルラベルに捕獲目安がありません。")
+        expect(battle_state["battleRunHint"] == "退避", "野生戦のにげる補助ラベルが退避になっていません。")
+        expect("戦闘から離れる" in battle_state["battleRunAria"], "野生戦のにげるアクセシブルラベルがありません。")
         expect("CHAIN" in battle_state["battleComboText"], "バトルのコンボ表示が出ていません。")
         expect("コンボ 0" in battle_state["battleComboAria"], "コンボ表示の初期状態が0になっていません。")
         expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
@@ -1298,6 +1304,40 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             "22, 101, 110" in battle_state["hpFillBackground"] or "32, 166, 179" in battle_state["hpFillBackground"],
             "通常HPゲージの色が高コントラストの青緑系に変わっていません。",
+        )
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.battle.isTrainerBattle = true;
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "にげる" && button.getAttribute("data-command-hint") === "不可")""",
+            {"timeout": 1200},
+        )
+        trainer_run_state = await page.evaluate(
+            """() => {
+              const run = [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "にげる");
+              return {
+                hint: run?.getAttribute("data-command-hint") || "",
+                aria: run?.getAttribute("aria-label") || ""
+              };
+            }"""
+        )
+        expect(trainer_run_state["hint"] == "不可", "トレーナー戦のにげる補助ラベルが不可になっていません。")
+        expect("逃げられない" in trainer_run_state["aria"], "トレーナー戦のにげるアクセシブルラベルがありません。")
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.battle.isTrainerBattle = false;
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
         )
 
         await page.evaluate(

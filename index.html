@@ -10608,6 +10608,20 @@ select {
       };
     }
 
+    function getBattleRunHint(battle) {
+      if (battle && battle.isTrainerBattle) {
+        return {
+          label: "不可",
+          aria: "にげる トレーナー戦では逃げられない",
+        };
+      }
+
+      return {
+        label: "退避",
+        aria: "にげる 戦闘から離れる",
+      };
+    }
+
     function createBattleCommandButtons(options) {
       const settings = options || {};
       const wrapper = document.createElement("div");
@@ -10646,8 +10660,8 @@ select {
       ball.dataset.commandHint = settings.ballHint || "捕獲";
       ball.setAttribute("aria-label", settings.ballAria || "ボール 捕獲を試す");
       const run = createButton("にげる", "battle-command-button is-run", null, settings.disabledAll);
-      run.dataset.commandHint = "撤退";
-      run.setAttribute("aria-label", "にげる 戦闘から離れる");
+      run.dataset.commandHint = settings.runHint || "退避";
+      run.setAttribute("aria-label", settings.runAria || "にげる 戦闘から離れる");
       const item = createButton(
         "アイテム",
         `battle-command-button is-item ${settings.itemDisabled && !settings.disabledAll ? "is-subtle" : ""}`,
@@ -11168,6 +11182,7 @@ select {
         : 1;
       const captureHint = getBattleCaptureHint(battle);
       const itemHint = getBattleItemHint(state);
+      const runHint = getBattleRunHint(battle);
       const enemyFinishReady =
         Boolean(battle.enemy) &&
         battle.enemy.currentHp > 0 &&
@@ -11223,6 +11238,8 @@ select {
           ballAria: captureHint.aria,
           itemHint: itemHint.label,
           itemAria: itemHint.aria,
+          runHint: runHint.label,
+          runAria: runHint.aria,
         }));
         return panel;
       }
@@ -11242,6 +11259,8 @@ select {
             ballAria: captureHint.aria,
             itemHint: itemHint.label,
             itemAria: itemHint.aria,
+            runHint: runHint.label,
+            runAria: runHint.aria,
           })
         );
         return panel;
