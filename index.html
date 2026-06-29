@@ -10554,18 +10554,22 @@ select {
         ? "CHANCE"
         : settings.counterReady
           ? "COUNTER"
-          : settings.rushNearReady
-            ? "あと少し"
-            : "技";
+          : settings.finishReady
+            ? "FINISH"
+            : settings.rushNearReady
+              ? "あと少し"
+              : "技";
       fight.setAttribute(
         "aria-label",
         settings.rushReady
           ? "たたかう チャンス攻撃を選ぶ"
           : settings.counterReady
             ? "たたかう 反撃できる技を選ぶ"
-            : settings.rushNearReady
-              ? "たたかう チャンスまであと少し"
-              : "たたかう 技を選ぶ"
+            : settings.finishReady
+              ? "たたかう フィニッシュを狙う"
+              : settings.rushNearReady
+                ? "たたかう チャンスまであと少し"
+                : "たたかう 技を選ぶ"
       );
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
       ball.dataset.commandHint = "捕獲";
@@ -11087,11 +11091,19 @@ select {
       let recommendedMove = null;
       let enemySpecies = null;
       const rushUiState = getBattleRushUiState(battle);
+      const battleConfig = App.config.game.battle || {};
+      const enemyHpRatio = battle.enemy
+        ? battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp)
+        : 1;
+      const enemyFinishReady =
+        Boolean(battle.enemy) &&
+        battle.enemy.currentHp > 0 &&
+        enemyHpRatio <= (battleConfig.finishHpRatio || 0.25);
       if (battle.phase === "moveSelect") {
         enemySpecies = dataRegistry.getSpecies(battle.enemy.speciesId);
         moveContext = {
           enemySpecies,
-          enemyHpRatio: battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp),
+          enemyHpRatio,
           comboCount: battle.combo ? battle.combo.count : 0,
           rushReady: rushUiState.ready,
           counterReady: Boolean(battle.counterReady),
@@ -11133,6 +11145,7 @@ select {
           rushReady: rushUiState.ready,
           rushNearReady: rushUiState.nearReady,
           counterReady: Boolean(battle.counterReady),
+          finishReady: enemyFinishReady,
         }));
         return panel;
       }
@@ -11147,6 +11160,7 @@ select {
             rushReady: rushUiState.ready,
             rushNearReady: rushUiState.nearReady,
             counterReady: Boolean(battle.counterReady),
+            finishReady: enemyFinishReady,
           })
         );
         return panel;

@@ -1346,6 +1346,40 @@ async def run_smoke_test(base_url: str) -> None:
 
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
+              const finishRatio = window.MonsterPrototype.config.game.battle.finishHpRatio || 0.25;
+              state.battle.enemy.currentHp = Math.max(1, Math.floor(state.battle.enemy.maxHp * finishRatio));
+              state.battle.display.enemyHp = state.battle.enemy.currentHp;
+              state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
+              state.battle.counterReady = false;
+              state.battle.phase = "command";
+              state.battle.currentMessage = "";
+              state.battle.animation = null;
+            })"""
+        )
+        await page.waitForFunction(
+            """() => [...document.querySelectorAll("#action-panel button")]
+              .some((button) => button.textContent === "たたかう" && button.getAttribute("data-command-hint") === "FINISH")""",
+            {"timeout": 1200},
+        )
+        finish_command_state = await page.evaluate(
+            """() => {
+              const fight = [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "たたかう");
+              return {
+                hint: fight?.getAttribute("data-command-hint") || "",
+                aria: fight?.getAttribute("aria-label") || "",
+                enemyFinishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || ""
+              };
+            }"""
+        )
+        expect(finish_command_state["hint"] == "FINISH", "敵HP低下時のたたかう補助ラベルがFINISHになっていません。")
+        expect("フィニッシュ" in finish_command_state["aria"], "FINISH時のたたかうアクセシブルラベルがありません。")
+        expect(finish_command_state["enemyFinishCue"] == "FINISH", "敵HPカードのFINISH表示とコマンドヒントが揃っていません。")
+
+        await page.evaluate(
+            """() => window.MonsterPrototype.runtime.store.update((state) => {
+              state.battle.enemy.currentHp = state.battle.enemy.maxHp;
+              state.battle.display.enemyHp = state.battle.enemy.maxHp;
               state.battle.rush = { gauge: 72, ready: false, lastDelta: 0 };
               state.battle.counterReady = false;
               state.battle.phase = "command";
