@@ -1689,6 +1689,7 @@ async def run_smoke_test(base_url: str) -> None:
               name: button.querySelector(".move-name")?.textContent || "",
               meta: button.querySelector(".move-meta")?.textContent || "",
               advice: [...button.querySelectorAll(".move-advice-chip")].map((chip) => chip.textContent),
+              accuracy: button.querySelector(".move-accuracy")?.textContent || "",
               effectiveness: button.querySelector(".move-effectiveness")?.textContent || "",
               pressure: button.querySelector(".move-pressure")?.textContent || "",
               label: button.getAttribute("aria-label") || ""
@@ -1707,9 +1708,15 @@ async def run_smoke_test(base_url: str) -> None:
         expect(any(entry["name"] for entry in move_ui_state), "技名が技ボタン内に表示されていません。")
         expect(any("PP" in entry["meta"] for entry in move_ui_state), "技ボタン内にPPが表示されていません。")
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
+        accuracy_labels = [entry["accuracy"] for entry in move_ui_state if entry["accuracy"]]
         advice_labels = [label for entry in move_ui_state for label in entry["advice"]]
         effectiveness_labels = [entry["effectiveness"] for entry in move_ui_state if entry["effectiveness"]]
         pressure_labels = [entry["pressure"] for entry in move_ui_state if entry["pressure"]]
+        expect(accuracy_labels, "技ボタンに命中安定度が表示されていません。")
+        expect(
+            any(label.startswith("安定") or label.startswith("注意") for label in accuracy_labels),
+            "技ボタンの命中表示が安定度表記になっていません。",
+        )
         expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
         expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
         expect(effectiveness_labels, "攻撃技に相性ピルが表示されていません。")
@@ -1739,6 +1746,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             any("手応え" in entry["label"] for entry in move_ui_state if entry["pressure"]),
             "手応えピルが技ボタンのアクセシブルラベルに反映されていません。",
+        )
+        expect(
+            any("命中 安定" in entry["label"] or "命中 注意" in entry["label"] for entry in move_ui_state),
+            "命中安定度が技ボタンのアクセシブルラベルに反映されていません。",
         )
         expect("PICK:" in move_pick_message_state["message"], "技選択中におすすめ技の短い案内が表示されていません。")
         expect(
