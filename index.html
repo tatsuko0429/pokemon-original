@@ -1703,6 +1703,7 @@ select {
 .move-power,
 .move-accuracy,
 .move-effectiveness,
+.move-pressure,
 .move-style-preview {
   min-width: 46px;
   padding: 3px 6px;
@@ -1747,6 +1748,29 @@ select {
 .move-effectiveness.is-weak {
   border-color: rgba(119, 61, 46, 0.68);
   background: rgba(244, 212, 201, 0.82);
+  color: #6b2c22;
+}
+
+.move-pressure {
+  flex: 1 1 52px;
+  min-width: 48px;
+  padding-block: 2px;
+  border-color: rgba(51, 87, 94, 0.56);
+  background: rgba(213, 237, 247, 0.7);
+  color: #255464;
+  font-weight: 900;
+}
+
+.move-pressure.is-high,
+.move-pressure.is-finish {
+  border-color: rgba(93, 66, 18, 0.72);
+  background: rgba(248, 238, 171, 0.88);
+  color: #5d4212;
+}
+
+.move-pressure.is-light {
+  border-color: rgba(119, 61, 46, 0.62);
+  background: rgba(244, 212, 201, 0.78);
   color: #6b2c22;
 }
 
@@ -9866,6 +9890,20 @@ select {
       return "標準";
     }
 
+    function getMovePressureClass(label) {
+      switch (label) {
+        case "決定打":
+          return "is-finish";
+        case "大ダメ":
+        case "安定":
+          return "is-high";
+        case "軽め":
+          return "is-light";
+        default:
+          return "";
+      }
+    }
+
     function getMoveStylePreview(move, enemySpecies, options) {
       const settings = options || {};
       if (!move || move.power <= 0) {
@@ -10118,6 +10156,7 @@ select {
       const button = createButton("", classNames, null, currentPp <= 0);
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
       const effectiveness = getMoveEffectivenessInfo(move, settings.enemySpecies);
+      const pressureText = getMovePressureLabel(move, settings.enemySpecies, settings);
       const stylePreview = getMoveStylePreview(move, settings.enemySpecies, settings);
       const pickReasons =
         settings.recommended && currentPp > 0
@@ -10125,7 +10164,7 @@ select {
           : [];
       button.setAttribute(
         "aria-label",
-        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")}${effectiveness ? ` 相性 ${effectiveness.label}` : ""}${pickReasons.length ? ` おすすめ理由 ${pickReasons.join(" ")}` : ""}${stylePreview.label ? ` ${stylePreview.label}` : ""} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
+        `${move.name} ${move.type} ${adviceChips.map((chip) => chip.label).join(" ")}${move.power > 0 ? ` 手応え ${pressureText}` : ""}${effectiveness ? ` 相性 ${effectiveness.label}` : ""}${pickReasons.length ? ` おすすめ理由 ${pickReasons.join(" ")}` : ""}${stylePreview.label ? ` ${stylePreview.label}` : ""} PP ${currentPp}/${move.pp} ${powerText} 命中 ${move.accuracy}`
       );
 
       if (onHover) {
@@ -10187,6 +10226,9 @@ select {
       const effectivenessElement = document.createElement("span");
       effectivenessElement.className = `move-effectiveness ${effectiveness ? effectiveness.className : ""}`.trim();
       effectivenessElement.textContent = effectiveness ? effectiveness.label : "補助";
+      const pressure = document.createElement("span");
+      pressure.className = `move-pressure ${getMovePressureClass(pressureText)}`.trim();
+      pressure.textContent = pressureText;
       const style = document.createElement("span");
       style.className = "move-style-preview";
       style.textContent = `STYLE+${stylePreview.points}`;
@@ -10203,6 +10245,9 @@ select {
       detail.appendChild(accuracy);
       if (effectiveness) {
         detail.appendChild(effectivenessElement);
+      }
+      if (move.power > 0) {
+        detail.appendChild(pressure);
       }
       if (stylePreview.points > 0) {
         detail.appendChild(style);

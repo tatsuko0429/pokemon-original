@@ -1690,6 +1690,7 @@ async def run_smoke_test(base_url: str) -> None:
               meta: button.querySelector(".move-meta")?.textContent || "",
               advice: [...button.querySelectorAll(".move-advice-chip")].map((chip) => chip.textContent),
               effectiveness: button.querySelector(".move-effectiveness")?.textContent || "",
+              pressure: button.querySelector(".move-pressure")?.textContent || "",
               label: button.getAttribute("aria-label") || ""
             }))"""
         )
@@ -1708,12 +1709,18 @@ async def run_smoke_test(base_url: str) -> None:
         expect(any("ノーマル" in entry["meta"] or "くさ" in entry["meta"] for entry in move_ui_state), "技ボタン内にタイプが表示されていません。")
         advice_labels = [label for entry in move_ui_state for label in entry["advice"]]
         effectiveness_labels = [entry["effectiveness"] for entry in move_ui_state if entry["effectiveness"]]
+        pressure_labels = [entry["pressure"] for entry in move_ui_state if entry["pressure"]]
         expect("補助" in advice_labels, "補助技の判断チップが表示されていません。")
         expect("高火力" in advice_labels, "高火力技の判断チップが表示されていません。")
         expect(effectiveness_labels, "攻撃技に相性ピルが表示されていません。")
         expect(
             any(any(keyword in label for keyword in ("弱点", "等倍", "耐性")) for label in effectiveness_labels),
             "相性ピルに弱点/等倍/耐性の判断が表示されていません。",
+        )
+        expect(pressure_labels, "攻撃技に手応えピルが表示されていません。")
+        expect(
+            any(label in ("決定打", "大ダメ", "安定", "標準", "軽め") for label in pressure_labels),
+            "手応えピルに攻撃判断が表示されていません。",
         )
         expect(advice_labels.count("PICK") == 1, "おすすめ技のPICKチップが1つだけ表示されていません。")
         expect("COUNTER" in advice_labels, "反撃チャンス中の技にCOUNTERチップが表示されていません。")
@@ -1728,6 +1735,10 @@ async def run_smoke_test(base_url: str) -> None:
         expect(
             any("相性" in entry["label"] for entry in move_ui_state if entry["effectiveness"]),
             "相性ピルが技ボタンのアクセシブルラベルに反映されていません。",
+        )
+        expect(
+            any("手応え" in entry["label"] for entry in move_ui_state if entry["pressure"]),
+            "手応えピルが技ボタンのアクセシブルラベルに反映されていません。",
         )
         expect("PICK:" in move_pick_message_state["message"], "技選択中におすすめ技の短い案内が表示されていません。")
         expect(
