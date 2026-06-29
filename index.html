@@ -10537,6 +10537,38 @@ select {
       };
     }
 
+    function getBattleCaptureHint(battle) {
+      if (!battle || !battle.enemy) {
+        return { label: "捕獲", aria: "ボール 捕獲を試す" };
+      }
+
+      if (battle.isTrainerBattle) {
+        return { label: "不可", aria: "ボール トレーナー戦では捕獲できない" };
+      }
+
+      const enemy = battle.enemy;
+      const enemySpecies = dataRegistry.getSpecies(enemy.speciesId);
+      const healthRatio = Math.max(0, Math.min(1, enemy.currentHp / Math.max(1, enemy.maxHp)));
+      // throwBall()の通常ボール成功率と同じ式を、表示用に読み取り専用で使う。
+      const chance = Math.max(
+        0,
+        Math.min(1, ((enemySpecies.catchRate || 1) / 255) * (1 - healthRatio * 0.65))
+      );
+      const percent = Math.max(1, Math.round(chance * 100));
+      const label =
+        chance >= 0.72
+          ? "高め"
+          : chance >= 0.48
+            ? "好機"
+            : chance >= 0.26
+              ? "狙える"
+              : "低め";
+      return {
+        label,
+        aria: `ボール 捕獲の手応え ${label} 目安${percent}パーセント`,
+      };
+    }
+
     function createBattleCommandButtons(options) {
       const settings = options || {};
       const wrapper = document.createElement("div");
@@ -10572,8 +10604,8 @@ select {
                 : "たたかう 技を選ぶ"
       );
       const ball = createButton("ボール", "battle-command-button is-ball", null, settings.disabledAll);
-      ball.dataset.commandHint = "捕獲";
-      ball.setAttribute("aria-label", "ボール 捕獲を試す");
+      ball.dataset.commandHint = settings.ballHint || "捕獲";
+      ball.setAttribute("aria-label", settings.ballAria || "ボール 捕獲を試す");
       const run = createButton("にげる", "battle-command-button is-run", null, settings.disabledAll);
       run.dataset.commandHint = "撤退";
       run.setAttribute("aria-label", "にげる 戦闘から離れる");
@@ -11095,6 +11127,7 @@ select {
       const enemyHpRatio = battle.enemy
         ? battle.enemy.currentHp / Math.max(1, battle.enemy.maxHp)
         : 1;
+      const captureHint = getBattleCaptureHint(battle);
       const enemyFinishReady =
         Boolean(battle.enemy) &&
         battle.enemy.currentHp > 0 &&
@@ -11146,6 +11179,8 @@ select {
           rushNearReady: rushUiState.nearReady,
           counterReady: Boolean(battle.counterReady),
           finishReady: enemyFinishReady,
+          ballHint: captureHint.label,
+          ballAria: captureHint.aria,
         }));
         return panel;
       }
@@ -11161,6 +11196,8 @@ select {
             rushNearReady: rushUiState.nearReady,
             counterReady: Boolean(battle.counterReady),
             finishReady: enemyFinishReady,
+            ballHint: captureHint.label,
+            ballAria: captureHint.aria,
           })
         );
         return panel;

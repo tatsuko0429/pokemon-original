@@ -1202,6 +1202,10 @@ async def run_smoke_test(base_url: str) -> None:
                 .find((button) => button.textContent === "たたかう")?.getAttribute("data-command-hint") || "",
               battleFightAria: [...document.querySelectorAll("#action-panel button")]
                 .find((button) => button.textContent === "たたかう")?.getAttribute("aria-label") || "",
+              battleBallHint: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "ボール")?.getAttribute("data-command-hint") || "",
+              battleBallAria: [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "ボール")?.getAttribute("aria-label") || "",
               battleComboText: document.querySelector(".battle-combo-badge")?.textContent || "",
               battleComboAria: document.querySelector(".battle-combo-badge")?.getAttribute("aria-label") || "",
               battleStyleText: document.querySelector(".battle-style-badge")?.textContent || "",
@@ -1250,6 +1254,8 @@ async def run_smoke_test(base_url: str) -> None:
         expect("チャンス" in battle_state["battleRushAria"], "チャンスゲージのアクセシブルラベルがありません。")
         expect(battle_state["battleFightHint"] == "技", "戦闘開始直後のたたかう補助ラベルが通常状態ではありません。")
         expect("技を選ぶ" in battle_state["battleFightAria"], "戦闘開始直後のたたかうアクセシブルラベルが通常状態ではありません。")
+        expect(battle_state["battleBallHint"] in ("高め", "好機", "狙える", "低め"), "ボールボタンに捕獲目安が表示されていません。")
+        expect("捕獲の手応え" in battle_state["battleBallAria"], "ボールボタンのアクセシブルラベルに捕獲目安がありません。")
         expect("CHAIN" in battle_state["battleComboText"], "バトルのコンボ表示が出ていません。")
         expect("コンボ 0" in battle_state["battleComboAria"], "コンボ表示の初期状態が0になっていません。")
         expect("STYLE C" in battle_state["battleStyleText"], "バトルのSTYLE表示が出ていません。")
@@ -1346,7 +1352,11 @@ async def run_smoke_test(base_url: str) -> None:
 
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
+              const runtime = window.MonsterPrototype.runtime;
               const finishRatio = window.MonsterPrototype.config.game.battle.finishHpRatio || 0.25;
+              const species = runtime.dataRegistry.getSpecies(state.battle.enemy.speciesId);
+              window.__battleBallOriginalCatchRate = species.catchRate;
+              species.catchRate = 255;
               state.battle.enemy.currentHp = Math.max(1, Math.floor(state.battle.enemy.maxHp * finishRatio));
               state.battle.display.enemyHp = state.battle.enemy.currentHp;
               state.battle.rush = { gauge: 0, ready: false, lastDelta: 0 };
@@ -1358,16 +1368,22 @@ async def run_smoke_test(base_url: str) -> None:
         )
         await page.waitForFunction(
             """() => [...document.querySelectorAll("#action-panel button")]
-              .some((button) => button.textContent === "たたかう" && button.getAttribute("data-command-hint") === "FINISH")""",
+              .some((button) => button.textContent === "たたかう" && button.getAttribute("data-command-hint") === "FINISH")
+              && [...document.querySelectorAll("#action-panel button")]
+                .some((button) => button.textContent === "ボール" && button.getAttribute("data-command-hint") === "高め")""",
             {"timeout": 1200},
         )
         finish_command_state = await page.evaluate(
             """() => {
               const fight = [...document.querySelectorAll("#action-panel button")]
                 .find((button) => button.textContent === "たたかう");
+              const ball = [...document.querySelectorAll("#action-panel button")]
+                .find((button) => button.textContent === "ボール");
               return {
                 hint: fight?.getAttribute("data-command-hint") || "",
                 aria: fight?.getAttribute("aria-label") || "",
+                ballHint: ball?.getAttribute("data-command-hint") || "",
+                ballAria: ball?.getAttribute("aria-label") || "",
                 enemyFinishCue: document.querySelector(".battle-card.is-enemy .battle-finish-cue")?.textContent || ""
               };
             }"""
@@ -1375,9 +1391,15 @@ async def run_smoke_test(base_url: str) -> None:
         expect(finish_command_state["hint"] == "FINISH", "敵HP低下時のたたかう補助ラベルがFINISHになっていません。")
         expect("フィニッシュ" in finish_command_state["aria"], "FINISH時のたたかうアクセシブルラベルがありません。")
         expect(finish_command_state["enemyFinishCue"] == "FINISH", "敵HPカードのFINISH表示とコマンドヒントが揃っていません。")
+        expect(finish_command_state["ballHint"] == "高め", "捕まえやすい状態でボール補助ラベルが高めになっていません。")
+        expect("捕獲の手応え 高め" in finish_command_state["ballAria"], "ボールの捕獲目安がアクセシブルラベルに反映されていません。")
 
         await page.evaluate(
             """() => window.MonsterPrototype.runtime.store.update((state) => {
+              const species = window.MonsterPrototype.runtime.dataRegistry.getSpecies(state.battle.enemy.speciesId);
+              if (typeof window.__battleBallOriginalCatchRate === "number") {
+                species.catchRate = window.__battleBallOriginalCatchRate;
+              }
               state.battle.enemy.currentHp = state.battle.enemy.maxHp;
               state.battle.display.enemyHp = state.battle.enemy.maxHp;
               state.battle.rush = { gauge: 72, ready: false, lastDelta: 0 };
