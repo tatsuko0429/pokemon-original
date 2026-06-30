@@ -15126,6 +15126,7 @@ select {
       `最高ランク: ${summary.bestRankReport.rank} (${getAdventureReportTitle(summary.bestRankReport)})`,
       `累計: 捕獲 ${summary.totalCaptured} / 戦闘 ${summary.totalBattles} / 敗北 ${summary.totalDefeats}`,
       `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`,
+      formatAdventureReportFocusLine(latest, summary),
       latest ? `最新称号: ${getAdventureReportTitle(latest)}` : "",
       "#初代風モンスター",
     ].filter(Boolean).join("\n");

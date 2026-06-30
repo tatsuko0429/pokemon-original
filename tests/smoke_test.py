@@ -3055,6 +3055,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("ベストタイム: 7分1秒 (ダンゴマル)" in copied_summary_text, "総合共有文にベストタイムが入っていません。")
         expect("累計: 捕獲 5 / 戦闘 18 / 敗北 1" in copied_summary_text, "総合共有文に累計が入っていません。")
         expect("よく使った相棒: ツォルフ (1回)" in copied_summary_text, "総合共有文に相棒サマリーが入っていません。")
+        expect("注目記録: 最新 ツォルフ / 最速 ダンゴマル / 最高ランク ダンゴマル" in copied_summary_text, "総合共有文に注目記録が入っていません。")
         latest_report_button = await page.evaluate(
             """() => {
               const button = [...document.querySelectorAll("#modal-actions button")]
