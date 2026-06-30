@@ -1019,6 +1019,10 @@ async def run_smoke_test(base_url: str) -> None:
             "手持ち画面のモンスター画像が正面表示になっていません。",
         )
         expect(any("HP" in line for line in party_state["modalLines"]), "手持ち画面にHPが表示されていません。")
+        expect(
+            any(line.startswith("EXP ") and "次まで" in line for line in party_state["modalLines"]),
+            "手持ち画面に経験値が表示されていません。",
+        )
         expect(any("PP" in line for line in party_state["modalLines"]), "手持ち画面に技PPが表示されていません。")
         await click_modal_button(page, "メニューへ")
         await asyncio.sleep(0.2)

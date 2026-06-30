@@ -5156,6 +5156,11 @@ select {
 (() => {
   const App = window.MonsterPrototype;
 
+  function getRequiredExpForLevel(level) {
+    const safeLevel = Math.max(1, Number(level) || 1);
+    return safeLevel * safeLevel * 10;
+  }
+
   function createMapById(items, label, errors) {
     const result = new Map();
 
@@ -5739,6 +5744,7 @@ select {
   }
 
   App.core.createDataRegistry = createDataRegistry;
+  App.core.getRequiredExpForLevel = getRequiredExpForLevel;
 })();
 
 </script>
@@ -11278,7 +11284,7 @@ select {
       const enemyFeedback = getBattleFeedback(state, "enemy");
       const playerFeedback = getBattleFeedback(state, "player");
 
-      const requiredExp = playerMonster.level * playerMonster.level * 10;
+      const requiredExp = App.core.getRequiredExpForLevel(playerMonster.level);
       const expRatio = shownExp / requiredExp;
 
       const overlayKey = JSON.stringify({
@@ -11612,7 +11618,7 @@ select {
     }
 
     function requiredExp(level) {
-      return level * level * 10;
+      return App.core.getRequiredExpForLevel(level);
     }
 
     function createExpGainEffect(monster, expGained) {
@@ -15259,6 +15265,13 @@ select {
       });
     }
 
+    function getPartyExpLine(monster) {
+      const required = App.core.getRequiredExpForLevel(monster.level);
+      const current = Math.max(0, Math.min(required, Math.floor(Number(monster.exp) || 0)));
+      const remaining = Math.max(0, required - current);
+      return `EXP ${current}/${required} / 次まで ${remaining}`;
+    }
+
     function canUseFullHeal(state) {
       const playerMonster = state.party[0];
       return Boolean(
@@ -15637,6 +15650,7 @@ select {
         ),
         lines: [
           `HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
+          getPartyExpLine(playerMonster),
           ...getMoveSummaryLines(playerMonster),
         ],
         actions: createBackToMenuActions(openMenu),
