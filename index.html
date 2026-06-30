@@ -10026,7 +10026,8 @@ select {
       const settings = options || {};
       const effectText = getMoveEffectText(move) || "相手にダメージを与える。";
       const powerText = move.power > 0 ? `威力 ${move.power}` : "補助";
-      const accuracyText = move.accuracy > 0 ? `命中 ${move.accuracy}` : "命中 -";
+      const accuracyInfo = getMoveAccuracyInfo(move);
+      const accuracyText = accuracyInfo.aria;
       const pressureText = getMovePressureLabel(move, settings.enemySpecies, settings);
       const effectiveness = getMoveEffectivenessInfo(move, settings.enemySpecies);
       const stylePreview = getMoveStylePreview(move, settings.enemySpecies, settings);

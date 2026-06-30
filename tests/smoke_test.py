@@ -1810,6 +1810,10 @@ async def run_smoke_test(base_url: str) -> None:
             "技長押し説明に効果情報が表示されていません。",
         )
         expect("手応え" in move_hold_state["tipText"], "技長押し説明に手応え情報が表示されていません。")
+        expect(
+            "命中 安定" in move_hold_state["tipText"] or "命中 注意" in move_hold_state["tipText"],
+            "技長押し説明に命中安定度が表示されていません。",
+        )
         expect("おすすめ:" in move_hold_state["tipText"], "おすすめ技の長押し説明にPICK理由が表示されていません。")
         expect("おすすめ理由" in move_hold_state["label"], "おすすめ技のラベルにPICK理由が反映されていません。")
         expect(move_hold_state["phase"] == "moveSelect", "技長押し中に技選択フェーズから外れています。")
