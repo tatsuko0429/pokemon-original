@@ -1019,6 +1019,7 @@ async def run_smoke_test(base_url: str) -> None:
             "手持ち画面のモンスター画像が正面表示になっていません。",
         )
         expect(any("HP" in line for line in party_state["modalLines"]), "手持ち画面にHPが表示されていません。")
+        expect(any("タイプ:" in line for line in party_state["modalLines"]), "手持ち画面にタイプが表示されていません。")
         expect(
             any(line.startswith("EXP ") and "次まで" in line for line in party_state["modalLines"]),
             "手持ち画面に経験値が表示されていません。",
@@ -2466,6 +2467,30 @@ async def run_smoke_test(base_url: str) -> None:
         style_audio_ids = await read_recent_se_ids(page)
         expect("finish" in style_audio_ids, "フィニッシュSEが再生されていません。")
         expect("style" in style_audio_ids, "スタイルボーナスSEが再生されていません。")
+        await page.waitForFunction(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return Boolean(
+                state.battle
+                && state.battle.currentMessage.includes("経験値")
+                && state.battle.currentMessage.includes("次のLvまで あと")
+              );
+            }""",
+            {"timeout": 7000},
+        )
+        exp_progress_message_state = await page.evaluate(
+            """() => {
+              const state = window.MonsterPrototype.runtime.store.snapshot();
+              return {
+                message: state.battle.currentMessage,
+                animationKind: state.battle.animation?.kind || "",
+                pendingExpGain: state.battle.pendingExpGain
+              };
+            }"""
+        )
+        expect("次のLvまで あと" in exp_progress_message_state["message"], "経験値獲得メッセージに次Lvまでの残りが表示されていません。")
+        expect(str(exp_progress_message_state["pendingExpGain"]) in exp_progress_message_state["message"], "経験値獲得メッセージに獲得量が表示されていません。")
+        expect(exp_progress_message_state["animationKind"] == "exp", "経験値獲得メッセージ中にEXP演出が動いていません。")
         await page.evaluate(
             """() => {
               const runtime = window.MonsterPrototype.runtime;

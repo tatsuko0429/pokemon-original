@@ -11632,6 +11632,26 @@ select {
       };
     }
 
+    function getExpProgressAfterGain(monster, expGained) {
+      let nextLevel = monster.level;
+      let nextExp = (monster.exp || 0) + Math.max(0, Number(expGained) || 0);
+      while (nextExp >= requiredExp(nextLevel)) {
+        nextExp -= requiredExp(nextLevel);
+        nextLevel += 1;
+      }
+      const needed = requiredExp(nextLevel);
+      return {
+        level: nextLevel,
+        exp: nextExp,
+        remaining: Math.max(0, needed - nextExp),
+      };
+    }
+
+    function createExpGainMessage(monsterName, monster, expGained) {
+      const progress = getExpProgressAfterGain(monster, expGained);
+      return `${monsterName} は\n${expGained} の 経験値を 獲得した！\n次のLvまで あと ${progress.remaining}`;
+    }
+
     function createResultEffect(variant, target) {
       return {
         kind: "result",
@@ -13292,7 +13312,7 @@ select {
         appendStyleBonusStep(steps, expReward);
         steps.push(
           createStep(
-            `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
+            createExpGainMessage(playerSpecies.name, playerMonster, expGained),
             createExpGainEffect(playerMonster, expGained),
             "exp"
           )
@@ -13425,7 +13445,7 @@ select {
           appendStyleBonusStep(steps, expReward);
           steps.push(
             createStep(
-              `${playerSpecies.name} は\n${expGained} の 経験値を 獲得した！`,
+              createExpGainMessage(playerSpecies.name, playerMonster, expGained),
               createExpGainEffect(playerMonster, expGained),
               "exp"
             )
@@ -15650,6 +15670,7 @@ select {
         ),
         lines: [
           `HP ${playerMonster.currentHp}/${playerMonster.maxHp}`,
+          `タイプ: ${playerSpecies.types.join(" / ")}`,
           getPartyExpLine(playerMonster),
           ...getMoveSummaryLines(playerMonster),
         ],
