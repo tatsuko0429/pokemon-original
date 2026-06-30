@@ -2933,6 +2933,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("最高ランク: A (切り札を使いこなす勝負師)" in report_menu_state["modalLines"], "冒険レポート一覧に最高ランクが表示されていません。")
         expect("冒険の足跡: 捕獲 2 / 戦闘 7 / 敗北 1" in report_menu_state["modalLines"], "冒険レポート一覧に累計サマリーが表示されていません。")
         expect("よく使った相棒: ダンゴマル (1回)" in report_menu_state["modalLines"], "冒険レポート一覧に相棒サマリーが表示されていません。")
+        expect("注目記録: 最新 ダンゴマル / 最速 ダンゴマル / 最高ランク ダンゴマル" in report_menu_state["modalLines"], "冒険レポート一覧に注目記録が表示されていません。")
         expect(any(line.startswith("最新パーティ: ダンゴマル Lv9") for line in report_menu_state["modalLines"]), "冒険レポート一覧に最新パーティが表示されていません。")
         expect("総合記録をコピー" in report_menu_state["modalButtons"], "冒険レポート一覧に総合記録コピー導線がありません。")
         first_report_button = await page.evaluate(
@@ -3033,6 +3034,7 @@ async def run_smoke_test(base_url: str) -> None:
         expect("最高ランク: A (切り札を使いこなす勝負師)" in multi_report_menu_state["modalLines"], "複数履歴の最高ランクが表示されていません。")
         expect("冒険の足跡: 捕獲 5 / 戦闘 18 / 敗北 1" in multi_report_menu_state["modalLines"], "複数履歴の累計サマリーが表示されていません。")
         expect("よく使った相棒: ツォルフ (1回)" in multi_report_menu_state["modalLines"], "複数履歴の相棒サマリーが表示されていません。")
+        expect("注目記録: 最新 ツォルフ / 最速 ダンゴマル / 最高ランク ダンゴマル" in multi_report_menu_state["modalLines"], "複数履歴の注目記録が表示されていません。")
         await page.evaluate(
             """() => {
               window.MonsterPrototype.runtime.clipboardWriter = (text) => {

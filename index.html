@@ -15015,6 +15015,18 @@ select {
     return `記録タグ: ${markers.join(" / ")}`;
   }
 
+  function formatAdventureReportFocusLine(latest, summary) {
+    if (!latest || !summary) {
+      return "";
+    }
+    const latestName = latest.usedMonsterName || "？？？";
+    const bestTimeReport = summary.bestTimeReport || {};
+    const bestRankReport = summary.bestRankReport || {};
+    const bestTimeName = bestTimeReport.usedMonsterName || "？？？";
+    const bestRankName = bestRankReport.usedMonsterName || "？？？";
+    return `注目記録: 最新 ${latestName} / 最速 ${bestTimeName} / 最高ランク ${bestRankName}`;
+  }
+
   function getAdventureReportTitle(report) {
     const items = report && report.items ? report.items : {};
     if (report.rank === "S" && report.defeatCount === 0) {
@@ -15755,7 +15767,8 @@ select {
           `ベストタイム: ${formatPlayTime(summary.bestTimeReport.playTimeMs)} (${summary.bestTimeReport.usedMonsterName})`,
           `最高ランク: ${summary.bestRankReport.rank} (${getAdventureReportTitle(summary.bestRankReport)})`,
           `冒険の足跡: 捕獲 ${summary.totalCaptured} / 戦闘 ${summary.totalBattles} / 敗北 ${summary.totalDefeats}`,
-          `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`
+          `よく使った相棒: ${summary.favoritePartnerName} (${summary.favoritePartnerCount}回)`,
+          formatAdventureReportFocusLine(latest, summary)
         );
       }
       if (copyStatus === "success") {
